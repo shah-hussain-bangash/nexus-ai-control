@@ -88,6 +88,9 @@ const HybridRetrieval = lazy(() =>
 const MemberAdmin = lazy(() =>
   import("./EnterpriseRuntime").then((m) => ({ default: m.MemberAdmin })),
 );
+const EnvironmentSetup = lazy(() =>
+  import("./EnvironmentSetupPanel").then((m) => ({ default: m.EnvironmentSetup })),
+);
 type Row = Record<string, any>;
 const nav = [
   ["overview", "AI command center", LayoutDashboard],
@@ -1815,6 +1818,7 @@ function App() {
                 fallback={<p role="status">Loading account controls…</p>}
               >
                 <MemberAdmin me={me} />
+                <EnvironmentSetup key={`${me.user.org_id}:${me.user.id}`} me={{ user: me.user }} />
               </Suspense>
               <div className="settings-grid">
                 <section className="panel settings-card">

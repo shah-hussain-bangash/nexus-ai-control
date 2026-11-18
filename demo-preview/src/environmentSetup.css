@@ -1,0 +1,61 @@
+.environment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.environment-heading h2,
+.environment-heading h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.environment-boundary {
+  padding: 16px;
+  border: 1px solid var(--border, #b8c6da);
+  border-radius: 10px;
+}
+.environment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.environment-card {
+  border: 1px solid var(--border, #b8c6da);
+  border-radius: 12px;
+  padding: 20px;
+  min-width: 0;
+}
+.environment-card code {
+  overflow-wrap: anywhere;
+}
+.environment-status {
+  border: 1px solid currentColor;
+  border-radius: 30px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.environment-setup .live-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.environment-members {
+  list-style: none;
+  padding: 0;
+}
+.environment-members li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border, #b8c6da);
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .environment-setup .runtime-card,
+  .environment-card {
+    padding: 16px;
+  }
+}
