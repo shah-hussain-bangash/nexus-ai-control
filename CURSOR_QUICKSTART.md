@@ -1,6 +1,7 @@
 # Run NEXUS AI Control in Cursor on Windows
 
-The 0.16.1 candidate requires schema 9. Before upgrading an existing installation,
+The 0.16.2 candidate uses schema 9. Updating 0.16.1 requires a code update and restart;
+read `docs/PHASE_1_RUNTIME_ACCESS.md`. Before upgrading a schema-8 installation,
 follow `docs/PHASE_1_ENVIRONMENT_FOUNDATION.md`: stop all API/workers, make and inspect
 a private backup, then migrate. Fresh setup uses the current schema automatically.
 

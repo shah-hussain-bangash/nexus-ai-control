@@ -5,7 +5,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, func
-from conftest import auth
+from conftest import auth,assign_staging
 from nexus.db import WorkspaceAsset, InferenceCall, InferenceBudget, User, Action, SchemaVersion, migrate
 from nexus.config import Settings
 from nexus.security import issue_session
@@ -151,6 +151,7 @@ def test_engineer_cannot_remove_guardrails_or_activate_model(ctx,monkeypatch):
     h,b,_=setup(ctx,monkeypatch)
     with ctx['db'].begin() as db:
         engineer=User(org_id='northstar',email='engineer@synthetic.invalid',name='Engineer',role='engineer');db.add(engineer);db.flush()
+        assign_staging(db,engineer)
         token,csrf=issue_session(db,engineer,ctx['settings'])
         guard=WorkspaceAsset(org_id='northstar',kind='guardrail',name='Security owned rules',author_id='test',config={'blocked_terms':[],'detect_email':True,'detect_override':True,'mode':'block'});db.add(guard);db.flush();gid=guard.id
     ctx['client'].cookies.set('nexus_session',token);headers={'X-CSRF-Token':csrf}

@@ -1,4 +1,4 @@
-# Production roadmap — 0.16.1
+# Production roadmap — 0.16.2
 
 Generated from `backend/nexus/readiness.py` by `scripts/export_production_roadmap.py`. Update the source definitions, then regenerate these documents.
 

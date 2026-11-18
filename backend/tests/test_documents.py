@@ -1,6 +1,6 @@
 import base64
 from sqlalchemy import select,func
-from conftest import auth
+from conftest import auth,assign_staging
 from nexus.db import DocumentChunk,KnowledgeDocument,Audit
 
 def payload(text='Restricted procurement needle: independent review above USD 5,000.',**changes):
@@ -57,7 +57,9 @@ def test_upload_recovery_never_ingests_again_and_rejects_another_author(ctx):
 
 def test_a_shared_reader_cannot_change_permissions_or_delete_a_document(ctx):
     from nexus.db import User
-    with ctx['db'].begin() as db:db.add(User(id='same-org-engineer',org_id='northstar',email='engineer@test.invalid',name='Scoped engineer',role='engineer'))
+    with ctx['db'].begin() as db:
+        db.add(User(id='same-org-engineer',org_id='northstar',email='engineer@test.invalid',name='Scoped engineer',role='engineer'))
+        db.flush();assign_staging(db,db.get(User,'same-org-engineer'))
     doc=upload(ctx,allowed_roles=['engineer']);h,_=auth(ctx,'engineer')
     assert ctx['client'].get('/v1/documents/'+doc['id']).status_code==200
     assert ctx['client'].put('/v1/documents/'+doc['id']+'/access',headers=h,json={'expected_version':1,'allowed_roles':['auditor'],'note':'Try changing another author access.'}).status_code==403

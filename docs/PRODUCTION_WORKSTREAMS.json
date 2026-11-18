@@ -1,5 +1,5 @@
 {
-  "release": "0.16.1",
+  "release": "0.16.2",
   "scope": "Production extension workstreams; source delivery and deployment acceptance are separate.",
   "implemented": 1,
   "partial": 16,

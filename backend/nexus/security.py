@@ -6,6 +6,7 @@ import jwt
 from fastapi import HTTPException
 from sqlalchemy import select
 from .db import SessionRecord, User, Agent, now
+from .runtime_context import CURRENT_ENVIRONMENT, environment_user_allowed, bind_runtime_context
 
 
 def fail(status, code, message):
@@ -27,6 +28,24 @@ def password_valid(value, stored):
     return hmac.compare_digest(actual, expected)
 
 
+def require_request_context(request, org_id):
+    if request is None:
+        return
+    workspaces=request.headers.getlist('X-Nexus-Workspace')+request.query_params.getlist('workspace')+request.query_params.getlist('org_id')
+    environments=request.headers.getlist('X-Nexus-Environment')+request.query_params.getlist('environment')+request.query_params.getlist('env')
+    if len(set(workspaces))>1 or len(set(environments))>1:
+        fail(400,'CONTEXT_CONFLICT','Conflicting workspace or environment selectors are not permitted.')
+    if workspaces and workspaces[0]!=org_id:
+        fail(403,'WORKSPACE_ACCESS_DENIED','The requested workspace is not available to this identity.')
+    if environments and environments[0]!=CURRENT_ENVIRONMENT:
+        fail(409,'ENVIRONMENT_SWITCHING_UNAVAILABLE','Runtime environment switching is not enabled. Use the current staging environment.')
+
+
+def require_environment_access(db,user,environment=CURRENT_ENVIRONMENT):
+    if not environment_user_allowed(db,user.id,user.org_id,environment):
+        fail(403,'ENVIRONMENT_ACCESS_DENIED','Access to the current environment is unavailable. Contact your workspace owner.')
+
+
 def session_user(request, db, write=False):
     raw = request.cookies.get('nexus_session', '')
     session = db.get(SessionRecord, digest(raw))
@@ -35,6 +54,9 @@ def session_user(request, db, write=False):
     if not user or not user.active: fail(401, 'AUTH_REQUIRED', 'Workspace access is unavailable.')
     if write and not hmac.compare_digest(request.headers.get('X-CSRF-Token', ''), session.csrf):
         fail(403, 'CSRF_FAILED', 'Refresh your session and try again.')
+    require_request_context(request,user.org_id)
+    require_environment_access(db,user)
+    bind_runtime_context(db,user.org_id)
     return user
 
 
@@ -52,6 +74,7 @@ def permit(user, permission):
 
 
 def issue_session(db, user, settings):
+    require_environment_access(db,user)
     token = secrets.token_urlsafe(40); csrf = secrets.token_urlsafe(32)
     db.add(SessionRecord(id=digest(token), user_id=user.id, csrf=csrf, expires=now() + settings.session_seconds))
     return token, csrf
@@ -63,7 +86,7 @@ def workload_token(agent, settings):
                        'iat': int(now()), 'exp': int(now()) + 300}, settings.agent_secret, algorithm='HS256')
 
 
-def authenticate_agent(token, db, settings):
+def authenticate_agent(token, db, settings, request=None):
     try:
         claims = jwt.decode(token, settings.agent_secret, algorithms=['HS256'], audience='nexus-gateway',
                             issuer='nexus-workload', options={'require': ['sub', 'org', 'env', 'exp', 'iat', 'generation']})
@@ -73,4 +96,8 @@ def authenticate_agent(token, db, settings):
         fail(401, 'INVALID_AGENT_TOKEN', 'Workload authentication failed.')
     if agent.status != 'active' or agent.generation != claims['generation']:
         fail(403, 'AGENT_INACTIVE', 'Agent is suspended, revoked or inactive.')
+    require_request_context(request,agent.org_id)
+    if not environment_user_allowed(db,agent.owner_id,agent.org_id,agent.env):
+        fail(403,'ENVIRONMENT_ACCESS_DENIED','The workload environment or owner authorization is unavailable.')
+    bind_runtime_context(db,agent.org_id)
     return agent

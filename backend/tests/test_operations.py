@@ -1,6 +1,6 @@
 import time
 from sqlalchemy import select, func
-from conftest import auth
+from conftest import auth,assign_staging
 from nexus.db import Audit, SessionRecord, OIDCTransaction, Export, User
 from nexus.operations import housekeeping
 
@@ -98,6 +98,8 @@ def test_member_revocation_protects_scope_self_role_and_csrf(ctx):
     with ctx['db'].begin() as db:
         db.add(User(id='security-member',org_id='northstar',email='security@test.invalid',name='Security',role='security'))
         db.add(User(id='second-owner',org_id='northstar',email='owner2@test.invalid',name='Second owner',role='owner'))
+        db.flush()
+        for user_id in ('security-member','second-owner'):assign_staging(db,db.get(User,user_id))
     security_headers,_=auth(ctx,'security')
     assert ctx['client'].post('/v1/members/'+target+'/revoke',headers=security_headers,json={'reason':'Role boundary test'}).status_code==403
     headers,_=auth(ctx)

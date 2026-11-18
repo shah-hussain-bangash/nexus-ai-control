@@ -1,8 +1,9 @@
-# NEXUS AI Control — 0.16.1 candidate
+# NEXUS AI Control — 0.16.2 candidate
 
-Phase 1 environment foundation requires schema 9. Read
-[the scope and upgrade plan](docs/PHASE_1_ENVIRONMENT_FOUNDATION.md) before updating
-an existing database. Runtime environment switching is not enabled in this increment.
+Phase 1 runtime access enforcement uses schema 9. Read
+[the current access scope](docs/PHASE_1_RUNTIME_ACCESS.md) before updating.
+Upgrading from 0.16.1 requires a code update and restart; schema stays 9.
+Runtime environment switching is not enabled in this increment.
 
 **Cursor on Windows:** start with [CURSOR_QUICKSTART.md](CURSOR_QUICKSTART.md).
 Run `npm run setup`, then `npm start` from this folder.

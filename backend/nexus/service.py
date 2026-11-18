@@ -13,8 +13,8 @@ from .business_connector import connector_identity
 def canonical(value): return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
 
 
-def audit(db, org, actor, event, action=None, detail=None):
-    db.add(Audit(org_id=org, actor=actor, event=event, action_id=action.id if action else None,
+def audit(db, org, actor, event, action=None, detail=None, env='staging'):
+    db.add(Audit(org_id=org, env=action.env if action else env, actor=actor, event=event, action_id=action.id if action else None,
                  trace_id=action.trace_id if action else None, detail=detail or {}))
 
 

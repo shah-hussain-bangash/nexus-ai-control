@@ -180,6 +180,8 @@ def register_inference(app, factory, settings, human):
             with factory.begin() as db:
                 locked_org=db.scalar(select(Organization.id).where(Organization.id==org).with_for_update())
                 if not locked_org:fail(403,'WORKSPACE_UNAVAILABLE','Workspace access is unavailable.')
+                current=human(request,db,True,'operate')
+                if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before admission.')
                 row = InferenceCall(org_id=org, key_hash=key_hash, request_hash=fingerprint, author_id=author, asset_id=body.model_id, asset_version=model_version, period=period(), reserved=reserved, input_rate=str(rates['input']), output_rate=str(rates['output']))
                 db.add(row); db.flush()
                 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -201,6 +203,8 @@ def register_inference(app, factory, settings, human):
                 call_id = row.id
         except IntegrityError:
             with factory() as db:
+                current=human(request,db,True,'operate')
+                if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before recovery.')
                 previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == org, InferenceCall.key_hash == key_hash))
                 if previous and previous.request_hash == fingerprint: return public(previous)
                 fail(409, 'IDEMPOTENCY_CONFLICT', 'Refresh the existing request before retrying.')
@@ -215,14 +219,21 @@ def register_inference(app, factory, settings, human):
                 settle(db, row, result['input_tokens'], result['output_tokens'], 'completed', result)
                 row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 audit(db, org, author, 'inference.completed', detail={'call_id': call_id, 'charged_micro_usd': row.charged})
-                return public(row)
+                response=public(row)
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
             with factory.begin() as db:
                 row = db.get(InferenceCall, call_id)
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 row.result = {'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
                 audit(db, org, author, 'inference.unknown', detail={'call_id': call_id})
-                return public(row)
+                response=public(row)
+
+        # Commit provider accounting before rechecking delivery access. Revocation
+        # cannot undo an outbound call, but must prevent its answer being returned.
+        with factory() as db:
+            current=human(request,db,True,'operate')
+            if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed while inference was running.')
+        return response
 
     @app.post('/v1/inference/{id}/reconcile')
     def reconcile(id: str, body: ReconcileInput, request: Request):

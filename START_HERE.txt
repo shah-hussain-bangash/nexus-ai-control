@@ -1,4 +1,6 @@
-NEXUS AI CONTROL 0.16.1 CANDIDATE — ENVIRONMENT FOUNDATION
+NEXUS AI CONTROL 0.16.2 CANDIDATE — RUNTIME ACCESS ENFORCEMENT
+
+Read docs/PHASE_1_RUNTIME_ACCESS.md. Schema remains 9; runtime switching is disabled.
 
 Required schema: 9. Read docs/PHASE_1_ENVIRONMENT_FOUNDATION.md before upgrading.
 Runtime switching is disabled. Existing 0.16.0 release notes below are historical.
