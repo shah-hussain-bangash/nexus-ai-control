@@ -1,4 +1,11 @@
-# 0.6.0 acceptance update
+# Production acceptance reference
+
+The sections below retain historical 0.5/0.6 acceptance requirements. For current
+source delivery states, use `PRODUCTION_ROADMAP.md` and `PRODUCTION_GAPS_0_16_0.md`.
+For the current local baseline review, use `PHASE_0_BASELINE.md`. Historical counts
+and capability descriptions below must not be treated as a fresh verification.
+
+## 0.6.0 acceptance update
 
 The readiness board tracks 18 enterprise roadmap items. Source states and operator-attested evidence remain separate. New local tests cover scoped evidence, optimistic revisions, cursor isolation/expiry, rate/concurrency admission and recovery without re-dispatch. Live service, cloud, PostgreSQL restore, load/security and independent accessibility evidence is still required. PRODUCTION_ROADMAP.md is the current item-by-item scope; the 0.5.0 deployment acceptance details below remain applicable.
 

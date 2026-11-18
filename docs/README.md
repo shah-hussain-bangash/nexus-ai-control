@@ -1,10 +1,15 @@
-# Current documentation — 0.12.0
+# Current documentation — 0.16.0
 
-UPGRADE_0_12_0.md: preserve source/settings/data; schema 7 retained.
-IMPLEMENTATION_REPORT.md / RELEASE_0_12_0.md: actual new source, verification and remaining work.
-BUSINESS_CONNECTOR_0_12_0.md: fixed HTTP compatibility contract and sandbox acceptance.
-OPERATIONS_0_12_0.md: signals, metrics and encrypted backup/inspection.
-IMPLEMENTATION_MATRIX.csv / PRODUCTION_ROADMAP.md: source states and remaining acceptance.
-VERIFICATION.json and 0.12.0 logs: current checks.
-Prior workflow/document guides remain applicable within their named synthetic-mode scope.
-216 design definitions remain separate from runtime implementation and production acceptance.
+- `PRODUCTION_GAPS_0_16_0.md`: detailed implemented boundaries and remaining software.
+- `PRODUCTION_ROADMAP.md` / `PRODUCTION_WORKSTREAMS.json`: current source delivery states, generated from `backend/nexus/readiness.py`.
+- `FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv`: every planned function and its actual runtime boundary.
+- `IMPLEMENTATION_REPORT.md` / `UPGRADE_0_16_0.md`: release behavior and upgrade instructions; schema 8.
+- `HYBRID_RETRIEVAL_0_16_0.md`: ACL-first local LSA/BM25 search and remaining vector/answer-quality work.
+- `IDENTITY_LIFECYCLE_0_16_0.md`: member administration and remaining identity lifecycle work.
+- `PHASE_0_BASELINE.md`: baseline stabilization work, validation and open findings.
+- `VERIFICATION.json`: historical verification for the original 0.16.0 release.
+- Root `CURSOR_VERIFICATION.json`: historical verification of the initial Windows package.
+
+Older numbered release documents and archived reports remain historical evidence.
+Current machine-readable workstream states are checked against the API definitions in CI.
+The 216 design definitions remain separate from runtime implementation and production acceptance.

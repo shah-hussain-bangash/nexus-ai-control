@@ -1,9 +1,9 @@
 {
-  "release": "0.15.0",
+  "release": "0.16.0",
   "scope": "Production extension workstreams; source delivery and deployment acceptance are separate.",
   "implemented": 1,
-  "partial": 15,
-  "not_implemented": 2,
+  "partial": 16,
+  "not_implemented": 1,
   "production_ready": false,
   "accepted_by_default": 0,
   "workstreams": [
@@ -28,15 +28,15 @@
       "title": "Document ingestion & OCR",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Enterprise source synchronization/deletion propagation, layout semantics, Arabic OCR quality and isolated-worker deployment acceptance.",
+      "required_evidence": "Authorized ingestion jobs, parsing, OCR and deletion propagation.",
       "workspace": "documents"
     },
     {
       "id": "semantic_retrieval",
       "title": "Semantic retrieval & reranking",
       "area": "Knowledge",
-      "delivery": "not_implemented",
-      "required_evidence": "Embedding/vector retrieval, ranking and repeatable relevance evidence.",
+      "delivery": "partial",
+      "required_evidence": "Local ACL-first LSA/BM25 retrieval is implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.",
       "workspace": "knowledge"
     },
     {
