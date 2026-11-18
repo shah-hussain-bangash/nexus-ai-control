@@ -1,0 +1,194 @@
+{
+  "modules": [
+    {
+      "module": "01 Connector & MCP hub Engineering",
+      "headings": [
+        "Service connections",
+        "Service connections 1",
+        "Connection schema & authorization",
+        "Tool input contract",
+        "Connection review",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "03 Document ingestion & OCR Knowledge",
+      "headings": [
+        "Document intake jobs",
+        "Document intake jobs 1",
+        "Ingestion queue & extraction review",
+        "Extraction review",
+        "Index handoff",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "04 Semantic search & reranking Knowledge",
+      "headings": [
+        "Retrieval experiments",
+        "Retrieval experiments 1",
+        "Search, citations & relevance feedback",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "05 Knowledge access & data controls Knowledge",
+      "headings": [
+        "Document access policies",
+        "Document access policies 1",
+        "Principal-resource permission matrix",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "06 AI quality & evaluation lab Knowledge",
+      "headings": [
+        "Quality evaluation runs",
+        "Quality evaluation runs 1",
+        "Dataset, rubric & comparison",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "07 Model routing & resilience Runtime",
+      "headings": [
+        "Model route plans",
+        "Model route plans 1",
+        "Primary, fallback & failure handling",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "08 Capacity & traffic policy Runtime",
+      "headings": [
+        "Capacity experiments",
+        "Capacity experiments 1",
+        "Admission, concurrency & backpressure",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "09 AI FinOps & usage reconciliation Runtime",
+      "headings": [
+        "Budget & reconciliation cases",
+        "Budget & reconciliation cases 1",
+        "Cost planning and invoice variance",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "10 Identity, SSO & workload federation Governance",
+      "headings": [
+        "Identity lifecycle cases",
+        "Identity lifecycle cases 1",
+        "Members, role scope & SSO review",
+        "Member lifecycle",
+        "Authentication policy review",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "11 Organizations, workspaces & environments Governance",
+      "headings": [
+        "Workspace environments",
+        "Workspace environments 1",
+        "Membership and environment boundaries",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "12 Secrets, egress & isolation Governance",
+      "headings": [
+        "Secret & egress plans",
+        "Secret & egress plans 1",
+        "Reference inventory and rotation drill",
+        "Reference inventory",
+        "Egress boundary review",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "13 Observability, alerts & service objectives Operations",
+      "headings": [
+        "Alert investigations",
+        "Alert investigations 1",
+        "Alert queue, service signals & response",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "14 Audit archive & evidence integrity Governance",
+      "headings": [
+        "Evidence archive plans",
+        "Evidence archive plans 1",
+        "Event chain and retention review",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "15 Backup, restore & continuity Operations",
+      "headings": [
+        "Backup & restore drills",
+        "Backup & restore drills 1",
+        "Recovery points and restore verification",
+        "Recovery point plan",
+        "Isolated restore destination",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "16 Cloud delivery, environments & rollback Operations",
+      "headings": [
+        "Deployment rehearsals",
+        "Deployment rehearsals 1",
+        "Release pipeline and rollback review",
+        "Release candidate",
+        "Rollback destination",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "17 Security, performance & resilience testing Validation",
+      "headings": [
+        "Security & resilience campaigns",
+        "Security & resilience campaigns 1",
+        "Test matrix and finding triage",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    },
+    {
+      "module": "18 Accessibility, UX & device acceptance Validation",
+      "headings": [
+        "UX acceptance sessions",
+        "UX acceptance sessions 1",
+        "Device, keyboard & screen-reader checklist",
+        "Available actions for “draft”",
+        "Record event timeline"
+      ]
+    }
+  ],
+  "additional_module": "02 Agent runtime & orchestration: save, queue, start, uncertain pause, global navigation keep/discard",
+  "checks": [
+    "All 18 operational screens with synthetic records",
+    "document file chooser metadata 50 bytes",
+    "keyword citation search",
+    "service unavailable and retry",
+    "15px light record title; no page overflow at 1363px"
+  ]
+}

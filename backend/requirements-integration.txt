@@ -1,0 +1,3 @@
+-r requirements-dev.txt
+# Only needed for the disposable local PostgreSQL acceptance harness.
+pgserver==0.1.4

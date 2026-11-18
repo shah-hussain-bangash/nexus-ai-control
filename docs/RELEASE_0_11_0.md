@@ -1,0 +1,35 @@
+# Document lifecycle and retrieval evidence — 0.11.0
+
+17 November 2026 | Schema 7 | Production acceptance remains open.
+
+## Working functions added
+
+**Controlled source replacement.** Document library → Replace content submits a version-checked update to the real authenticated backend. An author or owner/security administrator with operate permission can replace a UTF-8 TXT/MD/CSV/JSON source, title and language. The existing 32 KiB limit and format validation remain. Reader grants stay unchanged. The organization write lock serializes mutations, and content plus chunks are replaced in one transaction. A stale revision or invalid file leaves the previous source intact. Old content is not retained as a readable historical version; hashes and audit metadata describe the transition.
+
+Updates use author/organization-scoped idempotency keys. A committed receipt is acknowledged on replay without reindexing again; a changed body under the same key is rejected. A scoped recovery endpoint acknowledges the original update after a timeout. Current document management permission is rechecked before replay/recovery. Receipts contain metadata, not file content. A definite stale-version rejection clears the rejected browser intent so the operator can review the current source before starting a corrected update. An uncertain response keeps the key.
+
+**Current citation verification.** Search result → Verify citation and inspect checks the authenticated organization, current document ACL, source version and chunk before displaying the source. A content or ACL version change makes old citations stale. Deleted or inaccessible sources return a scope-safe not-found response. A source that changes during the subsequent detail request is not presented as verified at the old version. This is a point-in-time check; previously displayed browser copies cannot be remotely erased.
+
+**Saved retrieval checks.** Document library now contains an actual API-backed retrieval test panel. Configure 1–20 queries with either expected sources (1–5 document IDs per positive case) or an explicit no-results expectation. Choose top 1–10 chunks. The backend executes its current-ACL lexical retrieval and stores immutable configuration/results, actor, corpus count, source versions and corpus fingerprint. It measures document recall@k and reciprocal rank of the first expected chunk for positive cases; a positive case passes only when all expected source documents appear within the top k chunks. A negative case passes only when no authorized chunk is returned. Positive-only aggregate metrics display not applicable when a suite contains only negative cases.
+
+Records are visible only to their author or organization policy administrators. Expected sources must currently be readable. Saved results retain IDs/citations and metrics, not source excerpts. Detail inspection rechecks access to every referenced source; access loss/deletion blocks historical detail rather than leaking it. Changes in the current readable corpus/version/hash mark evidence stale. The corpus is the viewing account's current authorized corpus; inspecting another actor's check may therefore require a rerun even when the original actor's scope has not changed. Rerunning creates new evidence after reviewing the saved cases. Listing supports pagination; at most 100 check records are retained per organization. Removal deletes active queries/results with an audit note; backup/audit retention remains separate.
+
+Creation is idempotent, CSRF-protected and requires operate permission. Recovery is author-scoped and never reruns retrieval. Browser recovery stores only key/fingerprint/time in sessionStorage, not test queries or file text. Draft guards protect unsaved cases. The UI source picker shows the current document page; saved IDs remain visible when reusing a suite. The API accepts any currently authorized source ID.
+
+**Measured boundaries.** These checks are lexical retrieval regression evidence, not LLM answer grading, semantic search quality, independent access-control certification, customer acceptance or production sign-off. Test queries/results are private backend data; review deployment encryption/retention before sensitive test intake. The old Evaluation lab design/rehearsal remains separate from these actual document retrieval checks. Selected design functions link to their bounded working workspace.
+
+## Existing source retained
+
+The v0.10 bounded durable workflow engine, independent checkpoint and purchase-policy review gates, outbox worker, pause/resume/cancel/recovery, document intake/ACL/search/deletion, model gateway, scoped control-plane records and the 216-function long-term design inventory remain. Primary navigation remains 24 views. Customer business effects still use the synthetic connector. No live deployment or user accounts were changed by preparing this ZIP.
+
+## Verification
+
+Backend: 255 tests, 240 passed, 15 skipped, zero failures/errors. Skips require PostgreSQL (6), Keycloak (6) or OPA (3). Frontend: 33 passed, zero failures. Production and isolated preview builds pass. Logs and JUnit are included in VERIFICATION.json references. Schema 6 → 7 preservation, invalid/stale replacement rollback, idempotent content receipts, citation version/ACL/deletion, expected/no-result metrics, author/tenant separation, revoked historical detail and evidence removal are covered. Existing workflow regression tests remain green.
+
+Browser review used an isolated synthetic harness: actual backend-generated fixture metrics, suite editor and draft guard, replacement form, citation confirmation and larger-text desktop layout at 1363px without document-level overflow. Runtime writes are blocked in that harness; actual mutations were tested against disposable backend databases. Browser QA did not certify native Windows, mobile, screen readers, every design screen, live services or production load/security/restore behavior.
+
+## Remaining production scope
+
+The 18-workstream source roadmap remains **1 implemented awaiting deployment acceptance, 14 partial, 3 not implemented**, with zero default accepted gates. This release strengthens partial document/evaluation paths; it does not activate all 216 designs.
+
+Remaining work includes live customer REST/MCP/OAuth/webhook adapters; general workflow graphs/schedules/delegation/compensation; asynchronous enterprise intake/source sync/PDF/OCR/quarantine; embedding/vector/hybrid retrieval and reranking; generated-answer grounding/Arabic-English quality evaluation; federated source permissions, retention/legal holds and readable source rollback if required; SCIM/SAML/workload/environment lifecycle; managed secrets/private networking/egress; off-host telemetry/alerts/audit retention; scheduled encrypted PostgreSQL restore/failover; cloud rollout/rollback; and independent security/load/device/accessibility acceptance. Select applicable requirements for a named deployment and collect actual evidence before calling it production-ready.

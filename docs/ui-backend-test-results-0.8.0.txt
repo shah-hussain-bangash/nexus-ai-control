@@ -1,0 +1,484 @@
+FFFFFFFFFFFFFFFFFF.............................                          [100%]
+=================================== FAILURES ===================================
+_ test_operational_plan_persists_domain_fields_and_state_events[customer_connectors] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e24ee74a0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'customer_connectors', 'title': 'Connector & MCP hub', 'area': 'Engineering', 'tagline': 'Connect deliberately. Control every effect.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Connector & MCP hub · interface plan","description":"Design customer API and MCP connections, tool mappings, scopes, connection tests and approval-bound dispatch.","config":{"module":"customer_connectors","values":{"protocol":"REST","endpoint":"https://service.example.invalid","resource":"synthetic-suppliers","scopes":["suppliers:read","purchase:propose"],"credential_ref":"env:NEXUS_CONNECTOR_TOKEN","effect":"Requires independent approval","timeout_seconds":30,"idempotency":true,"reconciliation":true},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"review_requested","attributes":{"endpoint":"https://api.example.invalid","protocol":"REST","scopes":"suppliers:read","secret_ref":"env:CONNECTOR_TOKEN","schema":"{\"type\":\"object\",\"properties\":{\"supplier_id\":{\"type\":\"string\"}},\"required\":[\"supplier_id\"]}"}}],"events":[{"id":"event-1","record_id":"review-1","command":"request_review","from_state":"draft","to_state":"review_requested","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"3ed5531e7d364068b806a6758b8d27b5","method":"POST","route":"/v1/workbench","status":201,"duration_ms":17.871}
+{"event":"http.request","request_id":"fcf6c0935ae3408784b7099cd1903cf3","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":3.031}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"3ed5531e7d364068b806a6758b8d27b5","method":"POST","route":"/v1/workbench","status":201,"duration_ms":17.871}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"fcf6c0935ae3408784b7099cd1903cf3","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":3.031}
+_ test_operational_plan_persists_domain_fields_and_state_events[durable_agents] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e24c302c0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'durable_agents', 'title': 'Agent runtime & orchestration', 'area': 'Engineering', 'tagline': 'Build recoverable, supervised agent journeys.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Agent runtime & orchestration · interface plan","description":"Prepare durable execution, queues, checkpoints, approvals, retries, cancellation and dead-letter recovery.","config":{"module":"durable_agents","values":{"engine":"Durable worker","queue":"nexus-agent-jobs","max_steps":20,"max_retries":3,"checkpoint_seconds":30,"approval_mode":"Before every write","cancel_propagation":true,"dead_letter":true,"runbook":"Inspect checkpoint, reconcile external effects, then resume."},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"workflow":"Procurement review","max_steps":"8","checkpoint":"checkpoint-001","timeout":"60"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"fd0566742f644912bc41be5533ba8f52","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.422}
+{"event":"http.request","request_id":"b2b4cf0a916c4202a2f17464fc955c22","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.649}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"fd0566742f644912bc41be5533ba8f52","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.422}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"b2b4cf0a916c4202a2f17464fc955c22","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.649}
+_ test_operational_plan_persists_domain_fields_and_state_events[document_ingestion] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e24185e50>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'document_ingestion', 'title': 'Document ingestion & OCR', 'area': 'Knowledge', 'tagline': 'From source files to controlled knowledge.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Document ingestion & OCR · interface plan","description":"Define sources, parsing/OCR jobs, document versions, quarantine, indexing and deletion propagation.","config":{"module":"document_ingestion","values":{"source":"Object storage","collection":"enterprise-handbooks","formats":["PDF","DOCX","TXT","MD"],"language":"Arabic + English","max_file_mb":25,"ocr_mode":"Automatic","quarantine":true,"versioning":true,"deletion":true},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"source":"synthetic-contract.txt","collection":"Procurement knowledge","language":"English","file_bytes":"0","classification":"Internal"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"2d45466e7cd9425db314f68e97ae16f0","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.243}
+{"event":"http.request","request_id":"ee2dc07d171b499a8948743fd70d8fe2","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.199}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"2d45466e7cd9425db314f68e97ae16f0","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.243}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"ee2dc07d171b499a8948743fd70d8fe2","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.199}
+_ test_operational_plan_persists_domain_fields_and_state_events[semantic_retrieval] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e24236cc0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'semantic_retrieval', 'title': 'Semantic search & reranking', 'area': 'Knowledge', 'tagline': 'Retrieve relevant evidence with inspectable rankings.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Semantic search & reranking · interface plan","description":"Prepare embedding routes, vector indexes, hybrid retrieval, reranking, citations and index rebuild workflows.","config":{"module":"semantic_retrieval","values":{"index":"nexus-enterprise-evidence","embedding_provider":"Azure OpenAI","embedding_model":"approved-embedding-route","dimensions":1536,"retrieval":"Hybrid BM25 + vector","top_k":10,"rerank":true,"citations":true,"embedding_secret":"env:NEXUS_EMBEDDING_KEY"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"query":"What is the purchase approval threshold?","top_k":"5","collection":"Procurement knowledge","citation":"SYN-DOC-001 §2","source_excerpt":"Purchases above USD 5,000 require independent review."}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"4239e3be1bee4ac290171271507bfc33","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.159}
+{"event":"http.request","request_id":"5a7d0dcf72d141429ecf600b578407cf","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.05}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"4239e3be1bee4ac290171271507bfc33","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.159}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"5a7d0dcf72d141429ecf600b578407cf","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.05}
+_ test_operational_plan_persists_domain_fields_and_state_events[document_permissions] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e2410d4c0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'document_permissions', 'title': 'Knowledge access & data controls', 'area': 'Knowledge', 'tagline': 'Keep every answer within its source permissions.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Knowledge access & data controls · interface plan","description":"Design collection ACLs, principal mappings, deny precedence, permission simulation, retention and deletion reviews.","config":{"module":"document_permissions","values":{"collection":"enterprise-handbooks","principal_source":"Identity provider groups","allowed_groups":["knowledge-readers","procurement-reviewers"],"default_access":"Deny","deny_precedence":true,"sync_minutes":15,"retention_days":365,"deletion_review":true,"owner_group":"knowledge-owners"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"review_requested","attributes":{"principal":"synthetic-analyst","resource":"Procurement knowledge","role":"Reader","classification":"Internal","allow_export":"No"}}],"events":[{"id":"event-1","record_id":"review-1","command":"request_review","from_state":"draft","to_state":"review_requested","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"d477170fd4a9444cbaa7157ab1a09617","method":"POST","route":"/v1/workbench","status":201,"duration_ms":17.213}
+{"event":"http.request","request_id":"cd86b1a273ba43f7b8772e9af8e08c80","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.308}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"d477170fd4a9444cbaa7157ab1a09617","method":"POST","route":"/v1/workbench","status":201,"duration_ms":17.213}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"cd86b1a273ba43f7b8772e9af8e08c80","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.308}
+_ test_operational_plan_persists_domain_fields_and_state_events[answer_evaluation] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f766210>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'answer_evaluation', 'title': 'AI quality & evaluation lab', 'area': 'Knowledge', 'tagline': 'Measure the answers you intend to ship.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"AI quality & evaluation lab · interface plan","description":"Prepare bilingual datasets, grounded-answer rubrics, safety cases, release comparisons and evaluation reports.","config":{"module":"answer_evaluation","values":{"dataset":"bilingual-evidence-v1","languages":"Arabic + English","rubrics":["Grounding","Relevance","Citation correctness","Refusal behavior"],"sample_size":100,"pass_score":85,"reviewer":"Human + model-assisted","adversarial":true,"regression":true,"owner_group":"ai-quality-reviewers"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"dataset":"Synthetic bilingual procurement","candidate":"prompt-v2","baseline":"prompt-v1","rubric":"Grounding, citation accuracy, refusal","expected":"Independent review is required above USD 5,000.","check_0":"Unreviewed","check_1":"Unreviewed","check_2":"Unreviewed"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"0b9b954602134e4cb10c931d9bfd9839","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.487}
+{"event":"http.request","request_id":"b2cbae07612341c898cdd268194531ea","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.144}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"0b9b954602134e4cb10c931d9bfd9839","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.487}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"b2cbae07612341c898cdd268194531ea","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.144}
+_ test_operational_plan_persists_domain_fields_and_state_events[provider_resilience] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f622cf0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'provider_resilience', 'title': 'Model routing & resilience', 'area': 'Runtime', 'tagline': 'Route model requests with controlled failure behavior.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Model routing & resilience · interface plan","description":"Design provider routes, streaming, timeouts, fallback policies, circuit states and token accounting.","config":{"module":"provider_resilience","values":{"routes":["azure-primary","approved-fallback"],"routing":"Primary with reviewed fallback","deadline_seconds":60,"failure_threshold":5,"cooldown_seconds":60,"streaming":true,"fallback_review":true,"account_usage":true,"secret_ref":"env:NEXUS_PROVIDER_PRIMARY_KEY"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"primary":"route-primary","fallback":"route-fallback","retry_limit":"2","timeout":"30","region":"UAE"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"e4603f8b4c5d4bd09d672ef8bd045ff6","method":"POST","route":"/v1/workbench","status":201,"duration_ms":21.333}
+{"event":"http.request","request_id":"6e1d947d7f8e4a75af46bd0380155ce3","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.15}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"e4603f8b4c5d4bd09d672ef8bd045ff6","method":"POST","route":"/v1/workbench","status":201,"duration_ms":21.333}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"6e1d947d7f8e4a75af46bd0380155ce3","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.15}
+_ test_operational_plan_persists_domain_fields_and_state_events[traffic_controls] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f6f5a60>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'traffic_controls', 'title': 'Capacity & traffic policy', 'area': 'Runtime', 'tagline': 'Protect shared inference capacity.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Capacity & traffic policy · interface plan","description":"Prepare organization quotas, request admission, concurrency windows, workload priorities and saturation diagnostics.","config":{"module":"traffic_controls","values":{"policy_name":"staging-inference-policy","requests_per_minute":30,"max_inflight":4,"pending_window":300,"priority":"Standard","saturation":"Reject with retry guidance","tenant_scope":true,"preserve_replays":true},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"requests":"60","rate_limit":"30","concurrency":"4","duration":"10"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"1a773ad4b27e469eb504bead6c2ed61e","method":"POST","route":"/v1/workbench","status":201,"duration_ms":25.004}
+{"event":"http.request","request_id":"3fa5626582ad4612b11467755d5c2546","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.567}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"1a773ad4b27e469eb504bead6c2ed61e","method":"POST","route":"/v1/workbench","status":201,"duration_ms":25.004}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"3fa5626582ad4612b11467755d5c2546","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.567}
+_ test_operational_plan_persists_domain_fields_and_state_events[usage_governance] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f5a1790>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'usage_governance', 'title': 'AI FinOps & usage reconciliation', 'area': 'Runtime', 'tagline': 'Connect cost plans to explainable usage evidence.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"AI FinOps & usage reconciliation · interface plan","description":"Design pricing versions, reservation alerts, invoice imports, discrepancy review and cost allocation reports.","config":{"module":"usage_governance","values":{"cost_center":"enterprise-ai-engineering","currency":"USD","monthly_limit":500,"alert_percent":80,"variance_percent":5,"allocation":"Organization + workload","invoice_review":true,"unknown_holds":true,"finance_group":"ai-finops-reviewers"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"budget":"100","estimated":"12.50","actual":"13.25","invoice":"SYN-INV-001","cost_center":"Platform engineering"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"4da8495b75bf41abbc9e495a607376e7","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.912}
+{"event":"http.request","request_id":"23f7c3682e9d498f9d16a21c8c9f94cd","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.625}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"4da8495b75bf41abbc9e495a607376e7","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.912}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"23f7c3682e9d498f9d16a21c8c9f94cd","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.625}
+_ test_operational_plan_persists_domain_fields_and_state_events[identity_lifecycle] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f5a2bd0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'identity_lifecycle', 'title': 'Identity, SSO & workload federation', 'area': 'Governance', 'tagline': 'Manage identities from provisioning to revocation.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Identity, SSO & workload federation · interface plan","description":"Design IdP lifecycle, group/role mappings, MFA requirements, service identity and owner-transfer workflows.","config":{"module":"identity_lifecycle","values":{"issuer":"https://identity.example.invalid","client_id":"nexus-console","groups":["nexus-owners","nexus-engineers","nexus-reviewers"],"mfa_context":"reviewed-mfa-context","session_minutes":60,"offboarding":true,"workload_federation":true,"owner_transfer":"Independent owner review","client_secret_ref":"env:NEXUS_OIDC_CLIENT_SECRET"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"review_requested","attributes":{"email":"member@example.invalid","role":"Reviewer","identity_provider":"Organization OIDC","mfa":"Required","expiry":"2026-12-17"}}],"events":[{"id":"event-1","record_id":"review-1","command":"request_review","from_state":"draft","to_state":"review_requested","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"851a64beb8b645faa1b91f59631f33d0","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.798}
+{"event":"http.request","request_id":"66b07045609541dbab358a805966038e","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.578}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"851a64beb8b645faa1b91f59631f33d0","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.798}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"66b07045609541dbab358a805966038e","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.578}
+_ test_operational_plan_persists_domain_fields_and_state_events[workspace_lifecycle] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f4e12e0>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'workspace_lifecycle', 'title': 'Organizations, workspaces & environments', 'area': 'Governance', 'tagline': 'Create safe boundaries for every deployment stage.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Organizations, workspaces & environments · interface plan","description":"Prepare workspace creation, environment promotion, membership, data boundaries and lifecycle policies.","config":{"module":"workspace_lifecycle","values":{"organization":"Example enterprise workspace","workspace":"enterprise-ai","environment":"Staging","region":"Existing approved region","owners":["workspace-owners"],"promotion":"Reviewed artifact promotion","isolated_data":true,"membership_review":true,"review_days":90},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"review_requested","attributes":{"workspace":"Synthetic sandbox","environment":"Development","region":"UAE","membership":"platform-reviewers"}}],"events":[{"id":"event-1","record_id":"review-1","command":"request_review","from_state":"draft","to_state":"review_requested","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"5e0a60be96b540a980a0730612af3943","method":"POST","route":"/v1/workbench","status":201,"duration_ms":6.894}
+{"event":"http.request","request_id":"0b43a927730e4772baffdc772c66ee7b","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.26}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"5e0a60be96b540a980a0730612af3943","method":"POST","route":"/v1/workbench","status":201,"duration_ms":6.894}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"0b43a927730e4772baffdc772c66ee7b","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.26}
+_ test_operational_plan_persists_domain_fields_and_state_events[secrets_network] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f39e270>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'secrets_network', 'title': 'Secrets, egress & isolation', 'area': 'Governance', 'tagline': 'Make secret and network boundaries explicit.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Secrets, egress & isolation · interface plan","description":"Design managed-secret references, rotation, outbound allowlists, private endpoints and connector isolation.","config":{"module":"secrets_network","values":{"secret_backend":"Existing approved vault","secret_reference":"secret://nexus/staging/service-token","allowed_hosts":["api.example.invalid"],"network":"Private egress gateway","rotation_days":30,"tls_verify":true,"isolate_connectors":true,"no_secret_logs":true,"rotation_owner":"platform-security"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"review_requested","attributes":{"secret_ref":"secret://nexus/provider/key","host":"api.example.invalid","rotation_days":"30","scope":"model-gateway","egress":"Deny by default"}}],"events":[{"id":"event-1","record_id":"review-1","command":"request_review","from_state":"draft","to_state":"review_requested","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"11928bfaf4fc4efcb0911e06e52ae297","method":"POST","route":"/v1/workbench","status":201,"duration_ms":6.561}
+{"event":"http.request","request_id":"9370331660b64cd98c2d54ab624a27a6","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.118}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"11928bfaf4fc4efcb0911e06e52ae297","method":"POST","route":"/v1/workbench","status":201,"duration_ms":6.561}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"9370331660b64cd98c2d54ab624a27a6","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.118}
+_ test_operational_plan_persists_domain_fields_and_state_events[telemetry_alerts] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f265970>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'telemetry_alerts', 'title': 'Observability, alerts & service objectives', 'area': 'Operations', 'tagline': 'Turn runtime evidence into actionable operations.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Observability, alerts & service objectives · interface plan","description":"Prepare traces, metrics, log sinks, alert rules, service objectives and incident escalation policies.","config":{"module":"telemetry_alerts","values":{"collector":"https://telemetry.example.invalid","service_name":"nexus-control-plane","signals":["Traces","Metrics","Structured logs"],"sampling_percent":10,"latency_target_ms":2000,"availability_target":99,"notification_ref":"ops-channel-reference","redact_logs":true,"escalation":true},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"open","attributes":{"service":"Execution worker","severity":"Warning","signal":"Queue age","threshold":"60","runbook":"OPS-QUEUE-001"}}],"events":[{"id":"event-1","record_id":"review-1","command":"triage","from_state":"draft","to_state":"open","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"512188f1109b4119be9a0475ddb8db4b","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.459}
+{"event":"http.request","request_id":"d0322d17491f47e2a3c3f7392705805e","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.943}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"512188f1109b4119be9a0475ddb8db4b","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.459}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"d0322d17491f47e2a3c3f7392705805e","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.943}
+_ test_operational_plan_persists_domain_fields_and_state_events[audit_retention] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f129d30>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'audit_retention', 'title': 'Audit archive & evidence integrity', 'area': 'Governance', 'tagline': 'Preserve a verifiable chain of operational evidence.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Audit archive & evidence integrity · interface plan","description":"Design immutable archive destinations, retention, export manifests, integrity checks and legal-hold handling.","config":{"module":"audit_retention","values":{"archive":"approved-audit-archive","storage":"Approved immutable archive","retention_days":365,"export_format":"JSON + signed manifest","immutable":true,"hash_manifest":true,"legal_hold":true,"signing_ref":"secret://nexus/audit/signing-key","custodian":"audit-custodians"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"archive":"SYN-ARCHIVE-001","retention_days":"365","custodian":"Security operations","classification":"Internal","legal_hold":"No"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"05da0e03e7f54fa5a9626a6f55bc7094","method":"POST","route":"/v1/workbench","status":201,"duration_ms":10.543}
+{"event":"http.request","request_id":"0f62f90d9ceb48ceb558c36c0412603a","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.078}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"05da0e03e7f54fa5a9626a6f55bc7094","method":"POST","route":"/v1/workbench","status":201,"duration_ms":10.543}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"0f62f90d9ceb48ceb558c36c0412603a","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":2.078}
+___ test_operational_plan_persists_domain_fields_and_state_events[recovery] ____
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f1e2a80>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'recovery', 'title': 'Backup, restore & continuity', 'area': 'Operations', 'tagline': 'Make recovery a rehearsed workflow.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Backup, restore & continuity · interface plan","description":"Prepare backup schedules, encryption references, isolated restore drills, RPO/RTO and recovery evidence.","config":{"module":"recovery","values":{"backup_target":"approved-offsite-backups","schedule":"Daily at 02:00 UTC","retention_days":30,"rpo_minutes":60,"rto_minutes":120,"encryption_key":"secret://nexus/backup/encryption-key","quiesce":true,"isolated_restore":true,"drill_owner":"platform-recovery"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"backup":"SYN-BACKUP-001","target":"Isolated staging","rpo":"60","rto":"30","encryption_ref":"secret://nexus/backup/key"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"ec2eb9b5b55341fb993be00eb26ae9f5","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.038}
+{"event":"http.request","request_id":"9fab2d6a733847c3b109a91c4d6855cf","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.423}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"ec2eb9b5b55341fb993be00eb26ae9f5","method":"POST","route":"/v1/workbench","status":201,"duration_ms":7.038}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"9fab2d6a733847c3b109a91c4d6855cf","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.423}
+_ test_operational_plan_persists_domain_fields_and_state_events[cloud_delivery] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1f09f350>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'cloud_delivery', 'title': 'Cloud delivery, environments & rollback', 'area': 'Operations', 'tagline': 'Promote reviewed artifacts with visible release gates.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Cloud delivery, environments & rollback · interface plan","description":"Prepare deployment targets, immutable artifacts, staged rollout, health gates, approvals and rollback plans.","config":{"module":"cloud_delivery","values":{"target":"AWS","artifact":"registry.example.invalid/nexus@sha256:REVIEWED_DIGEST","environment":"staging","strategy":"Canary","canary_percent":10,"approval":true,"health_gate":true,"rollback_artifact":"previous-reviewed-artifact","rollback_note":"Stop rollout, restore compatible artifact and data, then verify readiness."},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"release":"0.8.0","artifact":"sha256:synthetic-review-only","environment":"Staging","canary":"10","rollback":"0.7.0"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"835d9ca9995b413ea78aac620248232f","method":"POST","route":"/v1/workbench","status":201,"duration_ms":14.599}
+{"event":"http.request","request_id":"d7e1beb3148a4399b00641184ac0dfbe","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":14.211}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"835d9ca9995b413ea78aac620248232f","method":"POST","route":"/v1/workbench","status":201,"duration_ms":14.599}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"d7e1beb3148a4399b00641184ac0dfbe","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":14.211}
+_ test_operational_plan_persists_domain_fields_and_state_events[security_load] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1ef6dd00>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'security_load', 'title': 'Security, performance & resilience testing', 'area': 'Validation', 'tagline': 'Prove boundaries under failure and load.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Security, performance & resilience testing · interface plan","description":"Prepare threat models, scans, penetration/load tests, findings, exceptions and release-blocking evidence.","config":{"module":"security_load","values":{"scope":"isolated-staging-control-plane","environment":"Isolated staging","suites":["Dependency scan","Tenant isolation","Load test","Failure recovery"],"virtual_users":25,"duration_minutes":15,"release_gate":"Block critical/high findings","authorization":true,"retain_evidence":true,"reviewer":"security-reviewers"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"suite":"Tenant isolation regression","test_type":"Security","concurrency":"20","duration":"60","finding":"SYN-FINDING-001","check_0":"Unreviewed","check_1":"Unreviewed","check_2":"Unreviewed"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"7b346879602747e981a78240d57b5640","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.661}
+{"event":"http.request","request_id":"3639cfb42b144760b00abc44577aa679","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.422}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"7b346879602747e981a78240d57b5640","method":"POST","route":"/v1/workbench","status":201,"duration_ms":8.661}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"3639cfb42b144760b00abc44577aa679","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.422}
+_ test_operational_plan_persists_domain_fields_and_state_events[accessibility] _
+
+ctx = {'app': <fastapi.applications.FastAPI object at 0x7f6e1ee2f830>, 'db': sessionmaker(class_='Session', bind=Engine(sqli...ts='', provider_prices='{}', monthly_budget_usd='0', inference_max_output=4096, inference_response_bytes=1048576), ...}
+spec = {'id': 'accessibility', 'title': 'Accessibility, UX & device acceptance', 'area': 'Validation', 'tagline': 'Keep every workflow understandable and usable.', ...}
+
+    @pytest.mark.parametrize('spec',catalog()['modules'],ids=lambda s:s['id'])
+    def test_operational_plan_persists_domain_fields_and_state_events(ctx,spec):
+        headers,_=auth(ctx);body=payload(spec);state=operational(spec);body['config']['operational_state']=state
+        response=ctx['client'].post('/v1/workbench',headers=headers,json=body)
+        assert response.status_code==201,response.text
+        row=response.json();command=spec['operations']['commands'][0];state['records'][0]['state']=command['to_state']
+        state['events'].append({'id':'event-1','record_id':'review-1','command':command['id'],'from_state':'draft','to_state':command['to_state'],'at':'2026-11-17T12:00:00Z','note':'Reviewed synthetic operational journey.','scenario':'happy_path'})
+        result=ctx['client'].put('/v1/workbench/'+row['id'],headers=headers,json={'expected_version':row['version'],'name':row['name'],'description':row['description'],'config':body['config']})
+>       assert result.status_code==200,result.text
+E       AssertionError: {"detail":[{"type":"missing","loc":["body","kind"],"msg":"Field required","input":{"expected_version":1,"name":"Accessibility, UX & device acceptance · interface plan","description":"Prepare text, contrast, keyboard, screen-reader, responsive-device and error-recovery acceptance.","config":{"module":"accessibility","values":{"text_mode":"Comfortable","devices":["Desktop Chrome","Desktop Edge","Mobile browser"],"languages":["English","Arabic content rendering"],"keyboard":true,"screen_reader":true,"contrast":true,"responsive":true,"error_recovery":true,"reviewer":"product-accessibility-reviewers"},"phase":"planned","ui_checks":{},"surface_rows":[],"operational_state":{"records":[{"id":"review-1","title":"Synthetic review","owner":"Platform team","state":"queued","attributes":{"device":"Desktop","browser":"Chrome","assistive":"Keyboard only","zoom":"200","finding":"Synthetic review session","check_0":"Unreviewed","check_1":"Unreviewed","check_2":"Unreviewed","check_3":"Unreviewed"}}],"events":[{"id":"event-1","record_id":"review-1","command":"queue","from_state":"draft","to_state":"queued","at":"2026-11-17T12:00:00Z","note":"Reviewed synthetic operational journey.","scenario":"happy_path"}]}}}}]}
+E       assert 422 == 200
+E        +  where 422 = <Response [422 Unprocessable Entity]>.status_code
+
+tests/test_operational_ui.py:21: AssertionError
+----------------------------- Captured stderr call -----------------------------
+{"event":"http.request","request_id":"577fbdc4fde2492fbba1078a4a3d782a","method":"POST","route":"/v1/workbench","status":201,"duration_ms":11.188}
+{"event":"http.request","request_id":"d05eb2501fca4ec08d99521be66c5f99","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.106}
+------------------------------ Captured log call -------------------------------
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"577fbdc4fde2492fbba1078a4a3d782a","method":"POST","route":"/v1/workbench","status":201,"duration_ms":11.188}
+INFO     nexus.http:http_controls.py:53 {"event":"http.request","request_id":"d05eb2501fca4ec08d99521be66c5f99","method":"PUT","route":"/v1/workbench/{id}","status":422,"duration_ms":1.106}
+=============================== warnings summary ===============================
+../../../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/anyio/pytest_plugin.py:14: PytestRemovedIn10Warning: _pytest.python.CallSpec2 has been renamed to CallSpec.
+  The CallSpec2 alias will be removed in pytest 10.
+  Update imports to use CallSpec instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#callspec2-renamed
+    from _pytest.python import CallSpec2
+
+../../../../../../opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[customer_connectors]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[durable_agents]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[document_ingestion]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[semantic_retrieval]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[document_permissions]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[answer_evaluation]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[provider_resilience]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[traffic_controls]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[usage_governance]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[identity_lifecycle]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[workspace_lifecycle]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[secrets_network]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[telemetry_alerts]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[audit_retention]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[recovery]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[cloud_delivery]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[security_load]
+FAILED tests/test_operational_ui.py::test_operational_plan_persists_domain_fields_and_state_events[accessibility]

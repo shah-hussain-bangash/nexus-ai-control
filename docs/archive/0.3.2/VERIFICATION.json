@@ -1,0 +1,50 @@
+{
+  "release": "0.3.2",
+  "date": "2026-11-14",
+  "full_integration": {
+    "engine": "PostgreSQL 16.2",
+    "opa": "1.0.1",
+    "keycloak": "26.0.7",
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0,
+    "release": "0.3.0",
+    "rerun_for_current_patch": false
+  },
+  "sqlite_regression": {
+    "passed": 88,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "collected": 103,
+    "release": "0.3.2",
+    "junit": "docs/sqlite-test-results-0.3.2.xml"
+  },
+  "keycloak_cases_in_full_total": 6,
+  "postgresql_race_cases_in_full_total": 6,
+  "operations_cases_in_full_total": 9,
+  "frontend_build": "passed",
+  "browser_review": "Historical 0.3.1 synthetic preview review retained; not repeated for 0.3.2.",
+  "production_ready": false,
+  "remaining": [
+    "multi-workspace/environment access and assigned-object access",
+    "workload federation, IdP lifecycle and owner-transfer workflow",
+    "customer connector and managed secrets/egress isolation",
+    "external telemetry, alerts, provider billing and atomic budgets",
+    "maintenance scheduling and verified recovery",
+    "customer cloud deployment and independent readiness review"
+  ],
+  "functional_suite_baseline_release": "0.3.0",
+  "current_patch_checks": [
+    "SQLite regression: 88 passed, 15 skipped, 0 failures/errors",
+    "Real-process local API + worker: sign-in, queued supplier lookup, verified outcome, Ctrl+C shutdown",
+    "Compiled PNG/SVG bytes, image MIME types and PNG decode verified",
+    "TypeScript/Vite application build passed"
+  ],
+  "windows_native_smoke": "not run; wrappers supplied and reviewed",
+  "current_patch_skipped_integrations": {
+    "keycloak": 6,
+    "postgresql": 6,
+    "opa": 3
+  }
+}

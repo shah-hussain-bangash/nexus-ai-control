@@ -1,0 +1,17 @@
+
+> nexus-control-console@0.3.3 test
+> node --experimental-strip-types --test tests/runIntent.test.ts
+
+✔ a new acknowledged intent gets a fresh key even with identical fields (4.124384ms)
+✔ an uncertain response retains its key for a retry, including after commit (0.813745ms)
+✔ different payloads do not share an uncertain request key (0.591178ms)
+✔ an incomplete acknowledgement must not retire the recovery key (1.864896ms)
+✔ success feedback identifies the actual reference and independent review state (1.139586ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 426.952766

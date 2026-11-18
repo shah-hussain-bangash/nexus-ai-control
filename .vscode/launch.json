@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "NEXUS: Debug API and worker",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "nexus.local",
+      "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "cwd": "${workspaceFolder}/backend",
+      "args": [],
+      "console": "integratedTerminal",
+      "subProcess": true,
+      "justMyCode": true
+    }
+  ]
+}

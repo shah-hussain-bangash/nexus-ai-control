@@ -1,0 +1,33 @@
+{
+  "release": "0.4.0",
+  "date": "2026-11-17",
+  "schema": 3,
+  "sqlite_regression": {
+    "collected": 121,
+    "passed": 106,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.4.0.xml"
+  },
+  "skipped_external_services": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "frontend_regression": {
+    "passed": 5,
+    "failed": 0,
+    "evidence": "docs/frontend-test-results-0.4.0.txt"
+  },
+  "frontend_build": "passed",
+  "read_only_preview_build": "passed",
+  "browser_review": "Desktop synthetic read-only fixture: command center, workflow canvas, editor, history and run evidence. Actual API writes and permissions covered by backend tests.",
+  "native_windows_040_tested": false,
+  "production_ready": false,
+  "live_llm_connected": false,
+  "customer_connectors_connected": false,
+  "cloud_deployed": false,
+  "mobile_and_formal_accessibility_audit": false,
+  "remaining_report": "docs/IMPLEMENTATION_REPORT.md"
+}

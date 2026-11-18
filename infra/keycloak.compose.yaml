@@ -1,0 +1,10 @@
+# Optional LOCAL identity-provider fixture. Not started by the normal quickstart.
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: [start-dev, --import-realm]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: nexus-admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?Set a unique local Keycloak admin password in your environment}
+    ports: [127.0.0.1:8080:8080]
+    volumes: [./keycloak-realm.json:/opt/keycloak/data/import/nexus-realm.json:ro]

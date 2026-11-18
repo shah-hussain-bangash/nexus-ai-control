@@ -1,0 +1,53 @@
+# Local synthetic PostgreSQL + OPA composition. Not a hardened production topology.
+x-runtime: &runtime
+  NEXUS_DATABASE_URL: postgresql+psycopg://nexus:${POSTGRES_PASSWORD:?Run scripts/prepare_compose.py first}@postgres:5432/nexus
+  NEXUS_MOCK_DATABASE: /app/backend/data/mock_business.db
+  NEXUS_SECRET: ${NEXUS_SECRET:?Run scripts/prepare_compose.py first}
+  NEXUS_AGENT_SECRET: ${NEXUS_AGENT_SECRET:?Run scripts/prepare_compose.py first}
+  NEXUS_MODE: local
+  NEXUS_POLICY_MODE: opa
+  NEXUS_OPA_URL: http://opa:8181/v1/data/nexus/decision
+  NEXUS_ORIGIN: http://localhost:8000
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nexus
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U nexus -d nexus]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  opa:
+    image: openpolicyagent/opa:1.0.1-static
+    command: [run, --server, --addr=0.0.0.0:8181, /policies]
+    volumes: [./policies:/policies:ro]
+  init:
+    build: .
+    environment: *runtime
+    command: [python, -m, nexus.cli, init]
+    depends_on:
+      postgres: {condition: service_healthy}
+    volumes: [business_data:/app/backend/data]
+  api:
+    build: .
+    environment: *runtime
+    ports: [127.0.0.1:8000:8000]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      opa: {condition: service_started}
+    volumes: [business_data:/app/backend/data]
+  worker:
+    build: .
+    environment: *runtime
+    command: [python, -m, nexus.worker]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      opa: {condition: service_started}
+    volumes: [business_data:/app/backend/data]
+volumes:
+  postgres_data:
+  business_data:

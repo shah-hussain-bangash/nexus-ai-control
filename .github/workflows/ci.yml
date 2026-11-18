@@ -1,0 +1,57 @@
+name: NEXUS checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest --junitxml=test-results.xml
+        working-directory: backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: backend-tests, path: backend/test-results.xml}
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22', cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci && npm test && npm run build
+        working-directory: frontend
+  opa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker run --rm -v "$PWD/policies:/policies:ro" openpolicyagent/opa:1.0.1-static test /policies
+  postgresql:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        # Disposable CI-only credentials; never use these values in a deployment.
+        env:
+          POSTGRES_DB: nexus_ci
+          POSTGRES_USER: nexus_ci
+          POSTGRES_PASSWORD: ci_disposable_only
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U nexus_ci -d nexus_ci"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      NEXUS_TEST_DATABASE_URL: postgresql+psycopg://nexus_ci:ci_disposable_only@127.0.0.1:5432/nexus_ci
+      NEXUS_TEST_ALLOW_SCHEMA_CREATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest --junitxml=../docs/postgresql-ci-results.xml
+        working-directory: backend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: postgresql-tests, path: docs/postgresql-ci-results.xml}

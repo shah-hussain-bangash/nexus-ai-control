@@ -1,0 +1,8 @@
+nexus-ai-control/policies/nexus_test.rego:
+data.nexus_test.test_read_allowed: PASS (759.339µs)
+data.nexus_test.test_unknown_denied: PASS (542.924µs)
+data.nexus_test.test_threshold_allowed: PASS (1.307434ms)
+data.nexus_test.test_above_threshold_reviewed: PASS (816.586µs)
+data.nexus_test.test_above_maximum_denied: PASS (517.457µs)
+--------------------------------------------------------------------------------
+PASS: 5/5

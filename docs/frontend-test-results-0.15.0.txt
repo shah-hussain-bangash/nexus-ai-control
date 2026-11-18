@@ -1,0 +1,63 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nexus-control-console@0.15.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ all 216 function screens have valid domain controls, role guidance, states and handoff (11.519089ms)
+✔ UI review phase requires manual acceptance and remains a planning phase (0.483495ms)
+✔ every function action and screen state has an effect-free preview (13.423141ms)
+✔ unknown actions, blank review notes and unknown scenarios are rejected (0.616251ms)
+✔ secret references and percentage boundaries validate before saving (0.430887ms)
+✔ a reload recovers only scoped key and fingerprint metadata (2.533773ms)
+✔ invalid or corrupt recovery state is ignored (0.344359ms)
+✔ request fingerprints are stable and change with the requested intent (10.20018ms)
+✔ all 18 module defaults have a complete valid configuration (6.480304ms)
+✔ references, URLs and lists reject unsafe or incomplete values (0.818539ms)
+✔ review phase requires all criteria and field changes remain dirty (0.820843ms)
+✔ handoff request is a planned payload and retains configuration version (0.552386ms)
+✔ procurement requests preserve the independent gate and governed payload boundaries (2.343081ms)
+✔ real document intake rejects PDF, path names and oversized files (0.387613ms)
+✔ uncertain and terminal runs expose no blind retry (0.271711ms)
+✔ reload recovery retains only a scoped key and fingerprint and reuses that key (8.482623ms)
+✔ a changed uncertain intent is blocked and definite input rejection clears it (2.739458ms)
+✔ document updates and retrieval checks have isolated recovery scopes (0.27758ms)
+✔ a stale revision rejection clears only the rejected update intent (1.535989ms)
+✔ customer supplier references are bounded and never become URL paths (0.265072ms)
+✔ queued binary intake accepts only bounded plain supported files (0.552597ms)
+✔ queued intake recovery is isolated by request kind, organization and author (0.261957ms)
+✔ all 18 dedicated operational experiences have valid defaults and executable transition graphs (7.863578ms)
+✔ run pause resume cancel retry and rollback follow valid states (0.698713ms)
+✔ denied, outage, uncertain and stale reviews preserve state without auto retry (0.504816ms)
+✔ invalid transitions, role denial and malformed event chains fail (0.628229ms)
+✔ numeric estimates use entered values and handle zero capacity (0.572446ms)
+✔ file intake accepts metadata only and rejects unsupported or oversized files atomically (0.452759ms)
+✔ schema, secret references and actual calendar dates validate before applying (0.640507ms)
+✔ navigation guard retains pending destination until user chooses to leave (0.456915ms)
+✔ stale cleanup cannot remove a newer active navigation guard (0.411869ms)
+✔ the product baseline covers each catalog area once and every journey target exists (2.742582ms)
+✔ all catalog functions support valid examples while refusing malformed numeric, reference and choice inputs (11.257022ms)
+✔ the review journey separates submit and decision personas and retains a versioned event trail (0.915342ms)
+✔ auditors, denied access, stale versions, empty notes and unavailable services cannot mutate examples (0.409665ms)
+✔ uncertain outcomes expose reconciliation rather than resubmission (0.40578ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (2.263975ms)
+✔ an uncertain response retains its key for a retry, including after commit (0.630702ms)
+✔ different payloads do not share an uncertain request key (0.391869ms)
+✔ an incomplete acknowledgement must not retire the recovery key (0.454712ms)
+✔ success feedback identifies the actual reference and independent review state (0.537645ms)
+✔ UI handoff round-trip preserves bounded records and complete review checklists (9.070862ms)
+✔ handoffs cannot move between account or organization scopes (3.991768ms)
+✔ missing, duplicate and unknown catalog functions are rejected (11.568822ms)
+✔ import does not trust file-defined field schemas or unsafe values (7.075413ms)
+✔ unknown flags, malformed versions and oversized or unsafe JSON fail closed (25.96349ms)
+✔ review markers require all criteria and legacy markers are not promoted automatically (8.544915ms)
+✔ metadata-only export preserves UI reviews without retaining examples (2.733269ms)
+✔ duplicate examples and unbounded histories cannot be restored or extended (4.756517ms)
+✔ one example for every agreed function fits into a single resumable handoff (9.472596ms)
+ℹ tests 50
+ℹ suites 0
+ℹ pass 50
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 491.599534

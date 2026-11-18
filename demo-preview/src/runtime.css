@@ -1,0 +1,119 @@
+.runtime-console {
+  margin: 24px 0;
+  padding: 24px;
+}
+.runtime-console h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.runtime-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.runtime-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: #081f39;
+  border: 1px solid #30536c;
+  border-radius: 12px;
+  padding: 18px;
+}
+.runtime-stats span,
+.runtime-boundary,
+.runtime-ledger span {
+  font-size: 12px;
+  color: #b0c7db;
+  line-height: 1.7;
+}
+.runtime-form {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+.runtime-console label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0;
+  font-size: 13px;
+}
+.runtime-console input,
+.runtime-console select,
+.runtime-console textarea {
+  font: inherit;
+  color: #edf5ff;
+  border: 1px solid #3b6585;
+  background: #061a32;
+  border-radius: 8px;
+  padding: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.runtime-console textarea {
+  resize: vertical;
+}
+.runtime-console .runtime-checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+.runtime-checkbox input {
+  width: auto;
+  accent-color: #26d6e9;
+}
+.runtime-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.runtime-answer {
+  border: 1px solid #227f88;
+  background: #0b303e;
+  padding: 20px;
+  border-radius: 12px;
+  margin: 20px 0;
+  overflow-wrap: anywhere;
+}
+.runtime-answer p,
+.runtime-ledger p {
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+.runtime-answer small {
+  display: block;
+  margin-top: 10px;
+}
+.runtime-ledger article {
+  padding: 20px 0;
+  border-top: 1px solid #2c4b67;
+  overflow-wrap: anywhere;
+}
+.runtime-ledger article > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.runtime-ledger details {
+  margin-top: 14px;
+}
+.runtime-ledger summary {
+  cursor: pointer;
+  color: #6ee4f3;
+  font-size: 13px;
+}
+.runtime-console button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 760px) {
+  .runtime-stats,
+  .runtime-form {
+    grid-template-columns: 1fr;
+  }
+  .runtime-console {
+    padding: 16px;
+  }
+}

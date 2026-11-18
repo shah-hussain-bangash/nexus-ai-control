@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {freshInterface,validateInterface,interfaceFingerprint,plannedRequest,type InterfaceModule} from '../src/interfaceDesign.ts';
+const modules=JSON.parse(readFileSync(new URL('../../backend/nexus/interface_catalog.json',import.meta.url),'utf8')).modules as InterfaceModule[];
+test('all 18 module defaults have a complete valid configuration',()=>{assert.equal(modules.length,18);for(const module of modules){const draft=freshInterface(module);assert.deepEqual(validateInterface(module,draft),{});assert.equal(Object.keys(draft.config.values).length,module.fields.length)}});
+test('references, URLs and lists reject unsafe or incomplete values',()=>{const spec=modules.find(m=>m.id==='customer_connectors')!;const draft=freshInterface(spec);draft.config.values.credential_ref='raw-key';draft.config.values.endpoint='https://token@example.invalid?q=secret';draft.config.values.scopes=[''];const errors=validateInterface(spec,draft);assert.ok(errors.credential_ref&&errors.endpoint&&errors.scopes)});
+test('review phase requires all criteria and field changes remain dirty',()=>{const spec=modules[0];const draft=freshInterface(spec);const original=interfaceFingerprint(draft);draft.config.phase='ui_reviewed';assert.ok(validateInterface(spec,draft).phase);draft.config.ui_checks=Object.fromEntries(spec.criteria.map(c=>[c.id,true]));assert.deepEqual(validateInterface(spec,draft),{});assert.notEqual(interfaceFingerprint(draft),original)});
+test('handoff request is a planned payload and retains configuration version',()=>{const spec=modules[0],draft=freshInterface(spec);draft.version=3;const request=plannedRequest(spec,draft);assert.equal(request.expected_version,3);assert.equal(request.resource_id,'RESOURCE_ID');assert.equal(request.module,spec.id);assert.ok(spec.actions.every(a=>a.implementation==='planned_contract'))});

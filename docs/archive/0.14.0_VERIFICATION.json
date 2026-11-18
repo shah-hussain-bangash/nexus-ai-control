@@ -1,0 +1,141 @@
+{
+  "release": "0.14.0",
+  "date": "2026-11-18",
+  "schema": 8,
+  "production_ready": false,
+  "ui_scope": {
+    "defined_modules": 18,
+    "sections_per_module": 9,
+    "module_sections": 162,
+    "configuration_fields": 161,
+    "planned_action_contracts": 54,
+    "operational_surfaces": 18,
+    "primary_navigation_views": 25,
+    "runtime_activated_by_design": false,
+    "operational_form_fields": 97,
+    "ui_transition_commands": 126,
+    "dedicated_operational_experiences": 18,
+    "function_definitions": 216,
+    "function_controls": 648,
+    "function_screen_states": 8,
+    "function_review_actions": 3,
+    "api_backed_workspaces_added": 1,
+    "appearance_modes": [
+      "light",
+      "dark"
+    ],
+    "default_body_px": 16,
+    "revised_supporting_text_px": 14
+  },
+  "backend": {
+    "total": 283,
+    "passed": 268,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.14.0.xml",
+    "duration_seconds": 68.866
+  },
+  "frontend": {
+    "passed": 41,
+    "failed": 0,
+    "production_build": "passed",
+    "synthetic_preview_build": "passed",
+    "preview_bundle_advisory": true,
+    "entry_bundle_bytes": 495342
+  },
+  "browser_review": {
+    "environment": "isolated synthetic UI harness",
+    "verified": [
+      "Connected onboarding/IdP journey",
+      "Operator configure/submit -> review inbox -> Reviewer decision -> UI event evidence",
+      "Catalog field validation and discard guard",
+      "Denied-access state hides example details",
+      "All 216 coverage rows and search",
+      "Five-phase board",
+      "JSON handoff: 18 modules/216 functions/backend_activated=false",
+      "Sampled light/dark contrast and 1363px desktop overflow check"
+    ],
+    "not_certified": [
+      "all 216 feature states and every device",
+      "formal WCAG audit",
+      "screen reader",
+      "native Windows",
+      "live customer/identity/cloud/monitoring",
+      "load/security/restore acceptance"
+    ],
+    "runtime_writes_in_harness": 0
+  },
+  "external_services_skipped": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "native_windows_tested": false,
+  "cloud_deployed": false,
+  "live_provider_contacted": false,
+  "formal_security_load_accessibility_restore_assessment": false,
+  "runtime_roadmap": {
+    "total": 18,
+    "source_implemented_awaiting_acceptance": 1,
+    "partial": 15,
+    "not_implemented": 2,
+    "accepted_by_default": 0
+  },
+  "function_preview_combinations_tested": 5184,
+  "document_lifecycle": {
+    "replacement_receipts": "idempotent author-scoped metadata",
+    "historic_content_rollback": false,
+    "current_citation_check": true,
+    "saved_lexical_regressions": true,
+    "llm_answer_grading": false,
+    "production_acceptance_changed": false
+  },
+  "business_adapter": {
+    "http_contract_implemented": true,
+    "default_mode": "synthetic",
+    "customer_endpoint_tested": false,
+    "transport_tests": "in-memory HTTP transport",
+    "automatic_retries": false,
+    "destination_bound": true
+  },
+  "encrypted_backup": {
+    "implemented": true,
+    "algorithm": "AES-256-GCM",
+    "tamper_and_wrong_key_tests": true,
+    "active_restore_performed": false,
+    "postgresql_restore_verified": false
+  },
+  "document_intake": {
+    "persistent_queue": true,
+    "pdf_native_text": true,
+    "docx_main_body": true,
+    "english_image_and_pdf_ocr_tested": true,
+    "arabic_ocr_quality_verified": false,
+    "ocr_default_enabled": false,
+    "review_before_publication": true,
+    "malware_scanning": false,
+    "complete_os_sandbox": false,
+    "vector_search": false,
+    "external_source_sync": false,
+    "original_max_bytes": 1048576,
+    "text_max_bytes": 32768,
+    "pdf_max_pages": 12,
+    "pending_retention_requires_running_worker": true
+  },
+  "product_ui": {
+    "areas": 18,
+    "function_screens": 216,
+    "shared_detail_views_per_function": 6,
+    "connected_journeys": 6,
+    "steps_per_journey": 5,
+    "designed_screen_states": 8,
+    "implementation_phases": 5,
+    "session_local_examples": true,
+    "export_implemented": true,
+    "import_implemented": false,
+    "runtime_commands_sent": 0,
+    "default_ui_reviews_accepted": 0,
+    "all_states_manually_reviewed": false
+  }
+}

@@ -1,0 +1,67 @@
+# Deployment candidate, requiring externally managed PostgreSQL, IdP, DNS and reviewed images.
+# Validate with: docker compose --env-file deployment.env -f infra/pilot/compose.yaml config -q
+x-runtime: &runtime
+  image: ${NEXUS_IMAGE:?Set a reviewed application image pinned by digest}
+  env_file: ${NEXUS_RUNTIME_ENV:?Set the absolute path to your private runtime env file}
+  read_only: true
+  user: '10001:10001'
+  init: true
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp:rw,noexec,nosuid,size=32m]
+  volumes: [business_data:/app/backend/data]
+  networks: [control, egress]
+  pids_limit: 128
+  mem_limit: 768m
+  cpus: 1.0
+  logging:
+    driver: json-file
+    options: {max-size: '10m', max-file: '3'}
+services:
+  edge:
+    image: ${NEXUS_EDGE_IMAGE:?Set a reviewed Caddy 2 image pinned by digest}
+    ports: ['80:80','443:443']
+    environment: {NEXUS_HOSTNAME: '${NEXUS_HOSTNAME:?Set your DNS hostname}'}
+    volumes: ['./Caddyfile:/etc/caddy/Caddyfile:ro', 'tls_data:/data', 'tls_config:/config']
+    networks: [control, egress]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    depends_on: [api]
+  opa:
+    image: ${NEXUS_OPA_IMAGE:?Set a reviewed compatible OPA image pinned by digest}
+    command: [run, --server, --addr=0.0.0.0:8181, /policies]
+    volumes: ['../../policies:/policies:ro']
+    networks: [control]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    mem_limit: 128m
+  migrate:
+    <<: *runtime
+    profiles: [maintenance]
+    restart: 'no'
+    command: [python, -m, nexus.cli, migrate]
+  api:
+    <<: *runtime
+    command: [python, -m, uvicorn, nexus.main:app, --host, 0.0.0.0, --port, '8000', --no-access-log]
+    depends_on: [opa]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=5).read()"]
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 20s
+  synthetic-worker:
+    <<: *runtime
+    profiles: [synthetic-demo-only]
+    command: [python, -m, nexus.worker]
+    depends_on: [api]
+volumes:
+  business_data:
+  tls_data:
+  tls_config:
+networks:
+  control: {internal: true}
+  egress: {}

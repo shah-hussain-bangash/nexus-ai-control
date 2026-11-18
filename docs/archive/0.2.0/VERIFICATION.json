@@ -1,0 +1,29 @@
+{
+  "release": "0.2.0",
+  "date": "2026-11-13",
+  "full_integration": {
+    "engine": "PostgreSQL 16.2",
+    "opa": "1.0.1",
+    "keycloak": "26.0.7",
+    "passed": 88,
+    "failed": 0,
+    "skipped": 0
+  },
+  "sqlite_regression": {
+    "passed": 76,
+    "skipped": 12,
+    "failed": 0
+  },
+  "keycloak_cases_in_full_total": 0,
+  "postgresql_race_cases_in_full_total": 6,
+  "native_rego_tests": 5,
+  "frontend_build": "passed",
+  "production_ready": false,
+  "remaining": [
+    "multi-workspace/environment access expansion",
+    "customer connector and managed secrets",
+    "external telemetry/billing/retention",
+    "cloud infrastructure and deployment",
+    "customer security/load/accessibility review and pilot"
+  ]
+}

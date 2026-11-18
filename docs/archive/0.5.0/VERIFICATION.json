@@ -1,0 +1,35 @@
+{
+  "release": "0.5.0",
+  "date": "2026-11-17",
+  "schema": 4,
+  "production_ready": false,
+  "backend": {
+    "total": 147,
+    "passed": 132,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.5.0.xml"
+  },
+  "frontend": {
+    "tests_passed": 5,
+    "tests_failed": 0,
+    "production_build": "passed",
+    "read_only_preview_build": "passed"
+  },
+  "provider_adapter_tests": "Controlled HTTP transport only; OpenAI/Azure request contracts, uncertainty, redaction, response cap, concurrent same-intent deduplication and budget contention tested.",
+  "live_provider_tested": false,
+  "current_external_service_tests": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3,
+    "status": "skipped"
+  },
+  "backup": "SQLite checksums/integrity and restored snapshot schema/accounts inspected. PostgreSQL pg_dump/restore not executed.",
+  "deployment": "Compose/Caddy candidate supplied; YAML parse passed. Docker unavailable, so image build and Compose runtime validation not executed.",
+  "browser_review": "Desktop read-only fixture provider console rendered with explicit disabled state and no fabricated provider activity. Actual inference API behavior tested through controlled backend transport.",
+  "native_windows_050_tested": false,
+  "cloud_deployed": false,
+  "security_penetration_load_and_accessibility_audits": false,
+  "remaining_report": "docs/PRODUCTION_ACCEPTANCE.md"
+}

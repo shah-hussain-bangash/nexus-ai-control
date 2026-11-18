@@ -1,0 +1,90 @@
+"""Source-defined delivery states plus scoped, versioned operator acceptance evidence."""
+from urllib.parse import urlsplit
+from typing import Literal
+from fastapi import Request
+from pydantic import Field, field_validator
+from sqlalchemy import select, update
+from .schemas import Strict
+from .db import ReadinessEvidence, now, public
+from .service import audit
+from .security import fail
+
+# These are this project's workstreams, not a universal production checklist.
+GATES = [
+ ('customer_connectors','Customer business connectors','Engineering','partial','Real API adapters, sandbox contract tests and approval-bound dispatch.','connectors'),
+ ('durable_agents','Durable agent execution','Engineering','partial','Pause/resume, cancellation and worker crash recovery for multi-step agents.','agentRuns'),
+ ('document_ingestion','Document ingestion & OCR','Knowledge','partial','Authorized ingestion jobs, parsing, OCR and deletion propagation.','documents'),
+ ('semantic_retrieval','Semantic retrieval & reranking','Knowledge','partial','Local ACL-first LSA/BM25 retrieval is implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.','knowledge'),
+ ('document_permissions','Document-level permissions','Knowledge','partial','Source ACL enforcement across retrieval, indexing and deletion.','documents'),
+ ('answer_evaluation','Bilingual answer evaluation','Knowledge','partial','Answer-quality, grounding, refusal and poisoning regression datasets.','evaluationlab'),
+ ('provider_resilience','Provider resilience','Runtime','partial','Model-specific failure behavior, streaming/fallback if required, and live provider acceptance.','models'),
+ ('traffic_controls','Inference traffic controls','Runtime','implemented','Shared-database admission limits, concurrency reservations and saturation behavior.','models'),
+ ('usage_governance','Usage & cost governance','Runtime','partial','Invoice reconciliation, evidence retention and account-level cost controls.','usage'),
+ ('identity_lifecycle','Identity & workload lifecycle','Governance','partial','IdP provisioning/offboarding, verified MFA and workload federation.','settings'),
+ ('workspace_lifecycle','Workspace & environment lifecycle','Governance','not_implemented','Create/switch environments with controlled membership and isolation tests.','settings'),
+ ('secrets_network','Secrets & network isolation','Governance','partial','Managed-secret injection, rotation and deployment-enforced egress isolation.','connectors'),
+ ('telemetry_alerts','Telemetry, alerts & SLOs','Operations','partial','External logs/metrics/traces, service objectives and operator notification drills.','observability'),
+ ('audit_retention','Audit integrity & retention','Governance','partial','Immutable off-host archive, retention rules and evidence export verification.','audit'),
+ ('recovery','Encrypted backup & recovery','Operations','partial','Scheduled encrypted backups, PostgreSQL restore and measured RPO/RTO.','operations'),
+ ('cloud_delivery','Cloud deployment & rollback','Operations','partial','Reviewed images, TLS/private networking, staged rollout and recovery evidence.','operations'),
+ ('security_load','Security & load acceptance','Validation','partial','Independent review, dependency/image scans, penetration and load/soak tests.','operations'),
+ ('accessibility','Accessibility & device acceptance','Validation','partial','Readable text, keyboard/screen-reader checks and responsive device assessment.','operations'),
+]
+
+
+class EvidenceInput(Strict):
+    outcome: Literal['not_tested','passed','failed']
+    summary: str = Field(min_length=20, max_length=1000)
+    reference: str = Field(default='', max_length=500)
+    expected_version: int = Field(ge=0)
+
+    @field_validator('summary')
+    @classmethod
+    def clean_summary(cls,value):
+        value=value.strip()
+        if len(value)<20:raise ValueError('Include the tested scope, environment and result.')
+        return value
+
+    @field_validator('reference')
+    @classmethod
+    def safe_reference(cls,value):
+        if not value:return ''
+        parsed=urlsplit(value)
+        if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+            raise ValueError('Use a credential-free HTTPS evidence URL without query or fragment.')
+        return value
+
+
+def readiness(db, org_id):
+    evidence={r.gate:r for r in db.scalars(select(ReadinessEvidence).where(ReadinessEvidence.org_id==org_id,ReadinessEvidence.env=='staging')).all()}
+    gates=[]
+    for key,title,group,delivery,required,view in GATES:
+        row=evidence.get(key)
+        gates.append({'id':key,'title':title,'group':group,'delivery':delivery,'required_evidence':required,'view':view,'evidence':public(row) if row else None,'accepted_for_current_scope':bool(delivery=='implemented' and row and row.outcome=='passed')})
+    return {'total_workstreams':len(gates),'implemented':sum(g['delivery']=='implemented' for g in gates),'partial':sum(g['delivery']=='partial' for g in gates),'not_implemented':sum(g['delivery']=='not_implemented' for g in gates),'accepted':sum(g['accepted_for_current_scope'] for g in gates),'production_ready':all(g['accepted_for_current_scope'] for g in gates),'gates':gates,'boundary':'Delivery states are defined by this source release. Evidence is an operator attestation, not independent verification or certification. A recorded pass cannot implement missing software.'}
+
+
+def register_readiness(app,factory,settings,human):
+    @app.get('/v1/production-readiness')
+    def report(request:Request):
+        with factory() as db:
+            user=human(request,db)
+            return readiness(db,user.org_id)
+
+    @app.put('/v1/production-readiness/{gate}')
+    def record(gate:str,body:EvidenceInput,request:Request):
+        definition=next((g for g in GATES if g[0]==gate),None)
+        if not definition:fail(404,'GATE_NOT_FOUND','Production workstream not found.')
+        with factory.begin() as db:
+            user=human(request,db,True,'policy')
+            if definition[3]=='not_implemented' and body.outcome=='passed':fail(422,'CAPABILITY_MISSING','This source release does not implement this capability. Evidence cannot mark it as passed.')
+            row=db.scalar(select(ReadinessEvidence).where(ReadinessEvidence.org_id==user.org_id,ReadinessEvidence.env=='staging',ReadinessEvidence.gate==gate))
+            if row:
+                changed=db.execute(update(ReadinessEvidence).where(ReadinessEvidence.id==row.id,ReadinessEvidence.version==body.expected_version).values(outcome=body.outcome,summary=body.summary,reference=body.reference,version=ReadinessEvidence.version+1,updated=now(),author_id=user.id))
+                if changed.rowcount!=1:fail(409,'STALE_VERSION','Another reviewer changed the evidence. Refresh before recording.')
+                db.refresh(row)
+            else:
+                if body.expected_version!=0:fail(409,'STALE_VERSION','Refresh the current evidence version.')
+                row=ReadinessEvidence(org_id=user.org_id,gate=gate,outcome=body.outcome,summary=body.summary,reference=body.reference,author_id=user.id);db.add(row);db.flush()
+            audit(db,user.org_id,user.id,'readiness.evidence_recorded',detail={'gate':gate,'outcome':row.outcome,'version':row.version,'summary':body.summary,'reference':body.reference})
+            return public(row)

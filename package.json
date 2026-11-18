@@ -1,0 +1,15 @@
+{
+  "name": "nexus-ai-control",
+  "version": "0.16.0",
+  "private": true,
+  "scripts": {
+    "sync": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/github-sync.ps1",
+    "sync:auto": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/github-sync.ps1 -Watch",
+    "account": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Account",
+    "setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Setup",
+    "start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Run",
+    "dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Run",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Build",
+    "test": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/cursor.ps1 -Action Test"
+  }
+}

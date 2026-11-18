@@ -1,0 +1,27 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+*.db-*
+backend/data/
+frontend/dist/
+frontend/*.tsbuildinfo
+**/*.tsbuildinfo
+demo-preview/dist/
+*.log
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite
+
+# Operator state and backups
+**/*.env
+**/*.dump
+**/*.sqlite3
+**/backups/

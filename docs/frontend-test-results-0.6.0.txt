@@ -1,0 +1,20 @@
+
+> nexus-control-console@0.6.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ a reload recovers only scoped key and fingerprint metadata (2.837551ms)
+✔ invalid or corrupt recovery state is ignored (0.42692ms)
+✔ request fingerprints are stable and change with the requested intent (9.289029ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (2.499718ms)
+✔ an uncertain response retains its key for a retry, including after commit (1.272005ms)
+✔ different payloads do not share an uncertain request key (0.531497ms)
+✔ an incomplete acknowledgement must not retire the recovery key (0.686196ms)
+✔ success feedback identifies the actual reference and independent review state (0.76805ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 313.227504

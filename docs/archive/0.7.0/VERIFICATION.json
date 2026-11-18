@@ -1,0 +1,60 @@
+{
+  "release": "0.7.0",
+  "date": "2026-11-17",
+  "schema": 5,
+  "production_ready": false,
+  "ui_scope": {
+    "defined_modules": 18,
+    "sections_per_module": 7,
+    "module_sections": 126,
+    "configuration_fields": 161,
+    "planned_action_contracts": 54,
+    "operational_surfaces": 18,
+    "primary_navigation_views": 21,
+    "runtime_activated_by_design": false
+  },
+  "backend": {
+    "total": 180,
+    "passed": 165,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.7.0.xml"
+  },
+  "frontend": {
+    "passed": 12,
+    "failed": 0,
+    "production_build": "passed",
+    "synthetic_preview_build": "passed",
+    "preview_bundle_advisory": true
+  },
+  "browser_review": {
+    "environment": "isolated synthetic UI harness",
+    "verified": [
+      "interface plan rename and revisions 2/3",
+      "operational preview record creation",
+      "saved-revision dependency failure trace",
+      "zero provider calls and business effects",
+      "module navigation",
+      "desktop larger-text appearance and wrapping section tabs"
+    ],
+    "preview_edits": "in-memory; reset on reload",
+    "all_module_definitions": "validated in automated catalog/schema tests; not exhaustive device-level browser acceptance"
+  },
+  "external_services_skipped": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "native_windows_tested": false,
+  "cloud_deployed": false,
+  "live_provider_contacted": false,
+  "formal_security_load_accessibility_restore_assessment": false,
+  "runtime_roadmap": {
+    "total": 18,
+    "source_implemented_awaiting_acceptance": 1,
+    "partial": 11,
+    "not_implemented": 6,
+    "accepted_by_default": 0
+  }
+}

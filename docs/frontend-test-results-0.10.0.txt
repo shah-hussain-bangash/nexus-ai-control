@@ -1,0 +1,44 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nexus-control-console@0.10.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ all 216 function screens have valid domain controls, role guidance, states and handoff (8.241526ms)
+✔ UI review phase requires manual acceptance and remains a planning phase (0.329562ms)
+✔ every function action and screen state has an effect-free preview (8.362425ms)
+✔ unknown actions, blank review notes and unknown scenarios are rejected (0.389802ms)
+✔ secret references and percentage boundaries validate before saving (0.340689ms)
+✔ a reload recovers only scoped key and fingerprint metadata (2.110839ms)
+✔ invalid or corrupt recovery state is ignored (0.440918ms)
+✔ request fingerprints are stable and change with the requested intent (7.852204ms)
+✔ all 18 module defaults have a complete valid configuration (3.853529ms)
+✔ references, URLs and lists reject unsafe or incomplete values (0.402781ms)
+✔ review phase requires all criteria and field changes remain dirty (3.021487ms)
+✔ handoff request is a planned payload and retains configuration version (0.255061ms)
+✔ procurement requests preserve the independent gate and governed payload boundaries (2.007826ms)
+✔ real document intake rejects PDF, path names and oversized files (0.431123ms)
+✔ uncertain and terminal runs expose no blind retry (0.280308ms)
+✔ reload recovery retains only a scoped key and fingerprint and reuses that key (7.275715ms)
+✔ a changed uncertain intent is blocked and definite input rejection clears it (1.416854ms)
+✔ all 18 dedicated operational experiences have valid defaults and executable transition graphs (2.889441ms)
+✔ run pause resume cancel retry and rollback follow valid states (0.220799ms)
+✔ denied, outage, uncertain and stale reviews preserve state without auto retry (0.251705ms)
+✔ invalid transitions, role denial and malformed event chains fail (0.343353ms)
+✔ numeric estimates use entered values and handle zero capacity (0.263963ms)
+✔ file intake accepts metadata only and rejects unsupported or oversized files atomically (0.148852ms)
+✔ schema, secret references and actual calendar dates validate before applying (0.326367ms)
+✔ navigation guard retains pending destination until user chooses to leave (0.115322ms)
+✔ stale cleanup cannot remove a newer active navigation guard (0.124286ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (1.447459ms)
+✔ an uncertain response retains its key for a retry, including after commit (0.533085ms)
+✔ different payloads do not share an uncertain request key (0.360077ms)
+✔ an incomplete acknowledgement must not retire the recovery key (0.319146ms)
+✔ success feedback identifies the actual reference and independent review state (0.31476ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 252.365617

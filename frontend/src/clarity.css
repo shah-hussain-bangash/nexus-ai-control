@@ -1,0 +1,718 @@
+/* Readable by default, with a user-selectable light workspace and navy identity. */
+:root {
+  --read-body: 16px;
+  --read-small: 14px;
+  --read-label: 15px;
+  --read-heading: 22px;
+}
+:root[data-readability="large"] {
+  --read-body: 18px;
+  --read-small: 16px;
+  --read-label: 17px;
+  --read-heading: 24px;
+}
+body {
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.content p,
+.content td,
+.content label,
+.ops-dialog p,
+.ops-dialog label {
+  font-size: var(--read-body);
+  line-height: 1.7;
+}
+.content small,
+.content code,
+.ops-dialog small,
+.ops-dialog code,
+.content .muted {
+  font-size: var(--read-small);
+  line-height: 1.65;
+}
+.content th,
+.content .nx-table th,
+.content .nx-table td,
+.content .agent-card-meta {
+  font-size: var(--read-small) !important;
+}
+.sidebar nav a {
+  font-size: var(--read-label);
+  min-height: 46px;
+}
+.sidebar .nav-label,
+.sidebar nav .nav-label {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #d6e8fa;
+}
+.content .live-state,
+.content .badge,
+.content .nx-status,
+.content .fn-state,
+.ops-dialog .live-state {
+  font-size: var(--read-small);
+  line-height: 1.6;
+}
+.content input,
+.content select,
+.content textarea,
+.ops-dialog input,
+.ops-dialog select,
+.ops-dialog textarea {
+  font-size: var(--read-body);
+  min-height: 46px;
+}
+.content .btn,
+.ops-dialog .btn {
+  min-height: 46px;
+  font-size: var(--read-label);
+}
+.content button:disabled,
+.ops-dialog button:disabled {
+  opacity: 1;
+  color: #b5c7db;
+  background: #18314b;
+  border-color: #506580;
+  cursor: not-allowed;
+}
+.content .page-heading p,
+.content .panel-heading p,
+.content .nx-panel-heading p,
+.content .live-detail p {
+  color: #d7e5f4;
+}
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid #19a6d2;
+  outline-offset: 4px;
+}
+.runtime-ops > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.runtime-ops h2 {
+  margin: 8px 0;
+  font-size: 30px;
+}
+.runtime-ops p {
+  max-width: 900px;
+}
+.runtime-ops-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+}
+.runtime-ops-metrics article {
+  padding: 24px;
+}
+.runtime-ops-metrics strong {
+  display: block;
+  font-size: 34px;
+  line-height: 1.4;
+  margin: 12px 0;
+}
+.runtime-ops-metrics p {
+  margin-bottom: 0;
+}
+.runtime-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin: 20px 0;
+}
+.runtime-ops-grid article {
+  padding: 26px;
+  min-width: 0;
+}
+.runtime-ops-grid header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.runtime-ops-grid dl > div {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+.runtime-ops-grid dd {
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.runtime-ops .ops-alert {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.http-mode-banner {
+  padding: 16px 20px;
+  background: #fff1cc;
+  color: #553400;
+  border: 1px solid #bb850b;
+  border-radius: 12px;
+  margin-bottom: 22px;
+  font-size: var(--read-body);
+}
+/* Light surfaces keep the sidebar, robot artwork and primary actions recognizable. */
+:root[data-appearance="light"] {
+  color-scheme: light;
+  --ink: #142b43;
+  --muted: #455c73;
+  --line: #cbd7e4;
+}
+:root[data-appearance="light"] body,
+:root[data-appearance="light"] .main-shell {
+  background: #f3f6fb;
+  color: #172f49;
+}
+:root[data-appearance="light"] .topbar {
+  background: #fff;
+  border-color: #c9d6e5;
+  color: #203e5b;
+}
+:root[data-appearance="light"]
+  .topbar
+  :is(.breadcrumb, .breadcrumb strong, .environment, .synthetic) {
+  color: #244967;
+}
+:root[data-appearance="light"] .content {
+  color: #1d354d;
+  --nx-text: #19344c;
+  --nx-muted: #425c74;
+  --nx-line: #c5d5e4;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .panel,
+    .agent-card,
+    .tool-card,
+    .policy-card,
+    .rule-card,
+    .approval-card,
+    .incident-card,
+    .nx-panel,
+    .nx-card,
+    .nx-asset-card,
+    .nx-feature,
+    .nx-capability,
+    .nx-metric,
+    .production-board,
+    .readiness-summary > div,
+    .readiness-gate,
+    .readiness-card,
+    .live-detail,
+    .live-list,
+    .live-citation,
+    .live-check-case,
+    .fn-card,
+    .fn-detail,
+    .ops-console,
+    .ops-record,
+    .ops-record-detail,
+    .ops-record-list,
+    .runtime-console,
+    .runtime-history,
+    .runtime-history article,
+    .runtime-card,
+    .runtime-ops-metrics article,
+    .runtime-ops-grid article
+  ) {
+  background: #fff;
+  border-color: #cad8e7;
+  box-shadow: 0 4px 18px #233b5910;
+  color: #203b55;
+}
+:root[data-appearance="light"] .content :is(h1, h2, h3, h4, strong, b, dd) {
+  color: #112d47;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    p,
+    small,
+    label,
+    dt,
+    .muted,
+    .nx-muted,
+    .agent-card-meta,
+    .nx-property,
+    .nx-eyebrow,
+    .fn-summary,
+    .fn-count
+  ) {
+  color: #3d566f;
+}
+:root[data-appearance="light"] .content :is(td, th),
+:root[data-appearance="light"] .content .nx-table :is(td, th) {
+  color: #233e58 !important;
+  border-color: #ccd8e5;
+  background: transparent;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.eyebrow, .nx-kicker, .nx-overline, .hero-label) {
+  color: #076587;
+}
+:root[data-appearance="light"] .content :is(input, select, textarea) {
+  background: #fff;
+  color: #19354e;
+  border-color: #91a9bf;
+}
+:root[data-appearance="light"] :is(input, textarea)::placeholder {
+  color: #526c83;
+  opacity: 1;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .btn-outline,
+    .text-btn,
+    .card-link,
+    .ops-pagination button,
+    .operations-tabs button,
+    .nx-tabs button,
+    .nx-editor-tabs button,
+    .nx-filter,
+    .fn-filter,
+    .runtime-tab
+  ) {
+  background: #f2f7fc;
+  color: #224861;
+  border-color: #99b2c9;
+}
+:root[data-appearance="light"] .content :is(.btn-primary, .btn-primary strong) {
+  background: linear-gradient(110deg, #0968c0, #3e43bd);
+  border-color: #3b63bc;
+  color: #fff;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.nx-tabs, .operations-tabs, .nx-editor-tabs)
+  button:is(.selected, [aria-selected="true"]) {
+  background: #d9edf9;
+  color: #064f75;
+  border-color: #2683b2;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.live-list button, .command-results button) {
+  background: #f5f8fc;
+  color: #214663;
+  border-color: #c4d5e5;
+}
+:root[data-appearance="light"] .content .live-list button.selected {
+  background: #e1f2f8;
+  border-color: #15749b;
+  box-shadow: inset 3px 0 #15749b;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .live-hero,
+    .nx-hero,
+    .operations-intro,
+    .policy-banner,
+    .nx-notice,
+    .ops-alert,
+    .feature-note,
+    .identity-box,
+    .hash,
+    .usage-note,
+    .maintenance-card
+  ) {
+  background: linear-gradient(120deg, #edf7fc, #e8f0fb);
+  color: #254d68;
+  border-color: #b2cfdf;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.live-hash, .live-document, pre, code) {
+  background: #edf3f9;
+  color: #1e4a65;
+  border-color: #c2d4e3;
+  overflow-wrap: anywhere;
+}
+:root[data-appearance="light"] .content :is(.live-quality-metrics > div) {
+  background: #f0f7fc;
+  border-color: #b5cede;
+}
+:root[data-appearance="light"] .content .live-quality-metrics strong {
+  color: #075d7b;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .live-state,
+    .badge,
+    .pill,
+    .nx-status,
+    .readiness-state,
+    .nx-maturity,
+    .agent-tags span
+  ) {
+  background: #e6eef8;
+  color: #294b6a;
+  border-color: #b7cbdf;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .live-state.succeeded,
+    .live-state.completed,
+    .live-state.indexed,
+    .badge.success,
+    .pill.success,
+    .badge.allow
+  ) {
+  background: #dcf5e9;
+  color: #125c41;
+  border-color: #8dc7ab;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .live-state.waiting_review,
+    .live-state.outcome_unknown,
+    .badge.warning,
+    .pill.warning,
+    .readiness-state.pending
+  ) {
+  background: #fff0c9;
+  color: #6e4900;
+  border-color: #d2ad59;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.live-state.failed, .live-state.rejected, .error) {
+  background: #fff0f2;
+  color: #922b40;
+  border-color: #d9a5af;
+}
+:root[data-appearance="light"] .content button:disabled {
+  background: #e9eef5;
+  color: #566d83;
+  border-color: #c2cfdd;
+}
+:root[data-appearance="light"] .content :is(.neon-command-hero) {
+  background: #0b2d54;
+}
+:root[data-appearance="light"]
+  .content
+  .neon-command-hero
+  :is(h2, strong, span, p, small) {
+  color: #f1f8ff;
+}
+:root[data-appearance="light"] .content .neon-command-hero h2 em {
+  color: #5deafb;
+}
+:root[data-appearance="light"] .content .neon-tile {
+  color: #fff;
+}
+:root[data-appearance="light"] .content .neon-tile strong {
+  color: #fff;
+}
+:root[data-appearance="light"]
+  :is(.dialog, .ops-dialog, .nx-drawer, .command-dialog) {
+  background: #fff;
+  color: #203b55;
+  border-color: #9eb6cc;
+}
+:root[data-appearance="light"]
+  :is(.dialog, .ops-dialog, .nx-drawer)
+  :is(h2, h3, strong, label, dd) {
+  color: #173853;
+}
+:root[data-appearance="light"]
+  :is(.dialog, .ops-dialog, .nx-drawer)
+  :is(p, small, dt) {
+  color: #455f77;
+}
+:root[data-appearance="light"]
+  :is(.dialog, .ops-dialog, .nx-drawer)
+  :is(input, select, textarea, pre, code) {
+  color: #24415b;
+  background: #f5f8fc;
+  border-color: #9bb3c8;
+}
+:root[data-appearance="light"] .ops-dialog .btn-outline {
+  color: #214861;
+  background: #edf3fa;
+}
+:root[data-appearance="light"] .ops-dialog button:disabled {
+  color: #5a7085;
+  background: #e7edf5;
+  border-color: #bdccdc;
+}
+:root[data-appearance="light"] .signin-form {
+  background: #fff;
+  color: #183a55;
+  border-color: #b5cadc;
+  box-shadow: 0 12px 44px #001a3d30;
+}
+:root[data-appearance="light"] .signin-box :is(h2, strong, .field > span) {
+  color: #163850;
+}
+:root[data-appearance="light"]
+  .signin-box
+  :is(p, small, .muted, .signin-access p) {
+  color: #425e76;
+}
+:root[data-appearance="light"] .signin-box :is(input, .password-wrap) {
+  background: #f8fafc;
+  color: #173b56;
+  border-color: #91aac0;
+}
+:root[data-appearance="light"] .signin-box .password-wrap button {
+  color: #1b5a7d;
+}
+:root[data-appearance="light"] .signin-box .error {
+  background: #fff0f2;
+  color: #912e40;
+  border-color: #d6a1af;
+}
+:root[data-appearance="light"]
+  .signin-form
+  :is(.signin-top, .signin-bottom, .signin-access strong) {
+  color: #31546e;
+}
+@media (max-width: 1150px) {
+  .runtime-ops-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .runtime-ops-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 650px) {
+  .runtime-ops > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .runtime-ops-metrics {
+    grid-template-columns: 1fr;
+  }
+  .runtime-ops-grid dl > div {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .runtime-ops-grid dd {
+    text-align: left;
+    margin: 0;
+  }
+}
+:root[data-appearance="light"] .topbar .synthetic {
+  background: #e5eff9;
+  color: #244967;
+  border-color: #acc4dc;
+}
+:root[data-appearance="light"] .content .nx-metric > span {
+  color: #3d566f;
+}
+:root[data-appearance="light"] .content .nx-hero h2 em {
+  color: #086285;
+  -webkit-text-fill-color: #086285;
+}
+:root[data-appearance="light"] .content .nx-link {
+  color: #135f87;
+}
+:root[data-appearance="light"] .topbar .quick-search {
+  color: #e1efff;
+}
+.topbar .breadcrumb {
+  flex-shrink: 0;
+  min-width: 170px;
+}
+:root[data-appearance="light"] .content .nx-card-count,
+:root[data-appearance="light"] .content-footer,
+:root[data-appearance="light"] .content-footer span {
+  color: #456078;
+}
+:root[data-appearance="light"] .content :is(table, thead, tr) {
+  background: transparent;
+}
+:root[data-appearance="light"] .content :is(th, .nx-table th) {
+  background: #eaf1f8 !important;
+  color: #243e58 !important;
+}
+:root[data-appearance="light"] .content :is(.function-map-hero, .studio-intro) {
+  background: linear-gradient(120deg, #e9f5fb, #e8f0fb);
+  color: #203d57;
+  border-color: #b5cedf;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .ops-metrics article,
+    .ops-calculation article,
+    .scope-grid article,
+    .scope-boundary,
+    .function-list,
+    .function-detail
+  ) {
+  background: #f8fbfe;
+  color: #28475f;
+  border-color: #bfd2e2;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .scope-result-heading,
+    .scope-boundary,
+    .scope-card-top,
+    .function-pills,
+    .ops-pagination
+  )
+  :is(p, span, small) {
+  color: #405c74;
+}
+:root[data-appearance="light"]
+  .content
+  .ops-metrics
+  article
+  :is(span, strong, small) {
+  color: #294861;
+}
+:root[data-appearance="light"] .content .implementation-studio {
+  --studio-muted: #435f77;
+  --studio-line: #b7cbdc;
+  --studio-panel: #fff;
+  --studio-accent: #0a6384;
+  color: #223f58;
+}
+:root[data-appearance="light"]
+  .content
+  .implementation-studio
+  :is([class^="studio-"], [class*=" studio-"]) {
+  background-color: #f5f9fd;
+  background-image: none;
+  color: #27475f;
+  border-color: #b9cede;
+}
+:root[data-appearance="light"]
+  .content
+  .function-designer
+  :is([class^="function-"], [class*=" function-"]) {
+  background: #f7fafd;
+  color: #2b4a62;
+  border-color: #bfd2e2;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.implementation-studio, .function-designer, .platform-scope)
+  :is(span, small, p, li, h5) {
+  color: #34546c;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .function-list nav button,
+    .studio-navigation button,
+    .studio-tabs button
+  ) {
+  background: #edf4fb;
+  color: #274a65;
+  border-color: #c4d4e3;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .function-list nav button,
+    .studio-navigation button,
+    .studio-tabs button
+  )[aria-current="true"] {
+  background: #d9edf8;
+  border-color: #287da4;
+  color: #104f70;
+}
+:root[data-appearance="light"] .content .studio-intro h2 em {
+  color: #096383;
+}
+:root[data-appearance="light"]
+  .content
+  :is(.implementation-studio, .function-designer, .platform-scope)
+  .btn-primary {
+  color: #fff;
+  background: linear-gradient(110deg, #0968c0, #3e43bd);
+  border-color: #3b63bc;
+}
+:root[data-appearance="light"]
+  .content
+  :is(
+    .ops-badge,
+    .function-pills span,
+    .studio-chips span,
+    .studio-intro-chips span
+  ) {
+  background: #e6f0f9;
+  color: #2d506c;
+  border-color: #b7cede;
+}
+:root[data-appearance="light"]
+  .content
+  .implementation-studio
+  :is(button, article, section, details, summary, li) {
+  background: #f4f8fc;
+  color: #294b64;
+  border-color: #c0d3e3;
+}
+:root[data-appearance="light"]
+  .content
+  .implementation-studio
+  button:is(.active, [aria-selected="true"]) {
+  background: #dceef8;
+  color: #124f6b;
+  border-color: #2c88ad;
+}
+:root[data-appearance="light"] .content .implementation-studio .btn-primary {
+  color: #fff;
+  background: linear-gradient(110deg, #0968c0, #3e43bd);
+}
+:root[data-appearance="light"] .studio-dialog {
+  background: #fff;
+  color: #24435d;
+  border-color: #b5cadc;
+}
+:root[data-appearance="light"]
+  .studio-dialog
+  :is(p, small, label, span, h2, h3, strong) {
+  color: #294b64;
+}
+:root[data-appearance="light"] .studio-dialog :is(input, textarea, select) {
+  background: #f7fafd;
+  color: #23425c;
+  border-color: #9db6cb;
+}
+:root[data-appearance="light"]
+  .content
+  .runtime-console
+  :is([class^="runtime-"], [class*=" runtime-"]) {
+  background-color: #f6f9fd;
+  background-image: none;
+  color: #2c4b63;
+  border-color: #b7cddd;
+}
+:root[data-appearance="light"] .signin-form :is(.eyebrow, .signin-box h2 em) {
+  color: #086585;
+  -webkit-text-fill-color: #086585;
+}
+:root[data-appearance="light"]
+  .signin-form
+  :is(.form-hint, .local-explainer, .signin-bottom > span) {
+  color: #425e75;
+  font-size: var(--read-small);
+  line-height: 1.7;
+}
+:root[data-appearance="light"] .signin-form .password-input button {
+  color: #165d80;
+}
+:root[data-appearance="light"] .signin-form .welcome-symbol {
+  color: #17688d;
+  background: #e1f0fb;
+  border-color: #7aa9c6;
+}

@@ -1,0 +1,199 @@
+.enterprise-runtime {
+  --runtime-copy: var(--text, #172b45);
+}
+.runtime-card {
+  padding: 24px;
+  margin: 16px 0;
+  color: var(--runtime-copy);
+  min-width: 0;
+}
+.runtime-card p {
+  line-height: 1.65;
+}
+.runtime-card h3 {
+  font-size: 20px;
+  margin: 0 0 16px;
+}
+.runtime-card h4 {
+  font-size: 17px;
+}
+.runtime-card fieldset,
+.runtime-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 18px 0;
+  min-width: 0;
+}
+.runtime-card legend {
+  font-weight: 700;
+}
+.runtime-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+  padding: 8px 0;
+}
+.runtime-check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.runtime-check small {
+  display: block;
+}
+.runtime-source-list {
+  max-height: 250px;
+  overflow: auto;
+  border: 1px solid var(--border, #b8c6da);
+  border-radius: 8px;
+  padding: 10px;
+}
+.runtime-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.runtime-hit {
+  border-top: 1px solid var(--border, #b8c6da);
+  padding: 18px 0;
+}
+.runtime-excerpt {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.runtime-citation {
+  font-family: monospace;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.runtime-hit dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+.runtime-history {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+.runtime-history .btn {
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+}
+.runtime-table {
+  overflow: auto;
+}
+.runtime-card .live-actions {
+  flex-wrap: wrap;
+}
+.runtime-card code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.runtime-form .field {
+  margin: 16px 0;
+}
+.runtime-card .field input,
+.runtime-card .field textarea {
+  width: 100%;
+}
+@media (max-width: 700px) {
+  .runtime-fields {
+    grid-template-columns: 1fr;
+  }
+  .runtime-card {
+    padding: 16px;
+  }
+}
+:root[data-appearance="light"] .content .enterprise-runtime {
+  --runtime-copy: #172b45;
+}
+:root[data-appearance="dark"] .content .enterprise-runtime {
+  --runtime-copy: #e6f0ff;
+}
+:root[data-appearance="light"] .content .enterprise-runtime .field > span,
+:root[data-appearance="light"] .ops-dialog .runtime-form .field > span,
+:root[data-appearance="light"] .ops-dialog .runtime-form {
+  color: #243f5a;
+}
+:root[data-appearance="dark"] .content .enterprise-runtime .field > span,
+:root[data-appearance="dark"] .ops-dialog .runtime-form .field > span,
+:root[data-appearance="dark"] .ops-dialog .runtime-form {
+  color: #e6f0ff;
+}
+:root[data-appearance="light"] .content .enterprise-runtime .runtime-check,
+:root[data-appearance="light"] .content .enterprise-runtime legend {
+  color: #243f5a;
+}
+:root[data-appearance="dark"] .content .enterprise-runtime .runtime-check,
+:root[data-appearance="dark"] .content .enterprise-runtime legend {
+  color: #e6f0ff;
+}
+.content .enterprise-runtime .live-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 22px;
+}
+@media (max-width: 1050px) {
+  .content .enterprise-runtime .live-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.ops-dialog .runtime-form .runtime-check {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ops-dialog .runtime-form .runtime-check input {
+  width: 18px;
+  min-width: 18px;
+  margin-top: 5px;
+}
+.ops-dialog .runtime-form .field input,
+.ops-dialog .runtime-form .field select,
+.ops-dialog .runtime-form .field textarea {
+  width: 100%;
+  max-width: none;
+}
+.ops-dialog .runtime-form code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+:root[data-appearance="light"] .ops-dialog:has(.runtime-form) .icon-btn {
+  color: #243f5a;
+}
+:root[data-appearance="dark"] .ops-dialog:has(.runtime-form) .icon-btn {
+  color: #e6f0ff;
+}
+.content .enterprise-runtime .runtime-card h2 {
+  font-size: 22px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+:root[data-appearance="dark"]
+  .content
+  .enterprise-runtime
+  .btn:not(.btn-primary),
+:root[data-appearance="dark"] .ops-dialog .runtime-form .btn:not(.btn-primary) {
+  background: #123653;
+  color: #e6f0ff;
+  border: 1px solid #527591;
+}
+:root[data-appearance="dark"]
+  .content
+  .enterprise-runtime
+  .runtime-table
+  strong {
+  color: #f0f7ff;
+}
+:root[data-appearance="light"]
+  .content
+  .enterprise-runtime
+  .runtime-table
+  strong {
+  color: #172b45;
+}

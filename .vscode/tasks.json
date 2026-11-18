@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "NEXUS: Setup",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/cursor.ps1", "-Action", "Setup"],
+      "problemMatcher": []
+    },
+    {
+      "label": "NEXUS: Run",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/cursor.ps1", "-Action", "Run"],
+      "problemMatcher": [],
+      "presentation": {"reveal": "always", "panel": "dedicated"}
+    },
+    {
+      "label": "NEXUS: Build frontend",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/cursor.ps1", "-Action", "Build"],
+      "problemMatcher": []
+    },
+    {
+      "label": "NEXUS: Test",
+      "type": "process",
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/cursor.ps1", "-Action", "Test"],
+      "problemMatcher": []
+    }
+  ]
+}

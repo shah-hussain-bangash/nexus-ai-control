@@ -1,0 +1,34 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nexus-control-console@0.8.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ a reload recovers only scoped key and fingerprint metadata (3.648648ms)
+✔ invalid or corrupt recovery state is ignored (0.868265ms)
+✔ request fingerprints are stable and change with the requested intent (16.78502ms)
+✔ all 18 module defaults have a complete valid configuration (10.689904ms)
+✔ references, URLs and lists reject unsafe or incomplete values (0.805287ms)
+✔ review phase requires all criteria and field changes remain dirty (1.173586ms)
+✔ handoff request is a planned payload and retains configuration version (0.69461ms)
+✔ all 18 dedicated operational experiences have valid defaults and executable transition graphs (10.906219ms)
+✔ run pause resume cancel retry and rollback follow valid states (1.005161ms)
+✔ denied, outage, uncertain and stale reviews preserve state without auto retry (0.905304ms)
+✔ invalid transitions, role denial and malformed event chains fail (0.923498ms)
+✔ numeric estimates use entered values and handle zero capacity (0.640168ms)
+✔ file intake accepts metadata only and rejects unsupported or oversized files atomically (0.467916ms)
+✔ schema, secret references and actual calendar dates validate before applying (0.548937ms)
+✔ navigation guard retains pending destination until user chooses to leave (0.303388ms)
+✔ stale cleanup cannot remove a newer active navigation guard (0.351177ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (3.410052ms)
+✔ an uncertain response retains its key for a retry, including after commit (1.030017ms)
+✔ different payloads do not share an uncertain request key (0.885007ms)
+✔ an incomplete acknowledgement must not retire the recovery key (0.823741ms)
+✔ success feedback identifies the actual reference and independent review state (1.543218ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 425.101908

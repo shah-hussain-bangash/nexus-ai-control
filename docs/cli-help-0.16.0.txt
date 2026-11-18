@@ -1,0 +1,22 @@
+usage: cli.py [-h] [--oidc-subject OIDC_SUBJECT] [--apply]
+              [--destination DESTINATION] [--quiesced]
+              [--organization ORGANIZATION] [--email EMAIL] [--name NAME]
+              [--role {owner,approver,security,engineer,auditor}]
+              {init,migrate,create-user,maintenance,backup,inspect-backup,backup-encrypted,inspect-encrypted-backup,bootstrap,set-local-password}
+
+positional arguments:
+  {init,migrate,create-user,maintenance,backup,inspect-backup,backup-encrypted,inspect-encrypted-backup,bootstrap,set-local-password}
+
+options:
+  -h, --help            show this help message and exit
+  --oidc-subject OIDC_SUBJECT
+                        Optional trusted IdP subject to bind before first SSO
+                        login
+  --apply               Apply expired-record cleanup; maintenance defaults to
+                        dry-run
+  --destination DESTINATION
+  --quiesced
+  --organization ORGANIZATION
+  --email EMAIL
+  --name NAME
+  --role {owner,approver,security,engineer,auditor}

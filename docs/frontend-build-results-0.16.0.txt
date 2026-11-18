@@ -1,0 +1,22 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nexus-control-console@0.16.0 build
+> tsc -b && vite build
+
+vite v6.4.6 building for production...
+transforming...
+✓ 1618 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                               0.65 kB │ gzip:   0.39 kB
+dist/assets/IntakeQueue-CnUFZ-2P.css          1.12 kB │ gzip:   0.55 kB
+dist/assets/EnterpriseRuntime-DPToEDOk.css    3.68 kB │ gzip:   0.94 kB
+dist/assets/ProductExperience-B148EnM5.css   15.98 kB │ gzip:   3.55 kB
+dist/assets/index-CGJOJggE.css              174.63 kB │ gzip:  36.80 kB
+dist/assets/RuntimeOperations-DwXUPe2a.js     4.50 kB │ gzip:   1.82 kB
+dist/assets/RetrievalQuality-CPK1QoDh.js     10.10 kB │ gzip:   3.48 kB
+dist/assets/IntakeQueue-CDEVPKRY.js          13.68 kB │ gzip:   4.99 kB
+dist/assets/EnterpriseRuntime-CrVQQ1Ct.js    13.99 kB │ gzip:   4.66 kB
+dist/assets/ProductExperience-C37uwm0a.js    47.18 kB │ gzip:  13.77 kB
+dist/assets/index-cjd1aAke.js               495.93 kB │ gzip: 142.57 kB
+✓ built in 3.41s

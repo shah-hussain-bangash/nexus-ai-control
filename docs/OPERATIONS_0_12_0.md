@@ -1,0 +1,27 @@
+# Metrics and encrypted backup operations — 0.12.0
+
+## Current operating signals
+
+Open Release readiness → Runtime signals. Counts are scoped to the signed-in organization/staging environment. Refresh explicitly to sample current database state. They do not prove a worker is alive or establish request latency, alert delivery or SLO compliance.
+
+To enable aggregate Prometheus-format database gauges, provision NEXUS_METRICS_TOKEN with at least 32 characters through the server secret store. A monitoring collector must send it in X-Nexus-Metrics-Token when scraping /metrics. Do not put it in URLs, a browser form, public configuration or screenshots. Export is disabled without the token; ordinary browser sessions are not a substitute for that monitoring credential. Metrics intentionally have fixed status labels without tenant/record IDs. Secure the scrape route on your private network and configure your monitoring/alert service separately.
+
+## Encrypted backup and inspection
+
+Provision NEXUS_BACKUP_ENCRYPTION_KEY as base64-encoded 32 random bytes through your protected secret store. Keep recoverable key custody separate from the archive and test recovery access. A lost key makes the archive unreadable; do not generate a throwaway key that will disappear with the shell. Never include the key inside this source or backup archive.
+
+Stop every API/worker writer first. Use a private encrypted destination filesystem with appropriate Windows ACLs; the command uses private temporary plaintext snapshots and normal cleanup cannot guarantee secure erasure after a crash. Then from the backend directory:
+
+```powershell
+cd C:\nexus-ai-control\backend
+..\.venv\Scripts\python.exe -m nexus.cli backup-encrypted --destination C:\private-backups\nexus-2026-11-17.enc --quiesced
+..\.venv\Scripts\python.exe -m nexus.cli inspect-encrypted-backup --destination C:\private-backups\nexus-2026-11-17.enc
+```
+
+Create the private parent directory first. Commands never overwrite an existing archive. The 512 MiB archive limit is explicit; use reviewed large-database tooling above it. SQLite snapshots and optional synthetic business data are included. PostgreSQL creation requires operator-provisioned pg_dump as with the existing backup path. Credentials stay out of subprocess arguments.
+
+Inspection authenticates AES-GCM before extracting safe members into a temporary inspection directory, then checks the manifest and SQLite integrity. It never overwrites the active application database. This is not a full PostgreSQL restore test or a measured recovery-time/recovery-point objective. Schedule backups, retain encrypted off-host copies, rotate keys, manage retention and perform isolated database/application restore drills before production acceptance. Keep the normal plaintext backup command only for an already protected workflow; upgrading does not encrypt older files.
+
+## Remaining operational acceptance
+
+Choose the cloud account/region/private network, IdP/MFA policy, secret service, monitoring and notification destinations, immutable audit archive, backup retention and measured RPO/RTO. Run deployment-specific security/load/device/accessibility reviews. Source tests are engineering evidence, not approval to deploy sensitive customer workloads.

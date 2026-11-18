@@ -1,0 +1,80 @@
+{
+  "release": "0.9.0",
+  "date": "2026-11-17",
+  "schema": 5,
+  "production_ready": false,
+  "ui_scope": {
+    "defined_modules": 18,
+    "sections_per_module": 9,
+    "module_sections": 162,
+    "configuration_fields": 161,
+    "planned_action_contracts": 54,
+    "operational_surfaces": 18,
+    "primary_navigation_views": 22,
+    "runtime_activated_by_design": false,
+    "operational_form_fields": 97,
+    "ui_transition_commands": 126,
+    "dedicated_operational_experiences": 18,
+    "function_definitions": 216,
+    "function_controls": 648,
+    "function_screen_states": 8,
+    "function_review_actions": 3
+  },
+  "backend": {
+    "total": 225,
+    "passed": 210,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.9.0.xml",
+    "duration_seconds": 40.59
+  },
+  "frontend": {
+    "passed": 26,
+    "failed": 0,
+    "production_build": "passed",
+    "synthetic_preview_build": "passed",
+    "preview_bundle_advisory": true
+  },
+  "browser_review": {
+    "environment": "isolated synthetic cloud-browser harness",
+    "verified": [
+      "216-function inventory and text search",
+      "Planning-phase filter with one saved reviewed function",
+      "Open specific function from map",
+      "SCIM control edit, owner and four UI checks",
+      "Parent revision 2 save",
+      "Timeout-unknown trace with zero effects",
+      "Selected REST/checkpoint/OCR/vector designs",
+      "API contract and dependency display",
+      "Linked input help",
+      "Full-scope JSON export",
+      "1363px viewport without document overflow"
+    ],
+    "not_certified": [
+      "all 216 screens in every browser/device",
+      "mobile/touch",
+      "screen reader",
+      "real external integration timing",
+      "formal accessibility"
+    ],
+    "runtime_effects": 0
+  },
+  "external_services_skipped": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "native_windows_tested": false,
+  "cloud_deployed": false,
+  "live_provider_contacted": false,
+  "formal_security_load_accessibility_restore_assessment": false,
+  "runtime_roadmap": {
+    "total": 18,
+    "source_implemented_awaiting_acceptance": 1,
+    "partial": 11,
+    "not_implemented": 6,
+    "accepted_by_default": 0
+  },
+  "function_preview_combinations_tested": 5184
+}

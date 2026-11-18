@@ -1,0 +1,37 @@
+{
+  "release": "0.3.1",
+  "date": "2026-11-13",
+  "full_integration": {
+    "engine": "PostgreSQL 16.2",
+    "opa": "1.0.1",
+    "keycloak": "26.0.7",
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0
+  },
+  "sqlite_regression": {
+    "passed": 85,
+    "skipped": 12,
+    "failed": 0
+  },
+  "keycloak_cases_in_full_total": 6,
+  "postgresql_race_cases_in_full_total": 6,
+  "operations_cases_in_full_total": 9,
+  "frontend_build": "passed",
+  "browser_review": "desktop synthetic preview; sign-in, portal, quick navigation, readiness and audit search",
+  "production_ready": false,
+  "remaining": [
+    "multi-workspace/environment access and assigned-object access",
+    "workload federation, IdP lifecycle and owner-transfer workflow",
+    "customer connector and managed secrets/egress isolation",
+    "external telemetry, alerts, provider billing and atomic budgets",
+    "maintenance scheduling and verified recovery",
+    "customer cloud deployment and independent readiness review"
+  ],
+  "functional_suite_baseline_release": "0.3.0",
+  "current_patch_checks": [
+    "TypeScript/Vite application and demo builds",
+    "desktop synthetic preview sign-in, dashboard, registry and dialog inspection",
+    "clean packaged application workflow smoke"
+  ]
+}

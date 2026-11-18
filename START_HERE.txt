@@ -1,0 +1,16 @@
+NEXUS AI CONTROL 0.16.0 — CONNECTED SEARCH AND ACCOUNT ADMINISTRATION
+
+CURSOR WINDOWS PACKAGE: read CURSOR_QUICKSTART.md first.
+Open nexus-ai-control in Cursor. Run npm run setup, then npm start.
+Setup prints your generated local login password on first initialization.
+
+Read README.md and docs/UPGRADE_0_16_0.md.
+Windows: preserve existing .env/data; run scripts\start.cmd and use the printed URL.
+Knowledge & RAG: real local ACL-first LSA/BM25 retrieval and current source excerpts.
+Workspace settings: owner member provisioning, role/access changes and session revocation.
+Local-only password setup: python -m nexus.cli set-local-password --email member@example.com (backend directory).
+
+Full enterprise production readiness remains OPEN.
+Read docs/PRODUCTION_GAPS_0_16_0.md and docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv.
+The 216 planned UI screens are not 216 implemented runtime services.
+Schema remains 8. No accounts or business records are reset.

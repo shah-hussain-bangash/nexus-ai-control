@@ -1,0 +1,107 @@
+{
+  "release": "0.12.0",
+  "date": "2026-11-17",
+  "schema": 7,
+  "production_ready": false,
+  "ui_scope": {
+    "defined_modules": 18,
+    "sections_per_module": 9,
+    "module_sections": 162,
+    "configuration_fields": 161,
+    "planned_action_contracts": 54,
+    "operational_surfaces": 18,
+    "primary_navigation_views": 24,
+    "runtime_activated_by_design": false,
+    "operational_form_fields": 97,
+    "ui_transition_commands": 126,
+    "dedicated_operational_experiences": 18,
+    "function_definitions": 216,
+    "function_controls": 648,
+    "function_screen_states": 8,
+    "function_review_actions": 3,
+    "api_backed_workspaces_added": 2,
+    "appearance_modes": [
+      "light",
+      "dark"
+    ],
+    "default_body_px": 16,
+    "revised_supporting_text_px": 14
+  },
+  "backend": {
+    "total": 270,
+    "passed": 255,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.12.0.xml",
+    "duration_seconds": 51.671
+  },
+  "frontend": {
+    "passed": 34,
+    "failed": 0,
+    "production_build": "passed",
+    "synthetic_preview_build": "passed",
+    "preview_bundle_advisory": true,
+    "entry_bundle_bytes": 492872
+  },
+  "browser_review": {
+    "environment": "isolated synthetic UI harness",
+    "verified": [
+      "Clear light sign-in, labels, hints and password control without entering credentials",
+      "Light overview labels/table heading corrections",
+      "Function map and studio surface/text corrections",
+      "Document library and light/dark switching",
+      "Backend-generated runtime signals panel",
+      "1363px viewport with no document-level overflow; large mode body 18px and metric label 17px"
+    ],
+    "not_certified": [
+      "all 216 feature states and every device",
+      "formal WCAG audit",
+      "screen reader",
+      "native Windows",
+      "live customer/identity/cloud/monitoring",
+      "load/security/restore acceptance"
+    ],
+    "runtime_writes_in_harness": 0
+  },
+  "external_services_skipped": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "native_windows_tested": false,
+  "cloud_deployed": false,
+  "live_provider_contacted": false,
+  "formal_security_load_accessibility_restore_assessment": false,
+  "runtime_roadmap": {
+    "total": 18,
+    "source_implemented_awaiting_acceptance": 1,
+    "partial": 15,
+    "not_implemented": 2,
+    "accepted_by_default": 0
+  },
+  "function_preview_combinations_tested": 5184,
+  "document_lifecycle": {
+    "replacement_receipts": "idempotent author-scoped metadata",
+    "historic_content_rollback": false,
+    "current_citation_check": true,
+    "saved_lexical_regressions": true,
+    "llm_answer_grading": false,
+    "production_acceptance_changed": false
+  },
+  "business_adapter": {
+    "http_contract_implemented": true,
+    "default_mode": "synthetic",
+    "customer_endpoint_tested": false,
+    "transport_tests": "in-memory HTTP transport",
+    "automatic_retries": false,
+    "destination_bound": true
+  },
+  "encrypted_backup": {
+    "implemented": true,
+    "algorithm": "AES-256-GCM",
+    "tamper_and_wrong_key_tests": true,
+    "active_restore_performed": false,
+    "postgresql_restore_verified": false
+  }
+}

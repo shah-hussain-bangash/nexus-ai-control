@@ -1,0 +1,76 @@
+{
+  "release": "0.8.0",
+  "date": "2026-11-17",
+  "schema": 5,
+  "production_ready": false,
+  "ui_scope": {
+    "defined_modules": 18,
+    "sections_per_module": 8,
+    "module_sections": 144,
+    "configuration_fields": 161,
+    "planned_action_contracts": 54,
+    "operational_surfaces": 18,
+    "primary_navigation_views": 21,
+    "runtime_activated_by_design": false,
+    "operational_form_fields": 97,
+    "ui_transition_commands": 126,
+    "dedicated_operational_experiences": 18
+  },
+  "backend": {
+    "total": 204,
+    "passed": 189,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "junit": "docs/test-results-0.8.0.xml",
+    "duration_seconds": 61.812
+  },
+  "frontend": {
+    "passed": 21,
+    "failed": 0,
+    "production_build": "passed",
+    "synthetic_preview_build": "passed",
+    "preview_bundle_advisory": true
+  },
+  "browser_review": {
+    "environment": "isolated synthetic cloud-browser harness",
+    "verified": [
+      "All 18 populated dedicated operational screens",
+      "Revision saves",
+      "Agent queue/start and uncertain-pause event history",
+      "Global dirty-plan keep/discard navigation",
+      "File chooser metadata intake",
+      "Keyword citation results",
+      "Unavailable/retry state",
+      "1363px viewport: no document overflow; 15px bright record titles"
+    ],
+    "edits": "In-memory in harness; real backend persistence covered by API tests",
+    "not_certified": [
+      "native Windows",
+      "mobile/touch",
+      "screen reader",
+      "formal accessibility",
+      "real external runtime states"
+    ],
+    "source_after_browser_review": [
+      "Operational form-close discard confirmation and nested dirty-state wiring added after browser run; compiled, not independently browser-tested",
+      "Final domain-specific numeric limits validated by complete backend suite and frontend checks"
+    ]
+  },
+  "external_services_skipped": {
+    "postgresql": 6,
+    "keycloak": 6,
+    "opa": 3
+  },
+  "native_windows_tested": false,
+  "cloud_deployed": false,
+  "live_provider_contacted": false,
+  "formal_security_load_accessibility_restore_assessment": false,
+  "runtime_roadmap": {
+    "total": 18,
+    "source_implemented_awaiting_acceptance": 1,
+    "partial": 11,
+    "not_implemented": 6,
+    "accepted_by_default": 0
+  }
+}

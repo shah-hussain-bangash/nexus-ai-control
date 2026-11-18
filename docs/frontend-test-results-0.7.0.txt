@@ -1,0 +1,24 @@
+
+> nexus-control-console@0.7.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ a reload recovers only scoped key and fingerprint metadata (3.428188ms)
+✔ invalid or corrupt recovery state is ignored (0.580749ms)
+✔ request fingerprints are stable and change with the requested intent (16.819578ms)
+✔ all 18 module defaults have a complete valid configuration (11.71171ms)
+✔ references, URLs and lists reject unsafe or incomplete values (0.653215ms)
+✔ review phase requires all criteria and field changes remain dirty (0.746681ms)
+✔ handoff request is a planned payload and retains configuration version (0.522159ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (3.654492ms)
+✔ an uncertain response retains its key for a retry, including after commit (1.205149ms)
+✔ different payloads do not share an uncertain request key (1.448747ms)
+✔ an incomplete acknowledgement must not retire the recovery key (1.153914ms)
+✔ success feedback identifies the actual reference and independent review state (0.786474ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 476.674443

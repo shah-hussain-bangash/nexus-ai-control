@@ -1,0 +1,49 @@
+{
+  "package": "NEXUS AI Control 0.16.0 - Cursor Windows",
+  "date": "2026-11-18",
+  "environment": {
+    "os": "Windows",
+    "python": "3.14.8",
+    "node": "24.21.0"
+  },
+  "backend": {
+    "passed": 285,
+    "skipped": 18,
+    "failed": 0,
+    "method": "Full suite followed by a passing rerun of all hybrid tests after correcting a Windows skip guard",
+    "skip_reasons": [
+      "POSIX process shutdown assertion; Windows wrapper needs native smoke testing",
+      "POSIX process-group deadline assertion; not available on Windows",
+      "PostgreSQL row-lock evidence requires a live PostgreSQL server.",
+      "Set NEXUS_KEYCLOAK_HOME to run real Keycloak protocol tests.",
+      "Set OPA_BIN to run the real OPA HTTP integration.",
+      "Tesseract binary required for real OCR acceptance"
+    ]
+  },
+  "frontend": {
+    "build": "passed",
+    "tests_passed": 51
+  },
+  "demo_preview": {
+    "build": "passed",
+    "tests_passed": 5
+  },
+  "windows_launcher": {
+    "powershell_parse": "passed",
+    "root_build_command": "passed"
+  },
+  "local_runtime_smoke": {
+    "method": "Real local launcher with actual HTTP requests and supervised worker; shutdown requested after assertions",
+    "frontend_served": true,
+    "database_ready_schema_8": true,
+    "owner_login": true,
+    "supplier_action_admitted": true,
+    "worker_verified_action": true,
+    "clean_shutdown": true
+  },
+  "limits": [
+    "Cursor graphical debugging was not exercised.",
+    "External services and provider accounts were not configured.",
+    "The upstream release still contains partial enterprise workstreams."
+  ]
+}

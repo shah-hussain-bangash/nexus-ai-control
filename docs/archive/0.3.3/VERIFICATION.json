@@ -1,0 +1,56 @@
+{
+  "release": "0.3.3",
+  "date": "2026-11-14",
+  "full_integration": {
+    "engine": "PostgreSQL 16.2",
+    "opa": "1.0.1",
+    "keycloak": "26.0.7",
+    "passed": 97,
+    "failed": 0,
+    "skipped": 0,
+    "release": "0.3.0",
+    "rerun_for_current_patch": false
+  },
+  "sqlite_regression": {
+    "passed": 88,
+    "skipped": 15,
+    "failed": 0,
+    "errors": 0,
+    "collected": 103,
+    "release": "0.3.2",
+    "junit": "docs/sqlite-test-results-0.3.2.xml",
+    "rerun_for_current_patch": false
+  },
+  "keycloak_cases_in_full_total": 6,
+  "postgresql_race_cases_in_full_total": 6,
+  "operations_cases_in_full_total": 9,
+  "frontend_build": "passed",
+  "browser_review": "User supplied screenshots show 0.3.2 local UI. Modified 0.3.3 UI not browser-tested on the user device.",
+  "production_ready": false,
+  "remaining": [
+    "multi-workspace/environment access and assigned-object access",
+    "workload federation, IdP lifecycle and owner-transfer workflow",
+    "customer connector and managed secrets/egress isolation",
+    "external telemetry, alerts, provider billing and atomic budgets",
+    "maintenance scheduling and verified recovery",
+    "customer cloud deployment and independent readiness review"
+  ],
+  "functional_suite_baseline_release": "0.3.0",
+  "current_patch_checks": [
+    "Clean npm ci passed with baseline dependency versions restored",
+    "Five frontend intent-key/retry/feedback tests passed",
+    "TypeScript/Vite build passed"
+  ],
+  "windows_native_smoke": "0.3.2 API/worker startup observed in user-supplied Windows logs; 0.3.3 not installed on Windows here.",
+  "current_patch_skipped_integrations": {
+    "keycloak": 6,
+    "postgresql": 6,
+    "opa": 3
+  },
+  "frontend_regression": {
+    "passed": 5,
+    "failed": 0,
+    "release": "0.3.3",
+    "evidence": "docs/frontend-test-results-0.3.3.txt"
+  }
+}

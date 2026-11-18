@@ -1,0 +1,39 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nexus-control-console@0.9.0 test
+> node --experimental-strip-types --test tests/*.test.ts
+
+✔ all 216 function screens have valid domain controls, role guidance, states and handoff (8.979895ms)
+✔ UI review phase requires manual acceptance and remains a planning phase (0.322952ms)
+✔ every function action and screen state has an effect-free preview (7.654988ms)
+✔ unknown actions, blank review notes and unknown scenarios are rejected (0.57013ms)
+✔ secret references and percentage boundaries validate before saving (0.41549ms)
+✔ a reload recovers only scoped key and fingerprint metadata (2.156046ms)
+✔ invalid or corrupt recovery state is ignored (0.35583ms)
+✔ request fingerprints are stable and change with the requested intent (8.940427ms)
+✔ all 18 module defaults have a complete valid configuration (4.31757ms)
+✔ references, URLs and lists reject unsafe or incomplete values (0.447458ms)
+✔ review phase requires all criteria and field changes remain dirty (0.42257ms)
+✔ handoff request is a planned payload and retains configuration version (0.347328ms)
+✔ all 18 dedicated operational experiences have valid defaults and executable transition graphs (4.731438ms)
+✔ run pause resume cancel retry and rollback follow valid states (2.072021ms)
+✔ denied, outage, uncertain and stale reviews preserve state without auto retry (0.443511ms)
+✔ invalid transitions, role denial and malformed event chains fail (0.709428ms)
+✔ numeric estimates use entered values and handle zero capacity (0.479706ms)
+✔ file intake accepts metadata only and rejects unsupported or oversized files atomically (0.323603ms)
+✔ schema, secret references and actual calendar dates validate before applying (0.389942ms)
+✔ navigation guard retains pending destination until user chooses to leave (0.229282ms)
+✔ stale cleanup cannot remove a newer active navigation guard (0.60321ms)
+✔ a new acknowledged intent gets a fresh key even with identical fields (2.063648ms)
+✔ an uncertain response retains its key for a retry, including after commit (0.942797ms)
+✔ different payloads do not share an uncertain request key (0.450562ms)
+✔ an incomplete acknowledgement must not retire the recovery key (0.407488ms)
+✔ success feedback identifies the actual reference and independent review state (0.50316ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 272.220285
