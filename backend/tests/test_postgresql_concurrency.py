@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from conftest import auth, identifiers, submit
-from nexus.db import Agent, Tool, Grant, User, Action, Policy, OIDCTransaction, SchemaVersion, migrate
+from nexus.db import Agent, Tool, Grant, User, Action, Policy, OIDCTransaction, SchemaVersion, migrate, WorkspaceEnvironment
 from nexus.security import issue_session
 from nexus.worker import run_once
 
@@ -22,6 +22,22 @@ def test_parallel_workers_have_one_external_effect(pg):
         list(pool.map(lambda _:run_once(pg['db'],pg['settings'],pg['connector']),range(2)))
     assert pg['connector'].count()==1
     with pg['db']() as db: assert db.get(Action,r.json()['id']).status=='verified'
+
+
+def test_parallel_environment_registration_has_one_winner(pg):
+    with pg['db'].begin() as db:
+        owner=db.scalar(select(User).where(User.role=='owner',User.org_id=='northstar'))
+        token,csrf=issue_session(db,owner,pg['settings'])
+    def register(_):
+        with TestClient(pg['app']) as client:
+            client.cookies.set('nexus_session',token)
+            return client.post('/v1/workspace-environments',headers={'X-CSRF-Token':csrf},json={
+                'key':'production','name':'Production','note':'Concurrent synthetic preparation request.'}).status_code
+    with ThreadPoolExecutor(max_workers=2) as pool:codes=list(pool.map(register,range(2)))
+    assert sorted(codes)==[201,409]
+    with pg['db']() as db:
+        rows=db.scalars(select(WorkspaceEnvironment).where(WorkspaceEnvironment.org_id=='northstar',WorkspaceEnvironment.key=='production')).all()
+        assert len(rows)==1
 
 
 def test_parallel_policy_changes_have_one_winner(pg):

@@ -1,4 +1,7 @@
-NEXUS AI CONTROL 0.16.0 — CONNECTED SEARCH AND ACCOUNT ADMINISTRATION
+NEXUS AI CONTROL 0.16.1 CANDIDATE — ENVIRONMENT FOUNDATION
+
+Required schema: 9. Read docs/PHASE_1_ENVIRONMENT_FOUNDATION.md before upgrading.
+Runtime switching is disabled. Existing 0.16.0 release notes below are historical.
 
 CURSOR WINDOWS PACKAGE: read CURSOR_QUICKSTART.md first.
 Open nexus-ai-control in Cursor. Run npm run setup, then npm start.

@@ -10,6 +10,7 @@ from nexus.config import Settings
 from nexus.db import migrate, Agent, Tool, User, Organization, Policy, uid
 from nexus.cli import seed
 from nexus.security import issue_session, password_hash
+from nexus.environments import assign_staging
 
 
 @pytest.fixture
@@ -35,6 +36,7 @@ def ctx(tmp_path):
         db.add(Organization(id='other', name='Other tenant'))
         db.add(User(id='other-user', org_id='other', email='other@test.invalid', name='Other Owner', role='owner', password_hash=password_hash('test')))
         db.add(Policy(org_id='other', version=1))
+        db.flush();assign_staging(db,db.get(User,'other-user'))
     with TestClient(app) as client:
         yield {'app': app, 'db': factory, 'client': client, 'settings': settings, 'connector': app.state.connector}
     app.state.engine.dispose()

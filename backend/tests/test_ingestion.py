@@ -121,7 +121,7 @@ def test_schema_seven_upgrade_preserves_existing_documents(ctx):
     from test_documents import upload
     doc=upload(ctx)
     with ctx['app'].state.engine.begin() as conn:
-        IngestionJob.__table__.drop(conn);conn.execute(delete(SchemaVersion).where(SchemaVersion.version==8))
+        IngestionJob.__table__.drop(conn);conn.execute(delete(SchemaVersion).where(SchemaVersion.version>=8))
     migrate(ctx['app'].state.engine,ctx['db']);migrate(ctx['app'].state.engine,ctx['db'])
     with ctx['db']() as db:assert db.get(KnowledgeDocument,doc['id']) and db.get(SchemaVersion,8)
 

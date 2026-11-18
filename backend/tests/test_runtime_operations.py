@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from nexus.backup import backup, inspect_backup
 from nexus.config import Settings
-from nexus.db import database, migrate
+from nexus.db import database, migrate, CURRENT_SCHEMA
 from nexus.cli import seed
 
 
@@ -22,7 +22,7 @@ def test_backup_consistency_acknowledgement_and_integrity(tmp_path):
     assert report['backup_created'] and not report['restore_verified']
     assert inspect_backup(destination)['checksums_valid']
     with sqlite3.connect(destination/'control.sqlite3') as restored:
-        assert restored.execute('SELECT max(version) FROM schema_versions').fetchone()[0]==8
+        assert restored.execute('SELECT max(version) FROM schema_versions').fetchone()[0]==CURRENT_SCHEMA
         assert restored.execute('SELECT count(*) FROM users').fetchone()[0]>=3
     with pytest.raises(FileExistsError):backup(settings,destination,True)
     manifest=json.loads((destination/'manifest.json').read_text());assert 'secret' not in (destination/'manifest.json').read_text()

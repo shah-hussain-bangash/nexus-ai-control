@@ -5,6 +5,10 @@ import hashlib,json,sys,zipfile,xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[1]
 RELEASE='0.16.0'
 def main():
+    sys.path.insert(0,str(ROOT/'backend'))
+    from nexus import __version__
+    if __version__!=RELEASE:
+        raise SystemExit('This archived 0.16.0 packager cannot certify the current candidate. Use the GitHub source checkout; release-specific packaging evidence is required before producing a new release ZIP.')
     if len(sys.argv)!=2:raise SystemExit('Usage: python scripts/package_source.py /absolute/output.zip')
     out=Path(sys.argv[1]);assert out.is_absolute() and out.suffix=='.zip'
     d=ROOT/'docs';suite=ET.parse(d/'test-results-0.16.0.xml').getroot().find('testsuite')
