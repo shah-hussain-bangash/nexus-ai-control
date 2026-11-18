@@ -12,7 +12,9 @@ from nexus.ingestion import run_ingestion_once,extract_file
 
 def docx(text='Synthetic procurement evidence requires independent review.'):
     output=io.BytesIO()
-    with zipfile.ZipFile(output,'w') as archive:archive.writestr('word/document.xml','<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'+text+'</w:t></w:r></w:p></w:body></w:document>')
+    # Immutable intake retries must reuse identical bytes, including ZIP metadata.
+    entry=zipfile.ZipInfo('word/document.xml',date_time=(2026,1,1,0,0,0))
+    with zipfile.ZipFile(output,'w') as archive:archive.writestr(entry,'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'+text+'</w:t></w:r></w:p></w:body></w:document>')
     return output.getvalue()
 
 def payload(data=None,filename='source.docx',**changes):
