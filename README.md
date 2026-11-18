@@ -20,3 +20,4 @@ Windows: follow [Upgrade guide](docs/UPGRADE_0_16_0.md), run `scripts\start.cmd`
 The agreed design inventory remains 18 areas / 216 function previews. Design records, walkthrough roles/environments and exported review markers do not activate backend integrations. The isolated demo-preview harness blocks runtime writes; frontend and backend contain the authenticated application.
 
 **Full enterprise production readiness is not claimed.** The roadmap has 1 implemented, 16 partial and 1 missing lifecycle workstream, with deployment acceptance still open. Read the gap report before rollout. No real customer, IdP, cloud or provider account was changed by this release.
+Auto-sync test
