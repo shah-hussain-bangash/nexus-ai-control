@@ -1,11 +1,13 @@
 import time
 import uuid
-from sqlalchemy import LargeBinary, create_engine, event, String, Integer, Text, JSON, UniqueConstraint, Float, ForeignKeyConstraint, BigInteger
+from sqlalchemy import LargeBinary, create_engine, event, String, Integer, Text, JSON, UniqueConstraint, Float, ForeignKeyConstraint, ForeignKey, BigInteger, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
 def uid(): return str(uuid.uuid4())
 def now(): return time.time()
+
+CURRENT_SCHEMA = 9
 
 
 class Base(DeclarativeBase): pass
@@ -27,6 +29,31 @@ class User(Base):
     role: Mapped[str] = mapped_column(String)
     active: Mapped[int] = mapped_column(Integer, default=1)
     oidc_subject: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
+
+
+user_organization_index = Index('uq_users_id_org_id',User.id,User.org_id,unique=True)
+
+
+class WorkspaceEnvironment(Base):
+    __tablename__ = 'workspace_environments'
+    org_id: Mapped[str] = mapped_column(ForeignKey('organizations.id'), primary_key=True)
+    key: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String)
+    state: Mapped[str] = mapped_column(String, default='preparing')
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created: Mapped[float] = mapped_column(Float, default=now)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+
+
+class EnvironmentAssignment(Base):
+    __tablename__ = 'environment_assignments'
+    __table_args__ = (ForeignKeyConstraint(['org_id','environment_key'],
+                        ['workspace_environments.org_id','workspace_environments.key']),
+                     ForeignKeyConstraint(['user_id','org_id'],['users.id','users.org_id']))
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    org_id: Mapped[str] = mapped_column(String, primary_key=True)
+    environment_key: Mapped[str] = mapped_column(String, primary_key=True)
+    created: Mapped[float] = mapped_column(Float, default=now)
 
 
 class SessionRecord(Base):
@@ -387,9 +414,9 @@ def migrate(engine, factory):
             connection.execute(text('SELECT pg_advisory_xact_lock(782451201)'))
         SchemaVersion.__table__.create(connection, checkfirst=True)
         version = connection.scalar(select(func.max(SchemaVersion.version))) or 0
-        if version > 8: raise RuntimeError('Database schema is newer than this application; upgrade the source first.')
+        if version > CURRENT_SCHEMA: raise RuntimeError('Database schema is newer than this application; upgrade the source first.')
         if version < 1:
-            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
+            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('workspace_environments','environment_assignments','oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
             Base.metadata.create_all(connection, tables=baseline)
             connection.execute(SchemaVersion.__table__.insert().values(version=1, applied=now()))
         if version < 2:
@@ -424,6 +451,26 @@ def migrate(engine, factory):
         if version < 8:
             IngestionJob.__table__.create(connection,checkfirst=True)
             connection.execute(SchemaVersion.__table__.insert().values(version=8,applied=now()))
+
+        if version < 9:
+            user_organization_index.create(connection,checkfirst=True)
+            WorkspaceEnvironment.__table__.create(connection,checkfirst=True)
+            EnvironmentAssignment.__table__.create(connection,checkfirst=True)
+            # Add registry records only. Never rewrite existing business rows or grant
+            # users access to non-staging environments discovered in legacy data.
+            existing=set(connection.execute(select(WorkspaceEnvironment.org_id,WorkspaceEnvironment.key)).all())
+            organizations=set(connection.scalars(select(Organization.id)))
+            contexts={(org,'staging') for org in organizations}
+            for table in Base.metadata.sorted_tables:
+                if 'org_id' in table.c and 'env' in table.c:
+                    contexts.update((org,env) for org,env in connection.execute(select(table.c.org_id,table.c.env).distinct()) if org in organizations)
+            for org,key in sorted(contexts-existing):
+                connection.execute(WorkspaceEnvironment.__table__.insert().values(org_id=org,key=key,name='Staging' if key=='staging' else key,state='active' if key=='staging' else 'preparing',version=1,created=now(),updated=now()))
+            assigned=set(connection.execute(select(EnvironmentAssignment.user_id,EnvironmentAssignment.org_id,EnvironmentAssignment.environment_key)).all())
+            for user_id,org in connection.execute(select(User.id,User.org_id)):
+                if org in organizations and (user_id,org,'staging') not in assigned:
+                    connection.execute(EnvironmentAssignment.__table__.insert().values(user_id=user_id,org_id=org,environment_key='staging',created=now()))
+            connection.execute(SchemaVersion.__table__.insert().values(version=9,applied=now()))
 
 
 def public(row):

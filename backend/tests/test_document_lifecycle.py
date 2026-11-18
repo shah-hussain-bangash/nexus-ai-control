@@ -107,5 +107,6 @@ def test_schema_six_upgrade_preserves_documents(ctx):
     migrate(ctx['app'].state.engine,ctx['db']);migrate(ctx['app'].state.engine,ctx['db'])
     with ctx['db']() as db:
         assert db.get(KnowledgeDocument,doc['id']).content.startswith('Restricted')
-        assert db.scalar(select(func.max(SchemaVersion.version)))==8
+        from nexus.db import CURRENT_SCHEMA
+        assert db.scalar(select(func.max(SchemaVersion.version)))==CURRENT_SCHEMA
         assert db.scalar(select(func.count()).select_from(DocumentUpdate))==0

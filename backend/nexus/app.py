@@ -18,8 +18,9 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, update, func
 from sqlalchemy.exc import IntegrityError
 from .config import Settings
+from . import __version__
 from .db import (database, User, SessionRecord, Agent, Tool, Grant, Policy, Action, Approval, Audit,
-                 Export, Evaluation, Incident, SchemaVersion, now, public, uid)
+                 Export, Evaluation, Incident, SchemaVersion, now, public, uid, CURRENT_SCHEMA)
 from .schemas import SupplierArguments, PurchaseArguments, Login, AgentInput, Reason, GrantInput, ConsoleAction, ActionInput, ApprovalDecision, PolicyInput
 from .security import (session_user, issue_session, password_valid, digest, fail, permit,
                        workload_token, authenticate_agent, PERMISSIONS)
@@ -39,12 +40,12 @@ def create_app(settings=None):
         try:
             with factory() as db:
                 version = db.scalar(select(func.max(SchemaVersion.version)))
-                if version != 8: raise RuntimeError('Run python -m nexus.cli migrate before starting release 0.16.0.')
+                if version != CURRENT_SCHEMA: raise RuntimeError(f'Run python -m nexus.cli migrate before starting release {__version__}.')
         except __import__('sqlalchemy').exc.SQLAlchemyError as exc:
             raise RuntimeError('Initialize or upgrade the database before starting NEXUS.') from exc
         yield
 
-    app = FastAPI(title='NEXUS AI Control', version='0.16.0', docs_url='/api/docs', lifespan=lifespan)
+    app = FastAPI(title='NEXUS AI Control', version=__version__, docs_url='/api/docs', lifespan=lifespan)
     app.state.settings = settings; app.state.factory = factory; app.state.engine = engine
     app.state.connector = business_connector(settings)
     from .http_controls import RequestControls
@@ -88,21 +89,21 @@ def create_app(settings=None):
                             samesite='lax', max_age=settings.session_seconds, path='/')
 
     @app.get('/health/live')
-    def live(): return {'status': 'ok', 'version': '0.16.0'}
+    def live(): return {'status': 'ok', 'version': __version__}
 
     @app.get('/health/ready')
     def ready():
         try:
             with factory() as db:
                 version = db.scalar(select(func.max(SchemaVersion.version)))
-                if version != 8: fail(503, 'SCHEMA_UPGRADE_REQUIRED', 'Run the schema upgrade before serving this release.')
+                if version != CURRENT_SCHEMA: fail(503, 'SCHEMA_UPGRADE_REQUIRED', 'Run the schema upgrade before serving this release.')
         except __import__('sqlalchemy').exc.SQLAlchemyError:
             fail(503, 'DATABASE_UNAVAILABLE', 'The database is unavailable or requires initialization.')
         if settings.policy_mode == 'opa':
             try:
                 r = httpx.get(settings.opa_url.split('/v1/')[0] + '/health', timeout=2); r.raise_for_status()
             except httpx.HTTPError: fail(503, 'CONTROL_UNAVAILABLE', 'Policy service unavailable.')
-        return {'status': 'ready', 'mode': settings.mode, 'policy_engine': settings.policy_mode, 'schema_version': 8}
+        return {'status': 'ready', 'mode': settings.mode, 'policy_engine': settings.policy_mode, 'schema_version': CURRENT_SCHEMA}
 
     @app.get('/auth/config')
     def auth_config():
@@ -464,7 +465,7 @@ def create_app(settings=None):
                                  'pkce': 'S256 / encrypted server-side verifier / single-use state',
                                  'required_acr': settings.oidc_required_acr or 'IdP flow policy (no ACR constraint)',
                                  'trust': 'Configured CA bundle' if settings.oidc_ca_bundle else 'System certificate trust',
-                                 'schema_version': 8},
+                                 'schema_version': CURRENT_SCHEMA},
                     'retention': {'audit': 'Not automated yet', 'exports': 'Download expires after 7 days'}}
 
     # OIDC credentials and PKCE verifier remain server-side. Transactions are single-use.
@@ -506,6 +507,8 @@ def create_app(settings=None):
     register_membership(app,factory,settings,human)
     from .hybrid import register_hybrid
     register_hybrid(app,factory,settings,human)
+    from .environments import register_environments
+    register_environments(app,factory,settings,human)
     from .interfaces import register_interfaces
     register_interfaces(app, factory, settings, human)
 

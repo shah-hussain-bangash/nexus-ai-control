@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 from sqlalchemy import select
 from .config import Settings
-from .db import database, migrate, Organization, User, Agent, Tool, Grant, Policy, uid
+from .db import database, migrate, Organization, User, Agent, Tool, Grant, Policy, uid, CURRENT_SCHEMA
+from .environments import assign_staging
 from .security import password_hash
 from .schemas import SupplierArguments, PurchaseArguments
 
@@ -15,9 +16,11 @@ def seed(factory, password):
         db.add(Organization(id='northstar', name='Northstar Operations'))
         people = [('owner', 'Alex Morgan', 'owner@nexus.local'), ('approver', 'Sam Taylor', 'reviewer@nexus.local'), ('auditor', 'Jordan Lee', 'auditor@nexus.local')]
         owner = None
+        users = []
         hashed = password_hash(password)
         for role, name, email in people:
             u = User(id=uid(), org_id='northstar', name=name, email=email, role=role, password_hash=hashed); db.add(u)
+            users.append(u)
             if role == 'owner': owner = u
         db.add(Policy(org_id='northstar', version=1))
         supplier = Tool(id=uid(), org_id='northstar', name='Supplier directory', kind='supplier', risk='low', schema_json=SupplierArguments.model_json_schema())
@@ -29,6 +32,7 @@ def seed(factory, password):
         db.add_all(agents); db.flush()
         for a, t, scope in [(agents[0], supplier, 'supplier:read'), (agents[0], purchase, 'purchase:create'), (agents[1], supplier, 'supplier:read')]:
             db.add(Grant(org_id='northstar', agent_id=a.id, tool_id=t.id, scope=scope))
+        for user in users:assign_staging(db,user)
     return True
 
 
@@ -78,7 +82,8 @@ def main():
         with factory.begin() as db:
             if db.scalar(select(Organization).limit(1)) or db.scalar(select(User).limit(1)): parser.error('Bootstrap requires an empty database; existing organizations are preserved.')
             db.add(Organization(id='northstar',name=args.organization));db.flush()
-            db.add(User(org_id='northstar',email=args.email.lower(),name=args.name,role='owner',password_hash=password_hash(secrets.token_urlsafe(48)),oidc_subject=settings.oidc_issuer.rstrip('/')+'|'+args.oidc_subject))
+            user=User(org_id='northstar',email=args.email.lower(),name=args.name,role='owner',password_hash=password_hash(secrets.token_urlsafe(48)),oidc_subject=settings.oidc_issuer.rstrip('/')+'|'+args.oidc_subject)
+            db.add(user);db.flush();assign_staging(db,user)
             db.add(Policy(org_id='northstar',version=1))
         print('Organization and OIDC-bound owner provisioned. No synthetic tools, agents or shared passwords were created.')
     elif args.operation == 'set-local-password':
@@ -96,10 +101,11 @@ def main():
         with factory.begin() as db:
             if args.oidc_subject and not settings.oidc_issuer: parser.error('Configure NEXUS_OIDC_ISSUER before binding a subject')
             subject = settings.oidc_issuer.rstrip('/') + '|' + args.oidc_subject if args.oidc_subject else None
-            db.add(User(org_id='northstar', email=args.email.lower(), name=args.name, role=args.role,
-                        password_hash=password_hash(password), oidc_subject=subject))
+            user=User(org_id='northstar', email=args.email.lower(), name=args.name, role=args.role,
+                        password_hash=password_hash(password), oidc_subject=subject)
+            db.add(user);db.flush();assign_staging(db,user)
         print('User provisioned. Temporary local password: ' + password)
-    else: print('Schema is at version 8.')
+    else: print(f'Schema is at version {CURRENT_SCHEMA}.')
 
 
 if __name__ == '__main__': main()

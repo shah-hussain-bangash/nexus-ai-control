@@ -9,6 +9,7 @@ from .schemas import Strict
 from .db import User,SessionRecord,Organization,WorkbenchRun,now
 from .security import fail,digest,password_hash
 from .service import canonical,audit
+from .environments import assign_staging
 KIND='member_provision'
 class Note(Strict):
  note:str=Field(min_length=5,max_length=500)
@@ -89,7 +90,7 @@ def register_membership(app,factory,settings,human):
     if settings.oidc_issuer and not body.oidc_subject:fail(422,'OIDC_SUBJECT_REQUIRED','Pre-bind the exact trusted IdP subject before provisioning an SSO member.')
     if body.oidc_subject and not settings.oidc_issuer:fail(422,'OIDC_NOT_CONFIGURED','Configure the trusted issuer before provisioning an IdP binding.')
     target=User(org_id=actor.org_id,email=body.email,name=body.name,role=body.role,password_hash=password_hash(secrets.token_urlsafe(48)),oidc_subject=settings.oidc_issuer.rstrip('/')+'|'+body.oidc_subject if body.oidc_subject else None)
-    db.add(target);db.flush();db.add(WorkbenchRun(org_id=actor.org_id,kind=KIND,status='completed',duration_ms=0,author_id=actor.id,result={'key':key,'fingerprint':fingerprint,'member_id':target.id}))
+    db.add(target);db.flush();assign_staging(db,target);db.add(WorkbenchRun(org_id=actor.org_id,kind=KIND,status='completed',duration_ms=0,author_id=actor.id,result={'key':key,'fingerprint':fingerprint,'member_id':target.id}))
     audit(db,actor.org_id,actor.id,'member.provisioned',detail={'member_id':target.id,'role':target.role,'oidc_bound':bool(target.oidc_subject),'note':body.note})
     return {'id':target.id,'status':'provisioned','member':member(db,target),'password_issued':False,'invitation_sent':False}
   except IntegrityError:fail(409,'ACCOUNT_UNAVAILABLE','This account cannot be provisioned. Refresh the member directory.')

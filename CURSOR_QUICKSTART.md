@@ -1,4 +1,8 @@
-# Run NEXUS AI Control 0.16.0 in Cursor on Windows
+# Run NEXUS AI Control in Cursor on Windows
+
+The 0.16.1 candidate requires schema 9. Before upgrading an existing installation,
+follow `docs/PHASE_1_ENVIRONMENT_FOUNDATION.md`: stop all API/workers, make and inspect
+a private backup, then migrate. Fresh setup uses the current schema automatically.
 
 This package includes the original full source plus Windows setup/run commands,
 Cursor tasks, and a Python debug configuration. No paid API key is needed for

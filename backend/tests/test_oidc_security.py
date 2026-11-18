@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from sqlalchemy import select
 from nexus import oidc
-from nexus.db import OIDCTransaction, User, SchemaVersion, migrate, now
+from nexus.db import OIDCTransaction, User, SchemaVersion, migrate, now, CURRENT_SCHEMA
 
 
 @pytest.fixture
@@ -122,7 +122,7 @@ def test_schema_upgrade_v1_preserves_existing_accounts(ctx):
         assert db.get(SchemaVersion, 2)
         assert db.scalar(select(User).where(User.email == 'owner@nexus.local'))
     migrate(ctx['app'].state.engine, ctx['db'])
-    with ctx['db']() as db: assert len(db.scalars(select(SchemaVersion)).all()) == 8
+    with ctx['db']() as db: assert len(db.scalars(select(SchemaVersion)).all()) == CURRENT_SCHEMA
 
 
 def test_schema_newer_than_application_is_rejected(ctx):
@@ -132,7 +132,7 @@ def test_schema_newer_than_application_is_rejected(ctx):
 
 def test_readiness_rejects_outdated_schema(ctx):
     with ctx['db'].begin() as db:
-        db.query(SchemaVersion).filter(SchemaVersion.version == 8).delete()
+        db.query(SchemaVersion).filter(SchemaVersion.version == CURRENT_SCHEMA).delete()
     response = ctx['client'].get('/health/ready')
     assert response.status_code == 503 and response.json()['error']['code'] == 'SCHEMA_UPGRADE_REQUIRED'
 
