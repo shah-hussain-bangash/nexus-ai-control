@@ -93,10 +93,10 @@ def test_admission_counts_other_environments_without_exposing_their_calls(ctx,in
 def test_recovery_replay_and_reconciliation_do_not_cross_context(ctx,internal):
     response=infer(internal);assert response.status_code==200,response.text
     call=response.json()
-    assert infer(internal,'production').status_code==409
-    assert len(internal['sent'])==1
+    production=infer(internal,'production');assert production.status_code==200,production.text
+    assert production.json()['id']!=call['id'] and len(internal['sent'])==2
     recover=internal['client'].post('/v1/inference/recover',headers={'X-Test-Context':'production'},json={'key':'internal-inference-0001'})
-    assert recover.status_code==404
+    assert recover.status_code==200 and recover.json()['id']==production.json()['id']
     reconcile=internal['client'].post('/v1/inference/'+call['id']+'/reconcile',headers={'X-Test-Context':'production'},json={'input_tokens':1,'output_tokens':1,'note':'Do not reconcile another environment record.'})
     assert reconcile.status_code==404
 

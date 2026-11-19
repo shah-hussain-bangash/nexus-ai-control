@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 def uid(): return str(uuid.uuid4())
 def now(): return time.time()
 
-CURRENT_SCHEMA = 10
+CURRENT_SCHEMA = 11
 
 
 class Base(DeclarativeBase): pass
@@ -215,7 +215,7 @@ class Incident(Scoped, Base):
 
 class DurableRun(Scoped, Base):
     __tablename__ = 'durable_runs'
-    __table_args__ = (UniqueConstraint('id','org_id','env'),UniqueConstraint('org_id','author_id','idem_key'))
+    __table_args__ = (UniqueConstraint('id','org_id','env'),UniqueConstraint('org_id','env','author_id','idem_key',name='uq_durable_runs_runtime_key'))
     name: Mapped[str] = mapped_column(String)
     agent_id: Mapped[str] = mapped_column(String)
     generation: Mapped[int] = mapped_column(Integer)
@@ -253,7 +253,7 @@ class DurableStep(Scoped, Base):
 
 class KnowledgeDocument(Scoped, Base):
     __tablename__ = 'knowledge_documents'
-    __table_args__ = (UniqueConstraint('id','org_id','env'),UniqueConstraint('org_id','author_id','idem_key'))
+    __table_args__ = (UniqueConstraint('id','org_id','env'),UniqueConstraint('org_id','env','author_id','idem_key',name='uq_knowledge_documents_runtime_key'))
     title: Mapped[str] = mapped_column(String)
     filename: Mapped[str] = mapped_column(String)
     author_id: Mapped[str] = mapped_column(String)
@@ -282,7 +282,7 @@ class DocumentChunk(Scoped, Base):
 
 class DocumentUpdate(Scoped, Base):
     __tablename__ = 'document_updates'
-    __table_args__ = (ForeignKeyConstraint(['document_id','org_id','env'],['knowledge_documents.id','knowledge_documents.org_id','knowledge_documents.env']),UniqueConstraint('org_id','author_id','idem_key'))
+    __table_args__ = (ForeignKeyConstraint(['document_id','org_id','env'],['knowledge_documents.id','knowledge_documents.org_id','knowledge_documents.env']),UniqueConstraint('org_id','env','author_id','idem_key',name='uq_document_updates_runtime_key'))
     document_id: Mapped[str] = mapped_column(String,index=True)
     author_id: Mapped[str] = mapped_column(String)
     idem_key: Mapped[str] = mapped_column(String)
@@ -292,7 +292,7 @@ class DocumentUpdate(Scoped, Base):
 
 class RetrievalCheck(Scoped, Base):
     __tablename__ = 'retrieval_checks'
-    __table_args__ = (UniqueConstraint('org_id','author_id','idem_key'),)
+    __table_args__ = (UniqueConstraint('org_id','env','author_id','idem_key',name='uq_retrieval_checks_runtime_key'),)
     author_id: Mapped[str] = mapped_column(String)
     name: Mapped[str] = mapped_column(String)
     config: Mapped[dict] = mapped_column(JSON)
@@ -303,7 +303,7 @@ class RetrievalCheck(Scoped, Base):
 
 class IngestionJob(Scoped, Base):
     __tablename__ = 'ingestion_jobs'
-    __table_args__ = (UniqueConstraint('org_id','author_id','idem_key'),)
+    __table_args__ = (UniqueConstraint('org_id','env','author_id','idem_key',name='uq_ingestion_jobs_runtime_key'),)
     author_id: Mapped[str] = mapped_column(String)
     title: Mapped[str] = mapped_column(String)
     filename: Mapped[str] = mapped_column(String)
@@ -379,7 +379,7 @@ class InferenceBudget(Scoped, Base):
 
 class InferenceCall(Scoped, Base):
     __tablename__ = 'inference_calls'
-    __table_args__ = (UniqueConstraint('org_id', 'key_hash'),)
+    __table_args__ = (UniqueConstraint('org_id','env','key_hash',name='uq_inference_calls_runtime_key'),)
     key_hash: Mapped[str] = mapped_column(String)
     request_hash: Mapped[str] = mapped_column(String)
     author_id: Mapped[str] = mapped_column(String)
@@ -421,7 +421,8 @@ def database(url):
 def migrate(engine, factory):
     """Forward-only schema upgrades. Existing v1 data is preserved; unknown newer schemas refuse upgrade."""
     from sqlalchemy import select, func, text
-    with engine.begin() as connection:
+    from .request_key_migration import migration_connection, migrate_request_keys
+    with migration_connection(engine) as connection:
         if engine.dialect.name == 'postgresql':
             connection.execute(text('SELECT pg_advisory_xact_lock(782451201)'))
         SchemaVersion.__table__.create(connection, checkfirst=True)
@@ -493,6 +494,10 @@ def migrate(engine, factory):
                 if session_id not in existing:
                     connection.execute(SessionRuntimeContext.__table__.insert().values(session_id=session_id,user_id=user_id,org_id=org,environment='staging',revision=1,binding_id=uid()))
             connection.execute(SchemaVersion.__table__.insert().values(version=10,applied=now()))
+
+        if version < 11:
+            migrate_request_keys(connection,Base.metadata)
+            connection.execute(SchemaVersion.__table__.insert().values(version=11,applied=now()))
 
 
 def public(row):
