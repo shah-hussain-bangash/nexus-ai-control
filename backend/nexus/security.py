@@ -2,10 +2,11 @@ import hashlib
 import hmac
 import secrets
 import base64
+import re
 import jwt
 from fastapi import HTTPException
 from sqlalchemy import select
-from .db import SessionRecord, User, Agent, now
+from .db import SessionRecord, SessionRuntimeContext, User, Agent, now
 from .runtime_context import CURRENT_ENVIRONMENT, environment_user_allowed, bind_runtime_context, bound_runtime_context
 
 
@@ -54,6 +55,29 @@ def require_identity_context(db,org_id,environment=CURRENT_ENVIRONMENT):
         fail(409,'IDENTITY_CONTEXT_CHANGED','The authenticated identity does not match this operation context. Start a fresh operation.')
 
 
+def get_session_context(db,session,user):
+    context=db.get(SessionRuntimeContext,session.id)
+    if (not context or context.user_id!=user.id or context.org_id!=user.org_id
+        or context.environment!=CURRENT_ENVIRONMENT or type(context.revision) is not int or context.revision<1
+        or not isinstance(context.binding_id,str) or not re.fullmatch(r'[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}',context.binding_id)):
+        fail(401,'SESSION_CONTEXT_UNAVAILABLE','Your session context is unavailable. Sign in again.')
+    return context
+
+
+def public_session_context(context):
+    return {'workspace_id':context.org_id,'user_id':context.user_id,'environment':context.environment,
+            'revision':context.revision,'binding_id':context.binding_id,'switching_enabled':False}
+
+
+def require_session_revision(request,context):
+    ids=request.headers.getlist('X-Nexus-Context-ID');revisions=request.headers.getlist('X-Nexus-Context-Revision')
+    if not ids and not revisions:return  # Existing clients remain staging-compatible.
+    if len(ids)!=1 or len(revisions)!=1 or not re.fullmatch(r'[1-9][0-9]{0,15}',revisions[0]):
+        fail(400,'INVALID_SESSION_CONTEXT','Refresh your workspace context and try again.')
+    if ids[0]!=context.binding_id or int(revisions[0])!=context.revision:
+        fail(409,'STALE_SESSION_CONTEXT','Your workspace context changed. Refresh before continuing.')
+
+
 def session_user(request, db, write=False):
     raw = request.cookies.get('nexus_session', '')
     session = db.get(SessionRecord, digest(raw))
@@ -63,9 +87,11 @@ def session_user(request, db, write=False):
     if write and not hmac.compare_digest(request.headers.get('X-CSRF-Token', ''), session.csrf):
         fail(403, 'CSRF_FAILED', 'Refresh your session and try again.')
     require_request_context(request,user.org_id)
-    require_identity_context(db,user.org_id)
-    require_environment_access(db,user)
-    bind_runtime_context(db,user.org_id)
+    context=get_session_context(db,session,user)
+    require_session_revision(request,context)
+    require_identity_context(db,user.org_id,context.environment)
+    require_environment_access(db,user,context.environment)
+    bind_runtime_context(db,user.org_id,context.environment)
     return user
 
 
@@ -86,7 +112,9 @@ def issue_session(db, user, settings):
     require_identity_context(db,user.org_id)
     require_environment_access(db,user)
     token = secrets.token_urlsafe(40); csrf = secrets.token_urlsafe(32)
-    db.add(SessionRecord(id=digest(token), user_id=user.id, csrf=csrf, expires=now() + settings.session_seconds))
+    record=SessionRecord(id=digest(token), user_id=user.id, csrf=csrf, expires=now() + settings.session_seconds)
+    db.add(record);db.flush()
+    db.add(SessionRuntimeContext(session_id=record.id,user_id=user.id,org_id=user.org_id,environment=CURRENT_ENVIRONMENT))
     return token, csrf
 
 

@@ -3,7 +3,7 @@ from sqlalchemy import select, delete, func
 from sqlalchemy.exc import IntegrityError
 from conftest import auth
 from nexus.db import (WorkspaceEnvironment, EnvironmentAssignment, User, Agent, Audit,
-                      SchemaVersion, CURRENT_SCHEMA, migrate, user_organization_index)
+                      SchemaVersion, CURRENT_SCHEMA, migrate, user_organization_index, SessionRuntimeContext)
 
 
 def create(ctx,key='production',**changes):
@@ -133,6 +133,7 @@ def test_schema_eight_upgrade_preserves_accounts_sessions_and_existing_contexts(
         agent=Agent(org_id='northstar',env='production',name='Existing production record',owner_id=owner_id,risk='low')
         db.add(agent);db.flush();agent_id=agent.id
     with ctx['app'].state.engine.begin() as conn:
+        SessionRuntimeContext.__table__.drop(conn)
         EnvironmentAssignment.__table__.drop(conn)
         WorkspaceEnvironment.__table__.drop(conn)
         user_organization_index.drop(conn)

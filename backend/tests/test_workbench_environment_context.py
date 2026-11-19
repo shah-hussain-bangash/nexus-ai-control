@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import select, update, func
 from conftest import auth, submit
-from nexus.db import User, Agent, WorkspaceAsset, AssetRevision, DurableRun, DurableStep, Action
+from nexus.db import User, Agent, WorkspaceAsset, AssetRevision, DurableRun, DurableStep, Action, CURRENT_SCHEMA
 from nexus.runtime_context import bind_runtime_context
 from nexus.workbench import register_workbench, execute_preview, snapshot, RunInput as PreviewInput
 from nexus.durable import register_durable, run_flow_once, serialize, step_for
@@ -68,7 +68,7 @@ def test_starter_is_idempotent_within_each_internal_environment(ctx,internal):
         assert client.post('/v1/workbench-starter').json()['created']==18
         assert client.post('/v1/workbench-starter').json()['created']==0
         listing=client.get('/v1/workbench').json()
-        assert listing['schema_version']==9 and len(listing['assets'])==18
+        assert listing['schema_version']==CURRENT_SCHEMA and len(listing['assets'])==18
         assert {a['env'] for a in listing['assets']}=={environment}
     with ctx['db']() as db:
         assert db.scalar(select(func.count()).select_from(AssetRevision))==36
