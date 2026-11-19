@@ -18,6 +18,7 @@ import {
   Upload,
 } from "lucide-react";
 import { api } from "./api";
+import { sessionContext } from "./sessionContext";
 import type { InterfaceModule } from "./interfaceDesign";
 import type { FunctionDefinition } from "./functionPlans";
 import { Modal } from "./RuntimeDialog";
@@ -40,7 +41,9 @@ import {
   HANDOFF_LIMIT,
   UI_RECORD_LIMIT,
   makeHandoff,
-  parseHandoff,
+  readHandoff,
+  assertHandoffScope,
+  validatedHandoffScope,
   reviewComplete,
   reviewCriteria,
   type ReviewChecks,
@@ -53,17 +56,25 @@ type Props = {
   onDesign: (module: string, feature: string) => void;
 };
 const pretty = (s: string) => s.replaceAll("_", " ");
-function download(data: unknown) {
+function download(data: unknown, environment: string) {
   const u = URL.createObjectURL(
     new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
   );
   const a = document.createElement("a");
   a.href = u;
-  a.download = "NEXUS_UI_Phase_Handoff.json";
+  a.download = `NEXUS_UI_Phase_Handoff_${environment}.json`;
   a.click();
   URL.revokeObjectURL(u);
 }
 export function ProductExperience({ me, onNavigate, onDesign }: Props) {
+  const mountedContext = useRef(sessionContext.capture());
+  const importRequest = useRef(0);
+  useEffect(
+    () => () => {
+      importRequest.current++;
+    },
+    [],
+  );
   const [modules, setModules] = useState<InterfaceModule[]>([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -251,12 +262,29 @@ export function ProductExperience({ me, onNavigate, onDesign }: Props) {
       setError((e as Error).message);
     }
   }
-  const workspaceScope = {
-    organization: String(me.user.org_id),
-    user: String(me.user.id),
-  };
+  const workspaceScope = validatedHandoffScope({
+    organization: me.user.org_id,
+    user: me.user.id,
+    environment: me.environment,
+  });
+  function currentWorkspace() {
+    const current = sessionContext.capture();
+    return (
+      sessionContext.current(mountedContext.current) &&
+      current.context?.workspace_id === workspaceScope.organization &&
+      current.context?.user_id === workspaceScope.user &&
+      current.context?.environment === workspaceScope.environment
+    );
+  }
+  function requireCurrentWorkspace() {
+    if (!currentWorkspace())
+      throw Error(
+        "Your workspace context changed. Reopen the design review before importing or exporting.",
+      );
+  }
   function exportHandoff() {
     try {
+      requireCurrentWorkspace();
       const data = makeHandoff(
         modules,
         rows,
@@ -265,11 +293,11 @@ export function ProductExperience({ me, onNavigate, onDesign }: Props) {
         workspaceScope,
         includeExamples,
       );
-      download(data);
+      download(data, workspaceScope.environment);
       if (includeExamples || !rows.length) setUnsavedSession(false);
       setNotice(
         includeExamples
-          ? "UI handoff download started. It can be imported in this account/workspace to resume your review."
+          ? "UI handoff download started. It can be imported in this account, workspace and environment to resume your review."
           : "Review metadata download started. Examples were excluded; export a full handoff to retain changed examples.",
       );
       setError("");
@@ -279,24 +307,43 @@ export function ProductExperience({ me, onNavigate, onDesign }: Props) {
   }
   async function chooseImport(file?: File) {
     if (!file) return;
+    const ticket = ++importRequest.current;
+    const current = () =>
+      ticket === importRequest.current && currentWorkspace();
+    setCandidate(null);
     try {
+      requireCurrentWorkspace();
       if (
         !file.name.toLowerCase().endsWith(".json") ||
         file.size < 1 ||
         file.size > HANDOFF_LIMIT
       )
         throw Error("Choose a JSON UI handoff of 1 byte to 8 MiB.");
-      const imported = parseHandoff(await file.text(), modules, workspaceScope);
+      const imported = await readHandoff(
+        file.text(),
+        modules,
+        workspaceScope,
+        current,
+      );
       setCandidate(imported);
       setImportAck(false);
       setError("");
     } catch (e) {
+      if (!current()) return;
       setCandidate(null);
       setError((e as Error).message);
     }
   }
   function applyImport() {
     if (!candidate || !importAck) return;
+    try {
+      requireCurrentWorkspace();
+      assertHandoffScope(candidate.scope, workspaceScope);
+    } catch (e) {
+      setCandidate(null);
+      setError((e as Error).message);
+      return;
+    }
     setRows(candidate.records);
     setReviewed(candidate.reviewed);
     setChecks(candidate.checks);
@@ -1762,12 +1809,19 @@ export function ProductExperience({ me, onNavigate, onDesign }: Props) {
           onClose={() => setCandidate(null)}
         >
           <p>
-            This replaces {rows.length} current local examples and{" "}
-            {reviewed.length} review markers with {candidate.records.length}{" "}
-            imported examples and {candidate.reviewed.length} reviewed
-            functions. It changes no server accounts, permissions, services or
-            production acceptance gates.
+            Destination: {workspaceScope.environment}. This replaces{" "}
+            {rows.length} current local examples and {reviewed.length} review
+            markers with {candidate.records.length} imported examples and{" "}
+            {candidate.reviewed.length} reviewed functions. It changes no server
+            accounts, permissions, services or production acceptance gates.
           </p>
+          {candidate.environmentImplicit && (
+            <p>
+              This older file has no environment information. It is being
+              restored into staging only. Re-export it to save explicit
+              environment scope.
+            </p>
+          )}
           {unsavedSession && (
             <p className="product-warning">
               Export the current UI review first if you want to keep its
