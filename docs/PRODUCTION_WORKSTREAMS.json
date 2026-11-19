@@ -12,7 +12,7 @@
       "title": "Customer business connectors",
       "area": "Engineering",
       "delivery": "partial",
-      "required_evidence": "HTTP contract adapter, owner-reviewed governed supplier checks, receipt recovery and approval-bound dispatch are implemented. Customer sandbox acceptance, purchase/idempotency/isolation drills and deployment evidence remain.",
+      "required_evidence": "HTTP contract adapter, owner-reviewed governed supplier checks, receipt recovery, approval-bound dispatch and unsigned evidence downloads are implemented. Customer sandbox acceptance, purchase/idempotency/isolation drills and deployment evidence remain.",
       "workspace": "connectors"
     },
     {
