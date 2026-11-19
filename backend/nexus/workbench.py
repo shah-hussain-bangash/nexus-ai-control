@@ -15,10 +15,11 @@ from fastapi import Request
 from pydantic import Field, ValidationError, field_validator
 from sqlalchemy import select, update, func
 from .schemas import Strict
-from .db import WorkspaceAsset, AssetRevision, WorkbenchRun, Action, now, public
+from .db import WorkspaceAsset, AssetRevision, WorkbenchRun, Action, CURRENT_SCHEMA, now, public
 from .security import fail, permit
 from .service import audit, active_policy
 from .policy import evaluate
+from .runtime_context import runtime_environment
 
 Kind = Literal['workflow', 'prompt', 'model', 'knowledge', 'connector', 'guardrail', 'benchmark', 'budget', 'release', 'blueprint']
 
@@ -162,9 +163,16 @@ def validate_config(kind, data):
     return config
 
 
+def asset_context(db,user,row):
+    environment=runtime_environment(db,user.org_id)
+    if not user.active or row.org_id!=user.org_id or row.env!=environment:fail(404,'NOT_FOUND','Asset not found in this workspace.')
+    return environment
+
+
 def asset_for(db,user,id):
-    row=db.scalar(select(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env=='staging'))
+    row=db.scalar(select(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env==runtime_environment(db,user.org_id)))
     if not row: fail(404,'NOT_FOUND','Asset not found in this workspace.')
+    asset_context(db,user,row)
     return row
 
 
@@ -183,11 +191,12 @@ def validate_references(db,user,kind,config):
 
 
 def snapshot(db,row,user):
-    db.add(AssetRevision(org_id=user.org_id,asset_id=row.id,version=row.version,snapshot=public(row),author_id=user.id))
+    db.add(AssetRevision(org_id=user.org_id,env=asset_context(db,user,row),asset_id=row.id,version=row.version,snapshot=public(row),author_id=user.id))
 
 
-def chunks(db,org):
-    docs=db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==org,WorkspaceAsset.env=='staging',WorkspaceAsset.kind=='knowledge',WorkspaceAsset.status!='archived').order_by(WorkspaceAsset.created.desc()).limit(100)).all()
+def chunks(db,org,environment=None):
+    environment=runtime_environment(db,org,environment)
+    docs=db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==org,WorkspaceAsset.env==environment,WorkspaceAsset.kind=='knowledge',WorkspaceAsset.status!='archived').order_by(WorkspaceAsset.created.desc()).limit(100)).all()
     result=[]
     for doc in docs:
         text=doc.config['content'];size=doc.config['chunk_size']
@@ -198,8 +207,8 @@ def chunks(db,org):
     return result
 
 
-def retrieve(db,org,query,top_k=5,only=None):
-    corpus=[x for x in chunks(db,org) if not only or x['asset_id']==only]
+def retrieve(db,org,query,top_k=5,only=None,environment=None):
+    corpus=[x for x in chunks(db,org,environment) if not only or x['asset_id']==only]
     terms=list(dict.fromkeys(re.findall(r'\w+',query.casefold())))[:64]
     if not terms or not corpus:return []
     tokens=[Counter(re.findall(r'\w+',c['text'].casefold())) for c in corpus]
@@ -228,6 +237,8 @@ def check_guardrail(text,config):
 
 
 def execute_preview(db,user,row,body,settings):
+    asset_context(db,user,row)
+    validate_references(db,user,row.kind,row.config)
     c=row.config
     if row.kind=='blueprint':
         from .interfaces import preview
@@ -271,7 +282,7 @@ def execute_preview(db,user,row,body,settings):
                 rendered=re.sub(r'{{\s*([A-Za-z_][A-Za-z0-9_]*)\s*}}',lambda m:values[m[1]],template)
                 detail='Prompt rendered from retrieved evidence. No language model called.'
             elif kind=='guardrail':
-                rules=[asset_for(db,user,node['ref_id'])] if node['ref_id'] else db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env=='staging',WorkspaceAsset.kind=='guardrail',WorkspaceAsset.status!='archived')).all()
+                rules=[asset_for(db,user,node['ref_id'])] if node['ref_id'] else db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env==runtime_environment(db,user.org_id),WorkspaceAsset.kind=='guardrail',WorkspaceAsset.status!='archived')).all()
                 signals=[]
                 for rule in rules:
                     signal=check_guardrail(query,rule.config);signals.append(signal)
@@ -302,9 +313,9 @@ def register_workbench(app,factory,settings,human):
     def listing(request:Request):
         with factory() as db:
             u=human(request,db)
-            records=db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env=='staging').order_by(WorkspaceAsset.updated.desc()).limit(500)).all()
-            runs=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==u.org_id,WorkbenchRun.env=='staging',WorkbenchRun.kind.notin_(('hybrid_search','member_provision'))).order_by(WorkbenchRun.created.desc()).limit(100)).all()
-            return {'assets':[public(r) for r in records],'runs':[public(r) for r in runs],'mode':settings.mode,'schema_version':8,'boundaries':{'provider_connected':False,'provider_execution_enabled':bool(settings.live_inference),'cloud_deployed':False,'retrieval':'Local BM25','workflow_execution':'Dry run only; governed action dispatcher remains separate'}}
+            records=db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id)).order_by(WorkspaceAsset.updated.desc()).limit(500)).all()
+            runs=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==u.org_id,WorkbenchRun.env==runtime_environment(db,u.org_id),WorkbenchRun.kind.notin_(('hybrid_search','member_provision'))).order_by(WorkbenchRun.created.desc()).limit(100)).all()
+            return {'assets':[public(r) for r in records],'runs':[public(r) for r in runs],'mode':settings.mode,'schema_version':CURRENT_SCHEMA,'boundaries':{'provider_connected':False,'provider_execution_enabled':bool(settings.live_inference),'cloud_deployed':False,'retrieval':'Local BM25','workflow_execution':'Dry run only; governed action dispatcher remains separate'}}
 
     @app.post('/v1/workbench',status_code=201)
     def create(body:AssetInput,request:Request):
@@ -313,7 +324,7 @@ def register_workbench(app,factory,settings,human):
             u=human(request,db,True,'operate')
             if body.kind=='guardrail': permit(u,'policy')
             validate_references(db,u,body.kind,config)
-            row=WorkspaceAsset(org_id=u.org_id,kind=body.kind,name=body.name.strip(),description=body.description,config=config,author_id=u.id)
+            row=WorkspaceAsset(org_id=u.org_id,env=runtime_environment(db,u.org_id),kind=body.kind,name=body.name.strip(),description=body.description,config=config,author_id=u.id)
             db.add(row);db.flush();snapshot(db,row,u)
             audit(db,u.org_id,u.id,'workbench.created',detail={'asset_id':row.id,'kind':row.kind,'version':row.version})
             return public(row)
@@ -326,7 +337,7 @@ def register_workbench(app,factory,settings,human):
             if row.kind=='guardrail': permit(u,'policy')
             if row.kind!=body.kind or row.status=='archived':fail(409,'ASSET_IMMUTABLE','Archived assets and asset types cannot be changed.')
             validate_references(db,u,body.kind,config)
-            result=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.version==body.expected_version).values(name=body.name.strip(),description=body.description,config=config,version=WorkspaceAsset.version+1,status='draft',updated=now()))
+            result=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id),WorkspaceAsset.version==body.expected_version).values(name=body.name.strip(),description=body.description,config=config,version=WorkspaceAsset.version+1,status='draft',updated=now()))
             if result.rowcount!=1:fail(409,'STALE_VERSION','Another editor changed this asset. Refresh before editing.')
             db.refresh(row);snapshot(db,row,u);audit(db,u.org_id,u.id,'workbench.revised',detail={'asset_id':id,'version':row.version})
             return public(row)
@@ -339,7 +350,7 @@ def register_workbench(app,factory,settings,human):
             if row.status=='archived':fail(409,'ASSET_ARCHIVED','Archived assets cannot be validated.')
             if row.kind=='model': permit(u,'manage')
             validate_config(row.kind,row.config);validate_references(db,u,row.kind,row.config)
-            changed=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.version==body.expected_version,WorkspaceAsset.status!='archived').values(status='validated',version=WorkspaceAsset.version+1,updated=now()))
+            changed=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id),WorkspaceAsset.version==body.expected_version,WorkspaceAsset.status!='archived').values(status='validated',version=WorkspaceAsset.version+1,updated=now()))
             if changed.rowcount!=1:fail(409,'STALE_VERSION','Refresh this asset before validating.')
             db.refresh(row);snapshot(db,row,u);audit(db,u.org_id,u.id,'workbench.validated',detail={'asset_id':id,'version':row.version,'connection_tested':False})
             return public(row)
@@ -349,7 +360,7 @@ def register_workbench(app,factory,settings,human):
         with factory.begin() as db:
             u=human(request,db,True,'operate');row=asset_for(db,u,id)
             if row.kind=='guardrail': permit(u,'policy')
-            changed=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.version==body.expected_version).values(status='archived',version=WorkspaceAsset.version+1,updated=now()))
+            changed=db.execute(update(WorkspaceAsset).where(WorkspaceAsset.id==id,WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id),WorkspaceAsset.version==body.expected_version).values(status='archived',version=WorkspaceAsset.version+1,updated=now()))
             if changed.rowcount!=1:fail(409,'STALE_VERSION','Refresh before archiving.')
             db.refresh(row);snapshot(db,row,u);audit(db,u.org_id,u.id,'workbench.archived',detail={'asset_id':id,'version':row.version})
             return public(row)
@@ -358,7 +369,7 @@ def register_workbench(app,factory,settings,human):
     def history(id:str,request:Request):
         with factory() as db:
             u=human(request,db);asset_for(db,u,id)
-            return [public(r) for r in db.scalars(select(AssetRevision).where(AssetRevision.org_id==u.org_id,AssetRevision.asset_id==id).order_by(AssetRevision.version.desc())).all()]
+            return [public(r) for r in db.scalars(select(AssetRevision).where(AssetRevision.org_id==u.org_id,AssetRevision.env==runtime_environment(db,u.org_id),AssetRevision.asset_id==id).order_by(AssetRevision.version.desc())).all()]
 
     @app.post('/v1/workbench/{id}/run')
     def run(id:str,body:RunInput,request:Request):
@@ -368,7 +379,7 @@ def register_workbench(app,factory,settings,human):
             if row.status=='archived':fail(409,'ASSET_ARCHIVED','Archived assets cannot be run.')
             validate_config(row.kind,row.config);validate_references(db,u,row.kind,row.config)
             started=time.perf_counter();status,result=execute_preview(db,u,row,body,settings)
-            record=WorkbenchRun(org_id=u.org_id,asset_id=id,kind=row.kind,status=status,asset_version=row.version,duration_ms=round((time.perf_counter()-started)*1000,3),result=result,author_id=u.id)
+            record=WorkbenchRun(org_id=u.org_id,env=runtime_environment(db,u.org_id),asset_id=id,kind=row.kind,status=status,asset_version=row.version,duration_ms=round((time.perf_counter()-started)*1000,3),result=result,author_id=u.id)
             db.add(record);db.flush();audit(db,u.org_id,u.id,'workbench.run',detail={'run_id':record.id,'asset_id':id,'version':row.version,'kind':row.kind,'status':status})
             return public(record)
 
@@ -379,7 +390,7 @@ def register_workbench(app,factory,settings,human):
         with factory.begin() as db:
             u=human(request,db,True,'operate');permit(u,'policy');created=0
             for item in templates():
-                if db.scalar(select(WorkspaceAsset.id).where(WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.kind==item['kind'],WorkspaceAsset.name==item['name'])):continue
-                row=WorkspaceAsset(org_id=u.org_id,author_id=u.id,**item);db.add(row);db.flush();snapshot(db,row,u);created+=1
+                if db.scalar(select(WorkspaceAsset.id).where(WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id),WorkspaceAsset.kind==item['kind'],WorkspaceAsset.name==item['name'])):continue
+                row=WorkspaceAsset(org_id=u.org_id,env=runtime_environment(db,u.org_id),author_id=u.id,**item);db.add(row);db.flush();snapshot(db,row,u);created+=1
             audit(db,u.org_id,u.id,'workbench.starter_loaded',detail={'created':created})
             return {'created':created,'synthetic':True,'provider_connections_created':False}

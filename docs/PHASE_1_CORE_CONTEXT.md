@@ -48,8 +48,8 @@ these hooks are not database row-level security or a sandbox for arbitrary code.
 ## Remaining scope
 
 Document/search/ingestion propagation is covered by the subsequent
-`PHASE_1_DOCUMENT_CONTEXT.md` increment. Other workbench helpers still contain
-fixed staging filters.
+`PHASE_1_DOCUMENT_CONTEXT.md` increment. Workbench and persistent workflow
+propagation is covered by `PHASE_1_WORKBENCH_CONTEXT.md`.
 Inference budgeting and admission need an explicit decision about workspace-wide
 versus per-environment limits. Session selection, runtime activation, remaining
 worker/resource propagation, root client caches and design handoffs must be
