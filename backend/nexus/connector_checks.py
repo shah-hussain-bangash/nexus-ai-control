@@ -5,7 +5,8 @@ from fastapi import Request,Header
 from pydantic import Field,field_validator
 from sqlalchemy import select,func
 from .schemas import Strict,ActionInput
-from .db import Agent,Tool,Grant,Action,WorkbenchRun
+from .db import Agent,Tool,Grant,Action,WorkbenchRun,Audit
+from .check_evidence import evidence
 from .security import fail,digest
 from .runtime_context import runtime_environment
 from .service import scoped,submit_action,audit,canonical
@@ -84,6 +85,19 @@ def register_connector_checks(app,factory,settings,human):
             rows=db.scalars(query.order_by(Action.created.desc(),Action.id.desc()).limit(20)).all()
             opened=db.scalar(query.where(Action.status.not_in(TERMINAL)).order_by(Action.created.desc(),Action.id.desc()).limit(1))
             return {'items':[summary(row) for row in rows],'open_check':summary(opened) if opened else None}
+
+    @app.get('/v1/connector-checks/{check_id}/evidence')
+    def export_evidence(check_id:str,request:Request):
+        with factory() as db:
+            actor=owner(request,db);env=runtime_environment(db,actor.org_id)
+            # One SELECT captures action and audit events in the same database snapshot.
+            rows=db.execute(select(Action,Audit).outerjoin(Audit,(Audit.action_id==Action.id)&
+                (Audit.org_id==Action.org_id)&(Audit.env==Action.env)).where(Action.id==check_id,
+                Action.org_id==actor.org_id,Action.env==env,Action.principal==principal(actor))
+                .order_by(Audit.created,Audit.id).limit(201)).all()
+            if not rows:fail(404,'CHECK_NOT_FOUND','No supplier check matches this account and environment.')
+            if len(rows)>200:fail(422,'EVIDENCE_CAPACITY','This report supports up to 200 audit events; use the execution ledger.')
+            return evidence(rows[0][0],[event for _,event in rows if event is not None],actor)
 
     @app.post('/v1/connector-checks/recover')
     def recover(body:ReceiptKey,request:Request):

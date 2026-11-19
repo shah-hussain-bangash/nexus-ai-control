@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import { sessionContext, type ContextSnapshot } from "./sessionContext";
+import { Modal } from "./RuntimeDialog";
+import { verifyEvidence, type EvidenceReport } from "./supplierEvidence";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import {
   readRecovery,
@@ -46,6 +49,48 @@ export function ConnectorCheckPanel({
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const route = config?.choices.find((row) => row.grant_id === routeId);
+  const [report, setReport] = useState<{
+    value: EvidenceReport;
+    snapshot: ContextSnapshot;
+  } | null>(null);
+  const [exporting, setExporting] = useState(false);
+  async function previewEvidence(id: string) {
+    if (exporting) return;
+    const snapshot = sessionContext.capture();
+    setExporting(true);
+    setError("");
+    try {
+      const value = await verifyEvidence(
+        await api<EvidenceReport>(
+          `/v1/connector-checks/${encodeURIComponent(id)}/evidence`,
+        ),
+        snapshot.context,
+        id,
+      );
+      if (sessionContext.current(snapshot)) setReport({ value, snapshot });
+    } catch (e) {
+      if (sessionContext.current(snapshot)) setError((e as Error).message);
+    } finally {
+      if (sessionContext.current(snapshot)) setExporting(false);
+    }
+  }
+  function downloadEvidence() {
+    if (!report || !sessionContext.current(report.snapshot)) return;
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(report.value, null, 2)], {
+        type: "application/json",
+      }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `nexus-supplier-evidence-${report.value.payload.check.id.replace(/[^a-zA-Z0-9-]/g, "_")}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setNotice(
+      "Evidence JSON downloaded. Its checksum was verified; the report is unsigned.",
+    );
+    setReport(null);
+  }
   useEffect(() => {
     let active = true;
     load().catch((e) => {
@@ -350,12 +395,49 @@ export function ConnectorCheckPanel({
                     <code>{row.id}</code>
                     {row.external_ref && <p>{row.external_ref}</p>}
                     <small>Trace: {row.trace_id}</small>
+                    <p>
+                      <button
+                        className="btn"
+                        disabled={exporting}
+                        onClick={() => void previewEvidence(row.id)}
+                      >
+                        Evidence report
+                      </button>
+                    </p>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+      {report && (
+        <Modal title="Supplier evidence report" onClose={() => setReport(null)}>
+          <p>
+            {report.value.payload.connector.mode === "synthetic"
+              ? "Synthetic local lookup"
+              : "HTTP supplier lookup"}{" "}
+            · {report.value.payload.check.status}
+          </p>
+          <p>
+            Supplier: {report.value.payload.check.supplier_id}. Environment:{" "}
+            {report.value.payload.scope.environment}.
+          </p>
+          <p>
+            Captured: {report.value.payload.exported_at_utc}. Audit events:{" "}
+            {report.value.payload.audit_events.length}.
+          </p>
+          <p>{report.value.payload.boundary}</p>
+          <p>SHA-256 checksum verified:</p>
+          <code style={{ overflowWrap: "anywhere" }}>
+            {report.value.integrity.digest}
+          </code>
+          <p>
+            <button className="btn btn-primary" onClick={downloadEvidence}>
+              Download JSON
+            </button>
+          </p>
+        </Modal>
       )}
       <div className="live-actions">
         <a className="btn" href="#executions">
