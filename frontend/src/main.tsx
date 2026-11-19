@@ -57,6 +57,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api, setCsrf } from "./api";
+import { recoveryPanelKey } from "./recoveryContext";
 import { FlagshipHub } from "./FlagshipHub";
 import { RuntimeConsole } from "./RuntimeConsole";
 import { ProductionBoard } from "./ProductionBoard";
@@ -507,6 +508,7 @@ function App() {
   async function session() {
     try {
       const r = await api("/v1/me");
+      recoveryPanelKey(r);
       setMe(r);
       setCsrf(r.csrf);
     } catch {
@@ -1076,9 +1078,9 @@ function App() {
             </div>
           )}
           {page === "agentRuns" && (
-            <DurableExecution me={me} data={data} onNavigate={go} />
+            <DurableExecution key={recoveryPanelKey(me)} me={me} data={data} onNavigate={go} />
           )}
-          {page === "documents" && <DocumentLibrary me={me} />}
+          {page === "documents" && <DocumentLibrary key={recoveryPanelKey(me)} me={me} />}
           {page === "product" && (
             <React.Suspense
               fallback={<p role="status">Loading product UI walkthrough…</p>}
@@ -1217,7 +1219,7 @@ function App() {
             <Suspense
               fallback={<p role="status">Loading evidence workspace…</p>}
             >
-              <HybridRetrieval me={me} />
+              <HybridRetrieval key={recoveryPanelKey(me)} me={me} />
             </Suspense>
           )}
           {page === "agents" && (
@@ -1753,7 +1755,7 @@ function App() {
               </StatusMessage>
             </>
           )}
-          {["models", "usage"].includes(page) && <RuntimeConsole me={me} />}
+          {["models", "usage"].includes(page) && <RuntimeConsole key={recoveryPanelKey(me)} me={me} />}
           {page === "operations" && operationsTab === "signals" && (
             <div
               role="tabpanel"

@@ -1,9 +1,10 @@
 import {
-  readRecovery,
-  writeRecovery,
   clearRecovery,
+  acknowledgeRecovery,
   requestFingerprint,
+  prepareRecovery,
 } from "./inferenceRecovery.ts";
+import { recoveryContextParts } from "./recoveryContext.ts";
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 export function liveIntentScope(
   kind:
@@ -16,15 +17,13 @@ export function liveIntentScope(
     | "member",
   org: string,
   user: string,
+  environment: string,
 ) {
-  return (
-    "nexus.live." +
-    kind +
-    ".v1:" +
-    encodeURIComponent(org) +
-    ":" +
-    encodeURIComponent(user)
-  );
+  const parts = recoveryContextParts(org, user, environment);
+  // Provisioning is a workspace-wide operation, rather than a runtime action.
+  return kind === "member"
+    ? "nexus.live.member.v1:" + parts.slice(0, 2).join(":")
+    : "nexus.live." + kind + ".v2:" + parts.join(":");
 }
 export async function sendLiveIntent<T extends { id: string; status: string }>(
   storage: Store,
@@ -33,18 +32,8 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
   send: (key: string) => Promise<T>,
   makeKey = () => crypto.randomUUID() as string,
 ) {
-  const fingerprint = await requestFingerprint(body),
-    pending = readRecovery(storage, scope);
-  if (pending && pending.fingerprint !== fingerprint)
-    throw Error(
-      "A previous submission is still unacknowledged. Recover it or retry the unchanged request before starting a different intent.",
-    );
-  const record = pending || {
-    key: makeKey(),
-    fingerprint,
-    created: Date.now(),
-  };
-  writeRecovery(storage, scope, record);
+  const fingerprint = await requestFingerprint(body);
+  const record = prepareRecovery(storage, scope, fingerprint, null, makeKey);
   let result: T;
   try {
     result = await send(record.key);
@@ -60,13 +49,9 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
           "OWNER_PROTECTED",
         ].includes((e as { code?: string }).code || ""))
     )
-      clearRecovery(storage, scope);
+      clearRecovery(storage, scope, record);
     throw e;
   }
-  if (!result?.id || !result.status)
-    throw Error(
-      "The response was incomplete. Recover or retry the unchanged intent.",
-    );
-  clearRecovery(storage, scope);
+  acknowledgeRecovery(storage, scope, record, result);
   return result;
 }

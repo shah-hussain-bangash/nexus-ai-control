@@ -6,6 +6,7 @@ import {
   clearRecovery,
   recoveryScope,
   requestFingerprint,
+  prepareRecovery,
   type RecoveryRecord,
 } from "./inferenceRecovery";
 import { Activity, RefreshCw, Send, ShieldCheck, Wallet } from "lucide-react";
@@ -26,7 +27,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [result, setResult] = useState<Row | null>(null);
-  const scope = recoveryScope(me.user.org_id, me.user.id);
+  const scope = recoveryScope(me.user.org_id, me.user.id, me.environment);
   const [recovery, setRecovery] = useState<RecoveryRecord | null>(null);
   const [history, setHistory] = useState<Row>({
     items: [],
@@ -94,13 +95,24 @@ export function RuntimeConsole({ me }: { me: Row }) {
     }
   }, []);
   function acceptResult(response: Row, record: RecoveryRecord) {
+    if (
+      typeof response?.id !== "string" ||
+      !response.id ||
+      typeof response.status !== "string" ||
+      !response.status
+    )
+      throw new Error(
+        "The response was incomplete. Recover the original request before submitting again.",
+      );
+    key.current = record.key;
+    fingerprint.current = record.fingerprint;
     setResult(response);
     if (["pending", "unknown"].includes(response.status)) {
       writeRecovery(sessionStorage, scope, record);
       setRecovery(record);
     } else {
-      clearRecovery(sessionStorage, scope);
-      setRecovery(null);
+      clearRecovery(sessionStorage, scope, record);
+      setRecovery(readRecovery(sessionStorage, scope));
     }
   }
   async function recoverSaved() {
@@ -122,7 +134,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
   async function submit() {
     setBusy(true);
     setError("");
-    const hadRecovery = Boolean(recovery);
+    let hadRecovery = Boolean(recovery);
     try {
       const selected = models.find((x) => x.id === model);
       if (!selected) throw new Error("Choose a checked model configuration.");
@@ -134,7 +146,9 @@ export function RuntimeConsole({ me }: { me: Row }) {
         max_output_tokens: output,
       };
       const digest = await requestFingerprint(body);
-      if (recovery && recovery.fingerprint !== digest)
+      const pending = readRecovery(sessionStorage, scope, true) || recovery;
+      hadRecovery = Boolean(pending);
+      if (pending && pending.fingerprint !== digest)
         throw new Error(
           "Recover and resolve the saved request before creating a different intent. No new provider call was sent.",
         );
@@ -142,12 +156,18 @@ export function RuntimeConsole({ me }: { me: Row }) {
         key.current = crypto.randomUUID();
         fingerprint.current = digest;
       }
-      const record = {
-        key: key.current,
-        fingerprint: digest,
-        created: recovery?.created || Date.now(),
-      };
-      writeRecovery(sessionStorage, scope, record);
+      const record = prepareRecovery(
+        sessionStorage,
+        scope,
+        digest,
+        pending || {
+          key: key.current,
+          fingerprint: digest,
+          created: Date.now(),
+        },
+      );
+      key.current = record.key;
+      fingerprint.current = record.fingerprint;
       setRecovery(record);
       const response = await api("/v1/inference", "POST", body, key.current);
       acceptResult(response, record);
@@ -161,7 +181,10 @@ export function RuntimeConsole({ me }: { me: Row }) {
             e.code,
           ))
       ) {
-        clearRecovery(sessionStorage, scope);
+        clearRecovery(sessionStorage, scope, {
+          key: key.current,
+          fingerprint: fingerprint.current,
+        });
         setRecovery(null);
       }
       setError((e as Error).message);
@@ -344,10 +367,15 @@ export function RuntimeConsole({ me }: { me: Row }) {
                   type="button"
                   className="btn btn-outline"
                   disabled={
-                    busy || ["pending", "unknown"].includes(result.status)
+                    busy ||
+                    !!recovery ||
+                    ["pending", "unknown"].includes(result.status)
                   }
                   onClick={() => {
-                    clearRecovery(sessionStorage, scope);
+                    clearRecovery(sessionStorage, scope, {
+                      key: key.current,
+                      fingerprint: fingerprint.current,
+                    });
                     setRecovery(null);
                     key.current = "";
                     fingerprint.current = "";
