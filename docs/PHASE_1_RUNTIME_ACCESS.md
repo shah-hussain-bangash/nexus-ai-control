@@ -50,7 +50,8 @@ Checks fence new work and response delivery at their documented boundaries, rath
 claiming cancellation of an external side effect. Keep the existing reconciliation flow
 for uncertain outcomes.
 
-Environment switching, assignment-editing APIs/UI, per-environment roles, cross-workspace
+The subsequent assignment-management increment is documented in
+`PHASE_1_ENVIRONMENT_MEMBERSHIP.md`. Environment switching, per-environment roles, cross-workspace
 membership, promotion and the environment selector remain future increments. Assignment
 or environment corruption fails closed; use reviewed operator maintenance for repair,
 never automatic enrollment on login. Do not remove the current owner's assignment as

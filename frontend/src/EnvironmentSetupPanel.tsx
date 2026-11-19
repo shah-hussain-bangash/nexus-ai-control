@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import { Modal } from "./RuntimeDialog";
+import { EnvironmentMembersDialog } from "./EnvironmentMembersDialog";
 import {
   canControlEnvironment,
   environmentControlPayload,
@@ -18,7 +19,6 @@ type Inventory = {
   current_environment: string;
   read_only?: boolean;
 };
-type Member = { id: string; name: string; role: string; active: boolean };
 type Editor =
   | { kind: "create" }
   | { kind: "control"; row: EnvironmentRecord; command: EnvironmentCommand };
@@ -45,8 +45,6 @@ export function EnvironmentSetup({
   const [note, setNote] = useState("");
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<EnvironmentRecord | null>(null);
-  const [members, setMembers] = useState<Member[] | null>(null);
-  const [memberError, setMemberError] = useState("");
   useEffect(() => {
     if (!owner) return;
     let active = true;
@@ -67,24 +65,6 @@ export function EnvironmentSetup({
       active = false;
     };
   }, [owner, me.user.id, me.user.org_id]);
-  useEffect(() => {
-    if (!selected || !owner) return;
-    let active = true;
-    setMembers(null);
-    setMemberError("");
-    api<{ items: Member[] }>(
-      `/v1/workspace-environments/${encodeURIComponent(selected.key)}/assignments`,
-    )
-      .then((data) => {
-        if (active) setMembers(data.items);
-      })
-      .catch((e) => {
-        if (active) setMemberError(message(e));
-      });
-    return () => {
-      active = false;
-    };
-  }, [selected, owner]);
   if (!owner) return null;
 
   async function refresh() {
@@ -226,8 +206,8 @@ export function EnvironmentSetup({
         <p className="environment-boundary">
           Current environment:{" "}
           <strong>{inventory?.current_environment || "staging"}</strong>. New
-          environments stay in Preparing. Switching, promotion and assignment
-          editing are not available yet.
+          environments stay in Preparing. Switching and promotion are not
+          available yet.
         </p>
         {inventory?.read_only && (
           <p>
@@ -399,40 +379,15 @@ export function EnvironmentSetup({
         </Modal>
       )}
       {selected && (
-        <Modal
-          title={`Assignments · ${selected.name}`}
+        <EnvironmentMembersDialog
+          key={selected.key}
+          environment={selected}
+          readOnly={inventory?.read_only === true}
           onClose={() => setSelected(null)}
-        >
-          <div className="runtime-form">
-            <p>
-              Assignments are read-only. Assignment editing and runtime
-              switching are not available yet.
-            </p>
-            {memberError ? (
-              <p className="ops-alert" role="alert">
-                {memberError}
-              </p>
-            ) : members === null ? (
-              <p role="status">Loading assignments…</p>
-            ) : members.length === 0 ? (
-              <p>No members are assigned to this environment.</p>
-            ) : (
-              <ul className="environment-members">
-                {members.map((member) => (
-                  <li key={member.id}>
-                    <strong>{member.name}</strong>
-                    <span>
-                      {member.role} · {member.active ? "Active" : "Inactive"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button className="btn" onClick={() => setSelected(null)}>
-              Close assignments
-            </button>
-          </div>
-        </Modal>
+          onChanged={() => {
+            void refresh().catch(() => setNeedsRefresh(true));
+          }}
+        />
       )}
     </section>
   );

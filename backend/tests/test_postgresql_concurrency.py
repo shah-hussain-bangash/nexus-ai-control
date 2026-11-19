@@ -40,6 +40,29 @@ def test_parallel_environment_registration_has_one_winner(pg):
         assert len(rows)==1
 
 
+def test_parallel_environment_membership_changes_share_a_reviewed_version(pg):
+    with pg['db'].begin() as db:
+        owner=db.scalar(select(User).where(User.role=='owner',User.org_id=='northstar'))
+        token,csrf=issue_session(db,owner,pg['settings'])
+    path='/v1/workspace-environments/staging/assignments'
+    with TestClient(pg['app']) as client:
+        client.cookies.set('nexus_session',token)
+        snapshot=client.get(path).json()
+    targets=[r for r in snapshot['items'] if r['role']!='owner']
+    def remove(target):
+        with TestClient(pg['app']) as client:
+            client.cookies.set('nexus_session',token)
+            return client.post(path+'/control',headers={'X-CSRF-Token':csrf},json={
+                'user_id':target['id'],'command':'revoke','expected_version':snapshot['environment']['version'],
+                'expected_member_revision':target['revision'],'note':'Concurrent reviewed membership change.','reviewed':True}).status_code
+    with ThreadPoolExecutor(max_workers=2) as pool:codes=list(pool.map(remove,targets))
+    assert sorted(codes)==[200,409]
+    with TestClient(pg['app']) as client:
+        client.cookies.set('nexus_session',token)
+        fresh=client.get(path).json()
+    assert fresh['environment']['version']==2 and len(fresh['items'])==2
+
+
 def test_parallel_policy_changes_have_one_winner(pg):
     with pg['db'].begin() as db:
         owner=db.scalar(select(User).where(User.role=='owner',User.org_id=='northstar'))

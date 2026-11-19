@@ -1,5 +1,10 @@
 # Phase 1: environment setup screen
 
+This document records the initial setup-screen increment. The subsequent member
+assignment controls and their current limits are described in
+`PHASE_1_ENVIRONMENT_MEMBERSHIP.md`; references below to read-only assignments
+describe this earlier increment.
+
 Owners can open **Workspace settings → Environment setup** to inspect their
 workspace's environment records, prepare a new environment, archive an unused
 preparation record, restore an archived record to Preparing, and view member
