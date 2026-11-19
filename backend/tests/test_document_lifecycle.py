@@ -1,6 +1,6 @@
 import base64
 from sqlalchemy import select,func,delete
-from conftest import auth
+from conftest import auth,assign_staging
 from test_documents import upload,payload
 from nexus.db import DocumentChunk,KnowledgeDocument,DocumentUpdate,RetrievalCheck,IngestionJob,User,Audit,SchemaVersion,migrate
 
@@ -47,6 +47,7 @@ def test_replace_requires_current_version_csrf_author_and_valid_content(ctx):
     assert ctx['client'].put(url,json=replace_body()).status_code==403
     with ctx['db'].begin() as db:
         db.add(User(id='reader-eng',org_id='northstar',email='reader@x.invalid',name='Reader',role='engineer'))
+        db.flush();assign_staging(db,db.get(User,'reader-eng'))
         db.get(KnowledgeDocument,id).allowed_roles=['engineer']
     h,_=auth(ctx,'engineer');h['Idempotency-Key']='other-author-update-01'
     assert ctx['client'].put(url,headers=h,json=replace_body()).status_code==403
@@ -82,7 +83,9 @@ def test_failed_expectations_are_evidence_not_api_errors_and_update_marks_stale(
     assert run(ctx,body,key='retrieval-check-key-002').json()['stale'] is False
 
 def test_checks_revalidate_acl_and_never_retain_excerpts(ctx):
-    with ctx['db'].begin() as db:db.add(User(id='check-eng',org_id='northstar',email='check@x.invalid',name='Checker',role='engineer'))
+    with ctx['db'].begin() as db:
+        db.add(User(id='check-eng',org_id='northstar',email='check@x.invalid',name='Checker',role='engineer'))
+        db.flush();assign_staging(db,db.get(User,'check-eng'))
     doc=upload(ctx,allowed_roles=['engineer']);e=run(ctx,suite(doc['id']),role='engineer').json();assert e['status']=='passed'
     assert 'needle' not in str(e['result'])
     h,_=auth(ctx);assert ctx['client'].put('/v1/documents/'+doc['id']+'/access',headers=h,json={'expected_version':1,'allowed_roles':[],'note':'Revoke access after test completion.'}).status_code==200

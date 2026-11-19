@@ -1,4 +1,6 @@
-# Current documentation — 0.16.1 candidate
+# Current documentation — 0.16.2 candidate
+
+- `PHASE_1_RUNTIME_ACCESS.md`: current staging access enforcement, worker fences, limitations and code-only update from 0.16.1.
 
 - `PHASE_1_ENVIRONMENT_FOUNDATION.md`: current environment foundation, schema 9 migration, and maintenance plan. Existing 0.16.0 reports below are historical.
 

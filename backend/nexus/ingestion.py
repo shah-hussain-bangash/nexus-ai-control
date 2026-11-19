@@ -19,6 +19,7 @@ from .documents import validate_members,index_document
 from .schemas import Strict
 from .security import fail,digest,PERMISSIONS
 from .service import audit,canonical
+from .runtime_context import environment_user_allowed
 
 ACTIVE=('queued','processing','awaiting_review')
 class Intake(Strict):
@@ -147,7 +148,7 @@ def register_ingestion(app,factory,settings,human):
             check_version(job,body)
             if job.status!='awaiting_review' or job.expires<=now() or not job.extracted_text:fail(409,'INTAKE_NOT_REVIEWABLE','Only an unexpired extracted result can be reviewed and published.')
             author=db.get(User,job.author_id)
-            if not author or author.org_id!=job.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()):fail(403,'INTAKE_AUTHOR_REVOKED','The original requesting author is no longer authorized.')
+            if not author or author.org_id!=job.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,job.org_id,job.env):fail(403,'INTAKE_AUTHOR_REVOKED','The original requesting author is no longer authorized.')
             validate_members(db,user.org_id,job.allowed_users)
             count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.status=='indexed'))
             if count>=200:fail(429,'DOCUMENT_CAPACITY','This workspace already has 200 active source documents.')
@@ -180,24 +181,27 @@ def extract_file(data,job,settings):
 def run_ingestion_once(factory,settings,extractor=None):
     with factory.begin() as db:
         for job in db.scalars(select(IngestionJob).where(IngestionJob.status.in_(ACTIVE+('failed',)),IngestionJob.expires<=now()).with_for_update()).all():
-            release(job,'expired','REVIEW_WINDOW_EXPIRED');job.original_data=b'';job.extracted_text='';audit(db,job.org_id,'worker','intake.expired',detail={'job_id':job.id})
+            release(job,'expired','REVIEW_WINDOW_EXPIRED');job.original_data=b'';job.extracted_text='';audit(db,job.org_id,'worker','intake.expired',detail={'job_id':job.id},env=job.env)
         for job in db.scalars(select(IngestionJob).where(IngestionJob.status=='processing',IngestionJob.lease_until<now()).with_for_update()).all():
-            release(job,'failed','WORKER_INTERRUPTED');audit(db,job.org_id,'worker','intake.interrupted',detail={'job_id':job.id})
+            release(job,'failed','WORKER_INTERRUPTED');audit(db,job.org_id,'worker','intake.interrupted',detail={'job_id':job.id},env=job.env)
         job=db.scalar(select(IngestionJob).where(IngestionJob.status=='queued').order_by(IngestionJob.created).with_for_update(skip_locked=True).limit(1))
         if not job:return False
         token=uid();claimed=db.execute(update(IngestionJob).where(IngestionJob.id==job.id,IngestionJob.version==job.version,IngestionJob.status=='queued').values(status='processing',version=job.version+1,attempts=job.attempts+1,lease_token=token,lease_until=now()+90,updated=now()))
         if not claimed.rowcount:return False
         id=job.id;data=bytes(job.original_data);author=db.get(User,job.author_id)
-        permitted=author and author.org_id==job.org_id and author.active and 'operate' in PERMISSIONS.get(author.role,set())
+        permitted=author and author.org_id==job.org_id and author.active and 'operate' in PERMISSIONS.get(author.role,set()) and environment_user_allowed(db,author.id,job.org_id,job.env)
         db.expunge(job)
     try:result=(extractor or extract_file)(data,job,settings) if permitted else {'error_code':'REQUESTER_REVOKED'}
     except Exception:result={'error_code':'EXTRACTION_UNAVAILABLE'}
     with factory.begin() as db:
         current=db.scalar(select(IngestionJob).where(IngestionJob.id==id,IngestionJob.status=='processing',IngestionJob.lease_token==token).with_for_update())
         if not current:return True  # cancellation/expiry fences off stale publication
+        author=db.get(User,current.author_id)
+        if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env) or 'operate' not in PERMISSIONS.get(author.role,set()):
+            result={'error_code':'REQUESTER_REVOKED'}
         text=result.get('text','');error=result.get('error_code','')
         if not isinstance(text,str) or '\x00' in text or len(text.encode('utf-8'))>32768:error='EXTRACTOR_RESULT_INVALID'
         if error or not text.strip():release(current,'failed',error or 'NO_EXTRACTABLE_TEXT')
         else:current.extracted_text=text;current.extraction=result.get('info',{});release(current,'awaiting_review')
-        audit(db,current.org_id,'worker','intake.'+current.status,detail={'job_id':id,'attempt':current.attempts,'error_code':current.error_code})
+        audit(db,current.org_id,'worker','intake.'+current.status,detail={'job_id':id,'attempt':current.attempts,'error_code':current.error_code},env=current.env)
     return True

@@ -252,9 +252,9 @@ def create_app(settings=None):
             return public(action)
 
     @app.post('/v1/gateway/tools/{id}:execute', status_code=202)
-    def gateway(id: str, body: ActionInput, authorization: str = Header(default=''), idempotency_key: str = Header()):
+    def gateway(id: str, body: ActionInput, request: Request, authorization: str = Header(default=''), idempotency_key: str = Header()):
         with factory.begin() as db:
-            a = authenticate_agent(authorization.removeprefix('Bearer '), db, settings)
+            a = authenticate_agent(authorization.removeprefix('Bearer '), db, settings, request)
             t = scoped(db, Tool, id, a.org_id)
             action = submit_action(db, settings, a, t, body, idempotency_key, 'agent:' + a.id, a.owner_id)
             result = public(action)
@@ -263,9 +263,9 @@ def create_app(settings=None):
         return result
 
     @app.get('/v1/gateway/actions/{id}')
-    def workload_action_status(id: str, authorization: str = Header(default='')):
+    def workload_action_status(id: str, request: Request, authorization: str = Header(default='')):
         with factory() as db:
-            agent = authenticate_agent(authorization.removeprefix('Bearer '), db, settings)
+            agent = authenticate_agent(authorization.removeprefix('Bearer '), db, settings, request)
             action = scoped(db, Action, id, agent.org_id)
             if action.agent_id != agent.id: fail(404, 'NOT_FOUND', 'Action not found for this workload.')
             return {'id': action.id, 'status': action.status, 'reason': action.reason,
@@ -376,6 +376,8 @@ def create_app(settings=None):
         with factory.begin() as db:
             u = human(request, db, permission='export'); job = scoped(db, Export, id, u.org_id)
             if job.owner_id != u.id or job.expires < now(): fail(404, 'NOT_FOUND', 'Export unavailable or expired.')
+            if not isinstance(job.records,list) or any(not isinstance(row,dict) or row.get('org_id')!=job.org_id or row.get('env')!=job.env for row in job.records):
+                fail(409,'EXPORT_SCOPE_CHANGED','This saved export contains records outside the current context. Create a new export.')
             audit(db, u.org_id, u.id, 'audit.export_downloaded', detail={'export_id': id})
             return Response(json.dumps({'synthetic': True, 'records': job.records}, indent=2), media_type='application/json',
                             headers={'Content-Disposition': 'attachment; filename="nexus-audit.json"'})
@@ -509,6 +511,11 @@ def create_app(settings=None):
     register_hybrid(app,factory,settings,human)
     from .environments import register_environments
     register_environments(app,factory,settings,human)
+    @app.get('/v1/runtime-context')
+    def runtime_context(request:Request):
+        with factory() as db:
+            user=human(request,db)
+            return {'workspace_id':user.org_id,'environment':'staging','access_checked':True,'switching_enabled':False}
     from .interfaces import register_interfaces
     register_interfaces(app, factory, settings, human)
 

@@ -6,6 +6,7 @@ from sqlalchemy import select,update,func
 from .schemas import Strict,ActionInput
 from .db import DurableRun,DurableStep,Organization,Agent,Tool,Action,Approval,User,now,uid,public
 from .security import fail,digest,PERMISSIONS
+from .runtime_context import environment_user_allowed
 from .business_connector import connector_identity
 from .service import scoped,submit_action,audit,canonical
 
@@ -75,7 +76,7 @@ def step_for(db,run):
     return db.scalar(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.position==run.cursor))
 
 def event(db,run,actor,name,detail=None):
-    audit(db,run.org_id,actor,'agent_run.'+name,detail={'run_id':run.id,'cursor':run.cursor,'version':run.version,**(detail or {})})
+    audit(db,run.org_id,actor,'agent_run.'+name,detail={'run_id':run.id,'cursor':run.cursor,'version':run.version,**(detail or {})},env=run.env)
 
 def touch(run,status):
     run.status=status;run.version+=1;run.updated=now();run.lease_token='';run.lease_until=0;run.next_poll=now()+1
@@ -218,7 +219,7 @@ def run_flow_once(factory,settings):
             step=step_for(db,run);definition=run.definition['steps'][run.cursor]
             if step.action_id:
                 action=db.get(Action,step.action_id)
-                if not action or action.org_id!=run.org_id:fail(409,'ACTION_MISSING','The linked action is unavailable.')
+                if not action or action.org_id!=run.org_id or action.env!=run.env:fail(409,'ACTION_MISSING','The linked action is unavailable.')
                 prior_action_status=step.result.get('status')
                 step.result={'action_id':action.id,'status':action.status,'external_ref':action.external_ref,'verification':action.verification}
                 if action.status=='verified':
@@ -241,8 +242,8 @@ def run_flow_once(factory,settings):
             if run.cancel_requested:finish_cancel(db,run);return True
             if run.definition.get('destination','mock-business-v1')!=connector_identity(settings):fail(409,'DESTINATION_CHANGED','The reviewed workflow connector destination changed. Create a new reviewed run for the configured adapter.')
             author=db.scalar(select(User).where(User.id==run.author_id).with_for_update());agent=db.scalar(select(Agent).where(Agent.id==run.agent_id).with_for_update())
-            if not author or author.org_id!=run.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()):fail(403,'REQUESTER_REVOKED','Requester is no longer authorized.')
-            if not agent or agent.org_id!=run.org_id or agent.status!='active' or agent.generation!=run.generation:fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
+            if not author or author.org_id!=run.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,run.org_id,run.env):fail(403,'REQUESTER_REVOKED','Requester is no longer authorized.')
+            if not agent or agent.org_id!=run.org_id or agent.env!=run.env or agent.status!='active' or agent.generation!=run.generation or not environment_user_allowed(db,agent.owner_id,run.org_id,run.env):fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
             if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
             elif definition['kind']=='governed_action':
                 tool=scoped(db,Tool,definition['tool_id'],run.org_id)

@@ -1,7 +1,7 @@
 import time
 import pytest
 from sqlalchemy import select, func
-from conftest import auth
+from conftest import auth,assign_staging
 from test_inference import setup
 from nexus.db import ReadinessEvidence, SchemaVersion, InferenceCall, User, Audit, migrate
 
@@ -83,6 +83,7 @@ def test_recover_only_own_key_without_provider_replay(ctx,monkeypatch):
     other,_=auth(ctx,org='other');assert ctx['client'].post('/v1/inference/recover',headers=other,json={'key':h['Idempotency-Key']}).status_code==404
     with ctx['db'].begin() as db:
         user=User(org_id='northstar',email='second@synthetic.invalid',name='Second owner',role='owner');db.add(user);db.flush()
+        assign_staging(db,user)
         from nexus.security import issue_session
         token,csrf=issue_session(db,user,ctx['settings'])
     ctx['client'].cookies.set('nexus_session',token)

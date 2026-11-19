@@ -1,13 +1,14 @@
 """Run separately: python -m nexus.worker. A durable action row is the MVP outbox."""
 import time
 from sqlalchemy import select, update
-from .db import Action, Agent, Grant, Approval, now
+from .db import Action, Agent, Grant, Approval, User, now
 from .config import Settings
 from .db import database
 from .mock_connector import UncertainOutcome
 from .business_connector import business_connector, connector_identity
 from .service import active_policy, canonical, audit, verify
-from .security import digest
+from .security import digest, PERMISSIONS
+from .runtime_context import environment_user_allowed
 from .durable import run_flow_once
 from .ingestion import run_ingestion_once
 
@@ -27,6 +28,19 @@ def run_once(factory, settings, connector):
         if claimed.rowcount != 1: return False
         db.refresh(candidate)
         agent = db.scalar(select(Agent).where(Agent.id == candidate.agent_id).with_for_update())
+        requester=db.get(User,candidate.requester_id)
+        allowed=(agent and agent.org_id==candidate.org_id and agent.env==candidate.env
+                 and environment_user_allowed(db,agent.owner_id,candidate.org_id,candidate.env)
+                 and requester and requester.org_id==candidate.org_id
+                 and environment_user_allowed(db,requester.id,candidate.org_id,candidate.env))
+        if candidate.principal.startswith('agent:'):
+            allowed=allowed and candidate.principal=='agent:'+agent.id and requester.id==agent.owner_id
+        else:
+            allowed=allowed and 'operate' in PERMISSIONS.get(requester.role,set())
+        if not allowed:
+            candidate.status='blocked';candidate.reason='DISPATCH_ENVIRONMENT_ACCESS_CHANGED';candidate.updated=now()
+            audit(db,candidate.org_id,'worker','execution.blocked',candidate)
+            return True
         policy = active_policy(db, candidate.org_id)
         grant = db.scalar(select(Grant).where(Grant.org_id == candidate.org_id, Grant.env == candidate.env,
                      Grant.agent_id == candidate.agent_id, Grant.tool_id == candidate.tool_id,
