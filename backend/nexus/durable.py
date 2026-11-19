@@ -6,7 +6,7 @@ from sqlalchemy import select,update,func
 from .schemas import Strict,ActionInput
 from .db import DurableRun,DurableStep,Organization,Agent,Tool,Action,Approval,User,now,uid,public
 from .security import fail,digest,PERMISSIONS
-from .runtime_context import environment_user_allowed
+from .runtime_context import environment_user_allowed,runtime_environment
 from .business_connector import connector_identity
 from .service import scoped,submit_action,audit,canonical
 
@@ -67,13 +67,14 @@ class Recover(Strict):
     key: str = Field(min_length=8,max_length=128)
 
 def run_for(db,id,org,lock=False):
-    query=select(DurableRun).where(DurableRun.id==id,DurableRun.org_id==org,DurableRun.env=='staging')
+    query=select(DurableRun).where(DurableRun.id==id,DurableRun.org_id==org,DurableRun.env==runtime_environment(db,org))
     row=db.scalar(query.with_for_update() if lock else query)
     if not row:fail(404,'RUN_NOT_FOUND','Agent run not found in this workspace.')
     return row
 
 def step_for(db,run):
-    return db.scalar(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.position==run.cursor))
+    runtime_environment(db,run.org_id,run.env)
+    return db.scalar(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position==run.cursor))
 
 def event(db,run,actor,name,detail=None):
     audit(db,run.org_id,actor,'agent_run.'+name,detail={'run_id':run.id,'cursor':run.cursor,'version':run.version,**(detail or {})},env=run.env)
@@ -82,8 +83,9 @@ def touch(run,status):
     run.status=status;run.version+=1;run.updated=now();run.lease_token='';run.lease_until=0;run.next_poll=now()+1
 
 def serialize(db,run):
+    runtime_environment(db,run.org_id,run.env)
     data=public(run);data.pop('lease_token',None)
-    steps=db.scalars(select(DurableStep).where(DurableStep.run_id==run.id).order_by(DurableStep.position)).all()
+    steps=db.scalars(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env).order_by(DurableStep.position)).all()
     data['steps']=[public(s) for s in steps]
     current=next((s for s in steps if s.position==run.cursor),None)
     data['can_retry']=bool(run.status=='failed' and current and not current.action_id)
@@ -95,11 +97,11 @@ def create_run(db,settings,user,body,key):
     # Serialize organization admission before the idempotency and quota reads.
     db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
     request={**body.model_dump(),'destination':connector_identity(settings)};hashed=digest(canonical(request))
-    existing=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.author_id==user.id,DurableRun.idem_key==key))
+    existing=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.author_id==user.id,DurableRun.idem_key==key))
     if existing:
         if existing.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to another immutable workflow request.')
         return existing
-    if db.scalar(select(func.count()).select_from(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.status.in_(ACTIVE)))>=50:fail(429,'RUN_CAPACITY','This workspace already has 50 active runs.')
+    if db.scalar(select(func.count()).select_from(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.status.in_(ACTIVE)))>=50:fail(429,'RUN_CAPACITY','This workspace already has 50 active runs.')
     agent=scoped(db,Agent,body.agent_id,user.org_id)
     if agent.status!='active':fail(403,'AGENT_INACTIVE','Choose an active agent.')
     for step in body.steps:
@@ -107,23 +109,25 @@ def create_run(db,settings,user,body,key):
             tool=scoped(db,Tool,step.tool_id,user.org_id)
             if tool.kind not in ('supplier','purchase') or tool.version!=step.request.tool_version:fail(422,'UNSUPPORTED_RUN_TOOL','Only the versioned governed supplier/purchase tools are supported by this bounded engine.')
             if settings.mode!='local' and step.request.simulation!='normal':fail(403,'SIMULATION_DISABLED','Fault injection is local-only.')
-    run=DurableRun(org_id=user.org_id,name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key)
+    run=DurableRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key)
     db.add(run);db.flush()
-    for i,step in enumerate(body.steps):db.add(DurableStep(org_id=user.org_id,run_id=run.id,position=i,label=step.label,kind=step.kind))
+    for i,step in enumerate(body.steps):db.add(DurableStep(org_id=user.org_id,env=run.env,run_id=run.id,position=i,label=step.label,kind=step.kind))
     db.flush();event(db,run,user.id,'created');return run
 
 def finish_cancel(db,run):
-    db.execute(update(DurableStep).where(DurableStep.run_id==run.id,DurableStep.position>=run.cursor,DurableStep.status.in_(('pending','waiting_review'))).values(status='cancelled',updated=now()))
+    runtime_environment(db,run.org_id,run.env)
+    db.execute(update(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position>=run.cursor,DurableStep.status.in_(('pending','waiting_review'))).values(status='cancelled',updated=now()))
     touch(run,'cancelled')
 
 def cancel_current(db,run):
     step=step_for(db,run)
-    action=db.scalar(select(Action).where(Action.id==step.action_id).with_for_update()) if step and step.action_id else None
+    action=db.scalar(select(Action).where(Action.id==step.action_id,Action.org_id==run.org_id,Action.env==run.env).with_for_update()) if step and step.action_id else None
+    if step and step.action_id and not action:fail(409,'ACTION_MISSING','The linked action is unavailable.')
     run.cancel_requested=1
     if action and action.status in ('queued','awaiting_approval'):
-        changed=db.execute(update(Action).where(Action.id==action.id,Action.status.in_(('queued','awaiting_approval'))).values(status='cancelled',updated=now()))
+        changed=db.execute(update(Action).where(Action.id==action.id,Action.org_id==run.org_id,Action.env==run.env,Action.status.in_(('queued','awaiting_approval'))).values(status='cancelled',updated=now()))
         if changed.rowcount:
-            db.execute(update(Approval).where(Approval.action_id==action.id,Approval.status=='pending').values(status='cancelled',version=Approval.version+1))
+            db.execute(update(Approval).where(Approval.action_id==action.id,Approval.org_id==run.org_id,Approval.env==run.env,Approval.status=='pending').values(status='cancelled',version=Approval.version+1))
             if step:step.status='cancelled'
             finish_cancel(db,run);return
         db.refresh(action)
@@ -141,7 +145,7 @@ def register_durable(app,factory,settings,human):
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:
             user=human(request,db)
-            rows=db.scalars(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env=='staging').order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
+            rows=db.scalars(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id)).order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
             return {'items':[serialize(db,r) for r in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
 
     @app.post('/v1/agent-runs',status_code=201)
@@ -154,7 +158,7 @@ def register_durable(app,factory,settings,human):
     def recover(body:Recover,request:Request):
         with factory() as db:
             user=human(request,db,True)
-            run=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env=='staging',DurableRun.author_id==user.id,DurableRun.idem_key==body.key))
+            run=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.author_id==user.id,DurableRun.idem_key==body.key))
             if not run:fail(404,'RUN_INTENT_NOT_FOUND','No committed run is visible for this intent. Retry the unchanged request with the same key; do not submit a different intent blindly.')
             return serialize(db,run)
 
@@ -207,12 +211,12 @@ def run_flow_once(factory,settings):
         candidate=db.scalar(select(DurableRun).where(DurableRun.status.in_(POLL),DurableRun.next_poll<=now()).order_by(DurableRun.next_poll,DurableRun.created).limit(1))
         if not candidate:return False
         token=uid();previous=candidate.status
-        claimed=db.execute(update(DurableRun).where(DurableRun.id==candidate.id,DurableRun.version==candidate.version,DurableRun.status==previous).values(status='processing',lease_token=token,lease_until=now()+30))
+        claimed=db.execute(update(DurableRun).where(DurableRun.id==candidate.id,DurableRun.org_id==candidate.org_id,DurableRun.env==candidate.env,DurableRun.version==candidate.version,DurableRun.status==previous).values(status='processing',lease_token=token,lease_until=now()+30))
         if claimed.rowcount!=1:return False
-        run_id=candidate.id
+        run_id=candidate.id;org=candidate.org_id;environment=candidate.env
     try:
         with factory.begin() as db:
-            run=db.scalar(select(DurableRun).where(DurableRun.id==run_id,DurableRun.status=='processing',DurableRun.lease_token==token).with_for_update())
+            run=db.scalar(select(DurableRun).where(DurableRun.id==run_id,DurableRun.org_id==org,DurableRun.env==environment,DurableRun.status=='processing',DurableRun.lease_token==token).with_for_update())
             if not run:return True
             if digest(canonical(run.definition))!=run.payload_hash:fail(409,'PAYLOAD_CHANGED','Workflow fingerprint changed.')
             if run.cursor>=len(run.definition['steps']):touch(run,'succeeded');event(db,run,'worker','succeeded');return True
@@ -241,7 +245,7 @@ def run_flow_once(factory,settings):
                 return True
             if run.cancel_requested:finish_cancel(db,run);return True
             if run.definition.get('destination','mock-business-v1')!=connector_identity(settings):fail(409,'DESTINATION_CHANGED','The reviewed workflow connector destination changed. Create a new reviewed run for the configured adapter.')
-            author=db.scalar(select(User).where(User.id==run.author_id).with_for_update());agent=db.scalar(select(Agent).where(Agent.id==run.agent_id).with_for_update())
+            author=db.scalar(select(User).where(User.id==run.author_id).with_for_update());agent=db.scalar(select(Agent).where(Agent.id==run.agent_id,Agent.org_id==run.org_id,Agent.env==run.env).with_for_update())
             if not author or author.org_id!=run.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,run.org_id,run.env):fail(403,'REQUESTER_REVOKED','Requester is no longer authorized.')
             if not agent or agent.org_id!=run.org_id or agent.env!=run.env or agent.status!='active' or agent.generation!=run.generation or not environment_user_allowed(db,agent.owner_id,run.org_id,run.env):fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
             if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
@@ -256,7 +260,7 @@ def run_flow_once(factory,settings):
         return True
     except HTTPException as exc:
         with factory.begin() as db:
-            run=db.scalar(select(DurableRun).where(DurableRun.id==run_id,DurableRun.status=='processing',DurableRun.lease_token==token).with_for_update())
+            run=db.scalar(select(DurableRun).where(DurableRun.id==run_id,DurableRun.org_id==org,DurableRun.env==environment,DurableRun.status=='processing',DurableRun.lease_token==token).with_for_update())
             if run:
                 run.error=exc.detail.get('code','CONTROL_FAILED') if isinstance(exc.detail,dict) else 'CONTROL_FAILED';touch(run,'failed')
                 step=step_for(db,run)
