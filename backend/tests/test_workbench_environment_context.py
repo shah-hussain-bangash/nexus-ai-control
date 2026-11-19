@@ -118,6 +118,8 @@ def test_internal_durable_creation_recovery_control_and_worker_gate(ctx,internal
         with pytest.raises(RuntimeError):serialize(db,cached)
         with pytest.raises(RuntimeError):step_for(db,cached)
     # Internal binding is no runtime grant: the real worker still refuses production.
+    with ctx['db'].begin() as db:
+        db.execute(update(DurableRun).where(DurableRun.id==created['id']).values(next_poll=0))
     assert run_flow_once(ctx['db'],ctx['settings'])
     internal['selected']['environment']='production'
     failed=client.get(url).json();assert failed['status']=='failed' and failed['error']=='REQUESTER_REVOKED'
