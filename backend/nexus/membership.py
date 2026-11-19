@@ -10,6 +10,7 @@ from .db import User,SessionRecord,Organization,WorkbenchRun,now
 from .security import fail,digest,password_hash
 from .service import canonical,audit
 from .environments import assign_staging
+from .runtime_context import CURRENT_ENVIRONMENT
 KIND='member_provision'
 class Note(Strict):
  note:str=Field(min_length=5,max_length=500)
@@ -57,7 +58,7 @@ def reset_local(factory,settings,email,password):
  with factory.begin() as db:
   user=db.scalar(select(User).where(User.email==email.strip().lower()).with_for_update())
   if not user or not user.active:raise ValueError('Active local account not found.')
-  user.password_hash=password_hash(password);db.execute(delete(SessionRecord).where(SessionRecord.user_id==user.id));audit(db,user.org_id,'local-console','member.password_reset',detail={'member_id':user.id})
+  user.password_hash=password_hash(password);db.execute(delete(SessionRecord).where(SessionRecord.user_id==user.id));audit(db,user.org_id,'local-console','member.password_reset',detail={'member_id':user.id},env=CURRENT_ENVIRONMENT)
 
 def register_membership(app,factory,settings,human):
  @app.get('/v1/member-admin')

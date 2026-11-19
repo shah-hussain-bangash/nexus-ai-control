@@ -218,14 +218,14 @@ def register_inference(app, factory, settings, human):
                 row = db.get(InferenceCall, call_id)
                 settle(db, row, result['input_tokens'], result['output_tokens'], 'completed', result)
                 row.duration_ms = round((time.perf_counter()-started)*1000, 3)
-                audit(db, org, author, 'inference.completed', detail={'call_id': call_id, 'charged_micro_usd': row.charged})
+                audit(db, row.org_id, author, 'inference.completed', detail={'call_id': call_id, 'charged_micro_usd': row.charged},env=row.env)
                 response=public(row)
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
             with factory.begin() as db:
                 row = db.get(InferenceCall, call_id)
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 row.result = {'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
-                audit(db, org, author, 'inference.unknown', detail={'call_id': call_id})
+                audit(db, row.org_id, author, 'inference.unknown', detail={'call_id': call_id},env=row.env)
                 response=public(row)
 
         # Commit provider accounting before rechecking delivery access. Revocation

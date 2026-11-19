@@ -6,20 +6,25 @@ from fastapi.responses import PlainTextResponse
 from .db import Action,DurableRun,KnowledgeDocument,Approval,Incident,SchemaVersion,now
 from .security import fail
 from .business_connector import connector_profile
+from .runtime_context import runtime_environment, bound_runtime_context
 
 
-def grouped(db,model,org=None):
+def grouped(db,model,org=None,environment=None):
+    if org is None and environment is not None:raise RuntimeError('An environment signal requires an explicit workspace.')
     query=select(model.status,func.count()).group_by(model.status)
-    if org is not None:query=query.where(model.org_id==org,model.env=='staging')
+    if org is not None:query=query.where(model.org_id==org,model.env==runtime_environment(db,org,environment))
+    elif bound_runtime_context(db) is not None:raise RuntimeError('Global operating signals require an unbound operator session.')
     return dict(db.execute(query).all())
 
 
-def signals(db,org=None):
-    actions=grouped(db,Action,org);runs=grouped(db,DurableRun,org);docs=grouped(db,KnowledgeDocument,org)
+def signals(db,org=None,environment=None):
+    if org is None and environment is not None:raise RuntimeError('An environment signal requires an explicit workspace.')
+    environment=runtime_environment(db,org,environment) if org is not None else None
+    actions=grouped(db,Action,org,environment);runs=grouped(db,DurableRun,org,environment);docs=grouped(db,KnowledgeDocument,org,environment)
     queued=select(func.min(Action.created)).where(Action.status=='queued')
     approvals=select(func.count()).select_from(Approval).where(Approval.status=='pending',Approval.expires>now())
     if org is not None:
-        queued=queued.where(Action.org_id==org,Action.env=='staging');approvals=approvals.where(Approval.org_id==org,Approval.env=='staging')
+        queued=queued.where(Action.org_id==org,Action.env==environment);approvals=approvals.where(Approval.org_id==org,Approval.env==environment)
     oldest=db.scalar(queued)
     return {'actions':actions,'agent_runs':runs,'documents':docs,'pending_unexpired_approvals':db.scalar(approvals),
             'oldest_queued_action_age_seconds':round(max(0,now()-oldest),2) if oldest else 0,

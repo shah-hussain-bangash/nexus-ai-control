@@ -99,5 +99,5 @@ def authenticate_agent(token, db, settings, request=None):
     require_request_context(request,agent.org_id)
     if not environment_user_allowed(db,agent.owner_id,agent.org_id,agent.env):
         fail(403,'ENVIRONMENT_ACCESS_DENIED','The workload environment or owner authorization is unavailable.')
-    bind_runtime_context(db,agent.org_id)
+    bind_runtime_context(db,agent.org_id,agent.env)
     return agent
