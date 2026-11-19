@@ -1,5 +1,6 @@
 import type { InterfaceModule } from "./interfaceDesign.ts";
 import { uiInputs, type UiRecord } from "./productExperience.ts";
+import { recoveryContextParts } from "./recoveryContext.ts";
 export const HANDOFF_LIMIT = 8 * 1024 * 1024;
 export const UI_RECORD_LIMIT = 300;
 export const reviewCriteria = [
@@ -22,13 +23,19 @@ export const reviewCriteria = [
   },
 ] as const;
 export type ReviewChecks = Record<string, string[]>;
-export type HandoffScope = { organization: string; user: string };
+export type HandoffScope = {
+  organization: string;
+  user: string;
+  environment: string;
+};
 export type ImportedHandoff = {
   records: UiRecord[];
   reviewed: string[];
   checks: ReviewChecks;
   legacy: boolean;
   sourceRelease: string;
+  scope: HandoffScope;
+  environmentImplicit: boolean;
 };
 const criteria = reviewCriteria.map((x) => x.id) as string[];
 function invalid(
@@ -49,11 +56,54 @@ function text(value: any, min: number, max: number) {
 export function reviewComplete(checks: ReviewChecks, id: string) {
   return criteria.every((c) => checks[id]?.includes(c));
 }
+export function validatedHandoffScope(scope: HandoffScope): HandoffScope {
+  recoveryContextParts(scope?.organization, scope?.user, scope?.environment);
+  return {
+    organization: scope.organization,
+    user: scope.user,
+    environment: scope.environment,
+  };
+}
+export function assertHandoffScope(
+  actual: HandoffScope,
+  expected: HandoffScope,
+) {
+  const a = validatedHandoffScope(actual),
+    b = validatedHandoffScope(expected);
+  if (
+    a.organization !== b.organization ||
+    a.user !== b.user ||
+    a.environment !== b.environment
+  )
+    invalid(
+      "This handoff belongs to a different account, workspace or environment.",
+    );
+}
+export async function readHandoff(
+  text: Promise<string>,
+  modules: InterfaceModule[],
+  scope: HandoffScope,
+  current: () => boolean,
+) {
+  const target = validatedHandoffScope(scope);
+  const raw = await text;
+  if (!current())
+    throw Error(
+      "The workspace context changed while reading this handoff. Choose the file again.",
+    );
+  const parsed = parseHandoff(raw, modules, target);
+  if (!current())
+    throw Error(
+      "The workspace context changed while reading this handoff. Choose the file again.",
+    );
+  return parsed;
+}
 export function parseHandoff(
   raw: string,
   modules: InterfaceModule[],
   scope: HandoffScope,
 ): ImportedHandoff {
+  scope = validatedHandoffScope(scope);
   if (new TextEncoder().encode(raw).byteLength > HANDOFF_LIMIT)
     invalid(
       "The UI handoff exceeds 8 MiB. Export review-only metadata or fewer examples.",
@@ -72,14 +122,34 @@ export function parseHandoff(
     !object(value) ||
     value.backend_activated !== false ||
     value.production_accepted !== false ||
-    !["0.14.0", "0.15.0", "0.16.0"].includes(value.release)
+    !["0.14.0", "0.15.0", "0.16.0", "0.16.2"].includes(value.release)
   )
     invalid();
   const legacy = value.release === "0.14.0";
+  const environmentImplicit = legacy || value.schema === 1;
+  if (environmentImplicit && scope.environment !== "staging")
+    invalid(
+      "Older handoffs without environment scope can be restored only in staging.",
+    );
+  if (
+    legacy &&
+    ((value.schema !== undefined && value.schema !== 1) ||
+      (value.format !== undefined && value.format !== "nexus-ui-review"))
+  )
+    invalid();
+  if (
+    legacy &&
+    value.workspace_scope !== undefined &&
+    (!object(value.workspace_scope) ||
+      value.workspace_scope.organization !== scope.organization ||
+      value.workspace_scope.user !== scope.user ||
+      "environment" in value.workspace_scope)
+  )
+    invalid();
   if (
     !legacy &&
     (value.format !== "nexus-ui-review" ||
-      value.schema !== 1 ||
+      ![1, 2].includes(value.schema) ||
       !object(value.workspace_scope) ||
       value.workspace_scope.organization !== scope.organization ||
       value.workspace_scope.user !== scope.user)
@@ -87,6 +157,16 @@ export function parseHandoff(
     invalid(
       "This handoff belongs to a different account/workspace or uses an unsupported format.",
     );
+  if (!legacy) {
+    if (value.schema === 2) {
+      if (value.release !== "0.16.2") invalid();
+      assertHandoffScope(value.workspace_scope, scope);
+    } else if ("environment" in value.workspace_scope) {
+      invalid(
+        "An older handoff cannot override its staging-only environment scope.",
+      );
+    }
+  }
   if (
     !Array.isArray(value.modules) ||
     value.modules.length !== modules.length ||
@@ -214,6 +294,8 @@ export function parseHandoff(
     reviewed: legacy ? [] : requested,
     legacy,
     sourceRelease: value.release,
+    scope: { ...scope },
+    environmentImplicit,
   };
 }
 export function makeHandoff(
@@ -224,10 +306,11 @@ export function makeHandoff(
   scope: HandoffScope,
   includeExamples = true,
 ) {
+  scope = validatedHandoffScope(scope);
   const data = {
     format: "nexus-ui-review",
-    schema: 1,
-    release: "0.16.0",
+    schema: 2,
+    release: "0.16.2",
     scope: "UI-only review; not deployment acceptance",
     workspace_scope: scope,
     exported_at: new Date().toISOString(),

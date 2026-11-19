@@ -7,6 +7,8 @@ import {
   parseHandoff,
   reviewComplete,
   reviewCriteria,
+  readHandoff,
+  assertHandoffScope,
 } from "../src/uiHandoff.ts";
 import { newUiRecord, previewTransition } from "../src/productExperience.ts";
 const modules = JSON.parse(
@@ -15,7 +17,11 @@ const modules = JSON.parse(
     "utf8",
   ),
 ).modules;
-const scope = { organization: "review-org", user: "review-user" },
+const scope = {
+    organization: "review-org",
+    user: "review-user",
+    environment: "staging",
+  },
   f = modules[0].features[0];
 function exported() {
   return makeHandoff(modules, [newUiRecord(f, "UI-example")], [], {}, scope);
@@ -153,4 +159,160 @@ test("one example for every agreed function fits into a single resumable handoff
     .map((f: any, i: number) => newUiRecord(f, "UI-" + i));
   const data = makeHandoff(modules, records, [], {}, scope);
   assert.equal(parse(data).records.length, 216);
+});
+
+test("new handoffs retain explicit environment scope in full and review-only exports", () => {
+  const production = { ...scope, environment: "production" };
+  for (const include of [true, false]) {
+    const data = makeHandoff(
+      modules,
+      [newUiRecord(f, "UI-production")],
+      [],
+      {},
+      production,
+      include,
+    );
+    assert.equal(data.schema, 2);
+    assert.equal(data.release, "0.16.2");
+    assert.deepEqual(data.workspace_scope, production);
+    assert.deepEqual(parse(data, production).scope, production);
+    assert.equal(parse(data, production).environmentImplicit, false);
+    assert.throws(() => parse(data, scope));
+  }
+});
+
+test("older scoped files preserve staging review work without acquiring production scope", () => {
+  for (const release of ["0.15.0", "0.16.0"]) {
+    const data: any = makeHandoff(
+      modules,
+      [newUiRecord(f, "UI-old")],
+      [f.id],
+      { [f.id]: reviewCriteria.map((c) => c.id) },
+      scope,
+    );
+    data.schema = 1;
+    data.release = release;
+    delete data.workspace_scope.environment;
+    const restored = parse(data);
+    assert.equal(restored.environmentImplicit, true);
+    assert.equal(restored.legacy, false);
+    assert.deepEqual(restored.reviewed, [f.id]);
+    assert.equal(restored.records.length, 1);
+    assert.throws(() => parse(data, { ...scope, environment: "production" }));
+    assert.equal(
+      makeHandoff(
+        modules,
+        restored.records,
+        restored.reviewed,
+        restored.checks,
+        scope,
+      ).workspace_scope.environment,
+      "staging",
+    );
+  }
+});
+
+test("release or schema downgrades cannot smuggle another environment into staging", () => {
+  const data: any = exported();
+  for (const release of ["0.14.0", "0.15.0", "0.16.0"]) {
+    const modified = structuredClone(data);
+    modified.release = release;
+    assert.throws(() => parse(modified));
+    modified.schema = 1;
+    modified.workspace_scope.environment = "production";
+    assert.throws(() => parse(modified));
+  }
+});
+
+test("unscoped legacy examples remain staging-only and never restore review attestations", () => {
+  const data: any = exported();
+  data.release = "0.14.0";
+  delete data.workspace_scope;
+  delete data.schema;
+  delete data.format;
+  data.modules[0].features[0].ui_reviewed = true;
+  const restored = parse(data);
+  assert.equal(restored.legacy, true);
+  assert.deepEqual(restored.reviewed, []);
+  assert.deepEqual(restored.checks, {});
+  assert.throws(() => parse(data, { ...scope, environment: "production" }));
+});
+
+test("invalid target scope and missing new-file environment fail closed", () => {
+  for (const change of [
+    { environment: undefined },
+    { environment: "Staging" },
+    { environment: "../stage" },
+    { organization: "" },
+    { user: "line\nbreak" },
+  ]) {
+    assert.throws(() =>
+      makeHandoff(modules, [], [], {}, { ...scope, ...change } as any),
+    );
+    assert.throws(() => parse(exported(), { ...scope, ...change } as any));
+  }
+  const data: any = exported();
+  delete data.workspace_scope.environment;
+  assert.throws(() => parse(data));
+});
+
+test("candidate application must match its original actor, workspace and environment", () => {
+  const candidate = parse(exported());
+  assertHandoffScope(candidate.scope, scope);
+  for (const change of [
+    { environment: "production" },
+    { user: "another" },
+    { organization: "another" },
+  ])
+    assert.throws(() =>
+      assertHandoffScope(candidate.scope, { ...scope, ...change }),
+    );
+});
+
+test("a file that finishes after the context changes cannot become an import candidate", async () => {
+  let resolve!: (raw: string) => void;
+  let current = true;
+  const pending = readHandoff(
+    new Promise<string>((r) => (resolve = r)),
+    modules,
+    scope,
+    () => current,
+  );
+  current = false;
+  resolve(JSON.stringify(exported()));
+  await assert.rejects(pending, /context changed/);
+});
+
+test("a later file selection wins and the captured target scope cannot be relabelled", async () => {
+  let resolve!: (raw: string) => void;
+  let ticket = 1;
+  const target = { ...scope };
+  const older = readHandoff(
+    new Promise<string>((r) => (resolve = r)),
+    modules,
+    target,
+    () => ticket === 1,
+  );
+  ticket = 2;
+  target.environment = "production";
+  const newer = await readHandoff(
+    Promise.resolve(JSON.stringify(exported())),
+    modules,
+    scope,
+    () => ticket === 2,
+  );
+  resolve(JSON.stringify(exported()));
+  await assert.rejects(older);
+  assert.deepEqual(newer.scope, scope);
+  const mutable = { ...scope };
+  let finish!: (raw: string) => void;
+  const captured = readHandoff(
+    new Promise<string>((r) => (finish = r)),
+    modules,
+    mutable,
+    () => true,
+  );
+  mutable.environment = "production";
+  finish(JSON.stringify(exported()));
+  assert.deepEqual((await captured).scope, scope);
 });
