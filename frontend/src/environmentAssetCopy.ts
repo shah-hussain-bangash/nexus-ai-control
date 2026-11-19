@@ -9,6 +9,52 @@ export type CopyAsset = {
   config: Record<string, unknown>;
 };
 export type CopyTarget = { key: string; name: string; version: number };
+export type ReferenceChoice = {
+  id: string;
+  kind: string;
+  name: string;
+  version: number;
+};
+export type ReferenceMapping = {
+  node_id: string;
+  target_asset_id: string;
+  expected_target_asset_version: number;
+};
+export function workflowReferences(asset: CopyAsset) {
+  if (asset.kind !== "workflow") return [];
+  if (!Array.isArray(asset.config.nodes))
+    throw Error(
+      "Refresh the workflow configuration before mapping references.",
+    );
+  const kinds: Record<string, string> = {
+    retrieve: "knowledge",
+    prompt: "prompt",
+    guardrail: "guardrail",
+  };
+  const refs = asset.config.nodes
+    .filter((n: any) => n.ref_id)
+    .map((n: any) => {
+      if (
+        !/^[a-zA-Z0-9_-]{1,40}$/.test(n.id) ||
+        !kinds[n.kind] ||
+        !Number.isSafeInteger(n.ref_version) ||
+        n.ref_version < 1
+      )
+        throw Error(
+          "Validate and refresh every pinned workflow reference before copying.",
+        );
+      return {
+        node_id: n.id as string,
+        kind: kinds[n.kind],
+        source_asset_id: n.ref_id as string,
+        source_version: n.ref_version as number,
+        label: String(n.label || n.id),
+      };
+    });
+  if (new Set(refs.map((ref) => ref.node_id)).size !== refs.length)
+    throw Error("Workflow step identifiers must be unique.");
+  return refs;
+}
 export function copyPayload(
   source: string,
   asset: CopyAsset,
@@ -16,10 +62,11 @@ export function copyPayload(
   name: string,
   note: string,
   reviewed: boolean,
+  mappings: ReferenceMapping[] = [],
 ) {
   if (
     !reviewed ||
-    !["prompt", "guardrail"].includes(asset.kind) ||
+    !["prompt", "guardrail", "workflow"].includes(asset.kind) ||
     asset.status !== "validated" ||
     !asset.id ||
     !Number.isSafeInteger(asset.version) ||
@@ -34,6 +81,22 @@ export function copyPayload(
       "Refresh and review the validated source and active target before copying.",
     );
   name = name.trim();
+  const refs = workflowReferences(asset);
+  if (
+    new Set(mappings.map((m) => m.node_id)).size !== mappings.length ||
+    mappings.length !== refs.length ||
+    refs.some((ref) => !mappings.some((m) => m.node_id === ref.node_id)) ||
+    mappings.some(
+      (m) =>
+        !m.target_asset_id ||
+        m.target_asset_id.length > 64 ||
+        !Number.isSafeInteger(m.expected_target_asset_version) ||
+        m.expected_target_asset_version < 1,
+    )
+  )
+    throw Error(
+      "Map every workflow reference exactly once to a current target design.",
+    );
   if (
     name.length < 2 ||
     name.length > 120 ||
@@ -48,6 +111,7 @@ export function copyPayload(
     name,
     note: environmentReason(note),
     reviewed: true,
+    ...(mappings.length ? { reference_mappings: mappings } : {}),
   };
 }
 export function copyOutcome(value: any, source: string) {
@@ -64,7 +128,7 @@ export function copyOutcome(value: any, source: string) {
         value.target_environment === source ||
         !/^[a-z][a-z0-9-]{1,31}$/.test(value.target_environment) ||
         value.target_created_version !== 1 ||
-        !["prompt", "guardrail"].includes(value.kind)))
+        !["prompt", "guardrail", "workflow"].includes(value.kind)))
   )
     throw Error(
       "The copy result could not be confirmed. Recover the saved request before continuing.",
