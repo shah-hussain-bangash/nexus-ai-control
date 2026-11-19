@@ -13,6 +13,7 @@ import "./live.css";
 import "./enterpriseRuntime.css";
 import "./environmentSetup.css";
 import { activationPayload, canActivateEnvironment } from "./environmentSwitch";
+import { EnvironmentAssetCopy } from "./EnvironmentAssetCopyPanel";
 import {
   canControlRuntime,
   runtimeControlPayload,
@@ -391,6 +392,12 @@ export function EnvironmentSetup({
           ))}
         </div>
       </div>
+      {inventory?.activation_enabled && !inventory.read_only && (
+        <EnvironmentAssetCopy
+          user={me.user}
+          environment={inventory.current_environment}
+        />
+      )}
       {editor && (
         <Modal
           title={

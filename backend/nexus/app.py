@@ -521,6 +521,8 @@ def create_app(settings=None):
     register_environments(app,factory,settings,human)
     from .environment_runtime import register_environment_runtime
     register_environment_runtime(app,factory,settings,human)
+    from .environment_asset_copy import register_environment_asset_copy
+    register_environment_asset_copy(app,factory,settings,human)
     @app.get('/v1/runtime-context')
     def runtime_context(request:Request):
         with factory() as db:
