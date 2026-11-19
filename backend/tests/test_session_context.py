@@ -14,7 +14,7 @@ def selection(current,**changes):
 def test_current_context_is_session_owned_and_not_an_authentication_secret(ctx):
     csrf,owner=auth(ctx);current=context(ctx)
     assert current['user_id']==owner and current['workspace_id']=='northstar' and current['environment']=='staging'
-    assert current['revision']==1 and not current['switching_enabled']
+    assert current['revision']==1 and current['switching_enabled']
     assert current==ctx['client'].get('/v1/me').json()['runtime_context']
     assert 'session_id' not in current and 'csrf' not in current
     assert ctx['client'].get('/v1/agents',headers=headers(current)).status_code==200
@@ -35,7 +35,7 @@ def test_selection_is_csrf_protected_versioned_acknowledgement_only(ctx):
     with ctx['db'].begin() as db:
         db.add(WorkspaceEnvironment(org_id='northstar',key='production',name='Production',state='preparing'))
         db.flush();db.add(EnvironmentAssignment(user_id=current['user_id'],org_id='northstar',environment_key='production'))
-    assert ctx['client'].post(url,headers=csrf,json=selection(current,environment='production')).status_code==409
+    assert ctx['client'].post(url,headers=csrf,json=selection(current,environment='production',reviewed=True,expected_environment_version=1)).status_code==403
     assert context(ctx)==current
 
 
@@ -76,7 +76,7 @@ def test_invalid_stored_selection_is_not_silently_replaced(ctx,change):
         elif change=='revision':row.revision=0
         else:
             db.add(WorkspaceEnvironment(org_id='northstar',key='production',name='Production',state='preparing'));db.flush();row.environment='production'
-    assert ctx['client'].get('/v1/me').status_code==401
+    assert ctx['client'].get('/v1/me').status_code==(403 if change=='environment' else 401)
     with ctx['db']() as db:
         row=db.get(SessionRuntimeContext,session_id)
         assert row is None if change=='missing' else row.revision==0 if change=='revision' else row.environment=='production'

@@ -152,13 +152,18 @@ def register_inference(app, factory, settings, human):
             fail(422, 'IDEMPOTENCY_KEY_REQUIRED', 'Provide a unique 16–100 character request key; reuse it after uncertainty.')
         key_hash = hashlib.sha256(key.encode()).hexdigest()
         with factory() as db:
-            user = human(request, db, True, 'operate')
+            user = human(request, db, True, 'operate',serialize=False)
             fingerprint = hashlib.sha256(json.dumps({'author': user.id, **body.model_dump()}, sort_keys=True).encode()).hexdigest()
             previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id), InferenceCall.key_hash == key_hash))
             if previous:
                 if previous.request_hash != fingerprint: fail(409, 'IDEMPOTENCY_CONFLICT', 'This key belongs to a different request.')
                 return public(previous)
             if not settings.live_inference: fail(503, 'INFERENCE_DISABLED', 'Live provider execution is disabled by the server operator.')
+            prepared_model=asset_for(db,user,body.model_id)
+            if prepared_model.kind!='model' or prepared_model.status!='validated' or prepared_model.version!=body.expected_version:
+                fail(409,'MODEL_NOT_CHECKED','Check and refresh this exact model configuration before live execution.')
+            config=validate_config('model',prepared_model.config)
+            url,headers,rates=route(config,settings)
             org=user.org_id;author=user.id;environment=runtime_environment(db,org)
         try:
             with factory.begin() as db:
@@ -175,10 +180,10 @@ def register_inference(app, factory, settings, human):
                 model = asset_for(db, user, body.model_id)
                 if model.kind != 'model' or model.status != 'validated' or model.version != body.expected_version:
                     fail(409, 'MODEL_NOT_CHECKED', 'Check and refresh this exact model configuration before live execution.')
-                config = validate_config('model', model.config)
+                current_config = validate_config('model', model.config)
+                if current_config!=config:fail(409,'MODEL_NOT_CHECKED','The model route changed during preparation. Refresh before retrying.')
                 if body.max_output_tokens > min(config['token_limit'], settings.inference_max_output):
                     fail(422, 'OUTPUT_LIMIT', 'Requested output exceeds the route/server token limit.')
-                url, headers, rates = route(config, settings)
                 query = body.query.strip()
                 if not query: fail(422, 'QUERY_REQUIRED', 'Enter a nonempty request.')
                 citations = retrieve(db, user.org_id, query) if body.retrieve_evidence else []

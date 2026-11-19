@@ -30,9 +30,9 @@ def run_once(factory, settings, connector):
         agent = db.scalar(select(Agent).where(Agent.id == candidate.agent_id).with_for_update())
         requester=db.get(User,candidate.requester_id)
         allowed=(agent and agent.org_id==candidate.org_id and agent.env==candidate.env
-                 and environment_user_allowed(db,agent.owner_id,candidate.org_id,candidate.env)
+                 and environment_user_allowed(db,agent.owner_id,candidate.org_id,candidate.env,allow_non_staging=settings.mode=='local')
                  and requester and requester.org_id==candidate.org_id
-                 and environment_user_allowed(db,requester.id,candidate.org_id,candidate.env))
+                 and environment_user_allowed(db,requester.id,candidate.org_id,candidate.env,allow_non_staging=settings.mode=='local'))
         if candidate.principal.startswith('agent:'):
             allowed=allowed and candidate.principal=='agent:'+agent.id and requester.id==agent.owner_id
         else:

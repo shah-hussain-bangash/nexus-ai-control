@@ -71,7 +71,7 @@ def register_membership(app,factory,settings,human):
  def recover(body:Recover,request:Request):
   with factory() as db:
    actor=human(request,db,True,'members');key=digest(body.key)
-   rows=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==actor.org_id,WorkbenchRun.kind==KIND,WorkbenchRun.author_id==actor.id)).all();old=next((r for r in rows if r.result.get('key')==key),None)
+   rows=db.execute(select(WorkbenchRun.__table__).where(WorkbenchRun.__table__.c.org_id==actor.org_id,WorkbenchRun.__table__.c.kind==KIND,WorkbenchRun.__table__.c.author_id==actor.id)).all();old=next((r for r in rows if r.result.get('key')==key),None)
    if not old:fail(404,'PROVISION_NOT_FOUND','No provisioning receipt matches this account/key.')
    target=db.get(User,old.result['member_id'])
    if not target or target.org_id!=actor.org_id:fail(404,'PROVISION_NOT_FOUND','Provisioned account is unavailable.')
@@ -82,7 +82,7 @@ def register_membership(app,factory,settings,human):
   try:
    with factory.begin() as db:
     actor=human(request,db,True,'members');db.execute(update(Organization).where(Organization.id==actor.org_id).values(name=Organization.name))
-    fingerprint=digest(canonical(body.model_dump()));key=digest(idempotency_key);receipts=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==actor.org_id,WorkbenchRun.kind==KIND)).all();old=next((r for r in receipts if r.author_id==actor.id and r.result.get('key')==key),None)
+    fingerprint=digest(canonical(body.model_dump()));key=digest(idempotency_key);receipts=db.execute(select(WorkbenchRun.__table__).where(WorkbenchRun.__table__.c.org_id==actor.org_id,WorkbenchRun.__table__.c.kind==KIND)).all();old=next((r for r in receipts if r.author_id==actor.id and r.result.get('key')==key),None)
     if old:
      if old.result['fingerprint']!=fingerprint:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to a different member request.')
      target=db.get(User,old.result['member_id']);return {'id':target.id,'status':'provisioned','member':member(db,target),'password_issued':False,'invitation_sent':False}

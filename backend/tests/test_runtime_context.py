@@ -63,7 +63,7 @@ def test_unsupported_or_conflicting_context_is_rejected(ctx,headers,query,status
 def test_implicit_and_explicit_current_context_remain_compatible(ctx):
     auth(ctx)
     assert ctx['client'].get('/v1/runtime-context').json()=={
-        'workspace_id':'northstar','environment':'staging','access_checked':True,'switching_enabled':False}
+        'workspace_id':'northstar','environment':'staging','access_checked':True,'switching_enabled':True}
     response=ctx['client'].get('/v1/runtime-context?workspace=northstar&env=staging',headers={
         'X-Nexus-Workspace':'northstar','X-Nexus-Environment':'staging'})
     assert response.status_code==200

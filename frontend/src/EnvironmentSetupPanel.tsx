@@ -12,16 +12,19 @@ import type { EnvironmentCommand, EnvironmentRecord } from "./environmentSetup";
 import "./live.css";
 import "./enterpriseRuntime.css";
 import "./environmentSetup.css";
+import { activationPayload, canActivateEnvironment } from "./environmentSwitch";
 
 type Inventory = {
   workspace: { id: string; name: string };
   items: EnvironmentRecord[];
   current_environment: string;
   read_only?: boolean;
+  activation_enabled?: boolean;
 };
 type Editor =
   | { kind: "create" }
-  | { kind: "control"; row: EnvironmentRecord; command: EnvironmentCommand };
+  | { kind: "control"; row: EnvironmentRecord; command: EnvironmentCommand }
+  | { kind: "activate"; row: EnvironmentRecord };
 const message = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -43,6 +46,7 @@ export function EnvironmentSetup({
   const [key, setKey] = useState("");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
+  const [activationReviewed, setActivationReviewed] = useState(false);
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<EnvironmentRecord | null>(null);
   useEffect(() => {
@@ -83,6 +87,7 @@ export function EnvironmentSetup({
   function openEditor(value: Editor) {
     setEditor(value);
     setNote("");
+    setActivationReviewed(false);
     setFormError("");
     setNotice("");
     if (value.kind === "create") {
@@ -106,12 +111,20 @@ export function EnvironmentSetup({
       payload =
         editor.kind === "create"
           ? environmentCreatePayload(key, name, note)
-          : environmentControlPayload(
-              editor.row,
-              inventory.current_environment,
-              editor.command,
-              note,
-            );
+          : editor.kind === "activate"
+            ? activationPayload(
+                editor.row,
+                inventory.current_environment,
+                !!inventory.activation_enabled,
+                note,
+                activationReviewed,
+              )
+            : environmentControlPayload(
+                editor.row,
+                inventory.current_environment,
+                editor.command,
+                note,
+              );
       if (
         editor.kind === "create" &&
         inventory.items.some((row) => row.key === key.trim())
@@ -128,7 +141,7 @@ export function EnvironmentSetup({
       await api(
         editor.kind === "create"
           ? "/v1/workspace-environments"
-          : `/v1/workspace-environments/${encodeURIComponent(editor.row.key)}/control`,
+          : `/v1/workspace-environments/${encodeURIComponent(editor.row.key)}/${editor.kind === "activate" ? "activate" : "control"}`,
         "POST",
         payload,
       );
@@ -154,10 +167,12 @@ export function EnvironmentSetup({
     setEditor(null);
     setNotice(
       editor.kind === "create"
-        ? "Environment prepared. Runtime switching remains unavailable."
-        : editor.command === "archive"
-          ? "Environment archived."
-          : "Environment restored to Preparing.",
+        ? "Environment prepared. Assign an owner before local activation."
+        : editor.kind === "activate"
+          ? "Local environment activated. No records were copied; purchasing starts disabled."
+          : editor.command === "archive"
+            ? "Environment archived."
+            : "Environment restored to Preparing.",
     );
     try {
       await refresh();
@@ -206,8 +221,9 @@ export function EnvironmentSetup({
         <p className="environment-boundary">
           Current environment:{" "}
           <strong>{inventory?.current_environment || "staging"}</strong>. New
-          environments stay in Preparing. Switching and promotion are not
-          available yet.
+          environments stay in Preparing until reviewed local activation. Assign
+          yourself as owner first. Records, workloads and credentials are never
+          promoted automatically.
         </p>
         {inventory?.read_only && (
           <p>
@@ -248,6 +264,8 @@ export function EnvironmentSetup({
                   ? "Your current runtime environment is protected."
                   : row.state === "archived"
                     ? "Archived setup record. Restore it to continue preparation."
+                    : row.human_runtime_enabled
+                      ? "Active local runtime. Assigned members can select it from the header."
                     : "Preparation only. No runtime access is enabled."}
               </p>
               <div className="live-actions">
@@ -259,6 +277,20 @@ export function EnvironmentSetup({
                 >
                   View assignments
                 </button>
+                {canActivateEnvironment(
+                  row,
+                  inventory.current_environment,
+                  !!inventory.activation_enabled,
+                ) && (
+                  <button
+                    className="btn btn-primary"
+                    disabled={!!locked}
+                    aria-label={`Activate ${row.name} locally`}
+                    onClick={() => openEditor({ kind: "activate", row })}
+                  >
+                    Activate locally
+                  </button>
+                )}
                 {(["archive", "restore"] as const)
                   .filter((command) =>
                     canControlEnvironment(
@@ -290,7 +322,9 @@ export function EnvironmentSetup({
           title={
             editor.kind === "create"
               ? "Prepare environment"
-              : `${editor.command === "archive" ? "Archive" : "Restore"} ${editor.row.name}`
+              : editor.kind === "activate"
+                ? `Activate ${editor.row.name} locally?`
+                : `${editor.command === "archive" ? "Archive" : "Restore"} ${editor.row.name}`
           }
           onClose={() => {
             if (!busy) setEditor(null);
@@ -300,9 +334,11 @@ export function EnvironmentSetup({
             <p>
               {editor.kind === "create"
                 ? "This creates a Preparing record. It does not enable runtime access."
-                : editor.command === "archive"
-                  ? "Archive this preparation record? Environments containing existing records cannot be archived."
-                  : "Restore this record to Preparing? Runtime access will remain unavailable."}
+                : editor.kind === "activate"
+                  ? "This activates an empty local runtime for its assigned members. No records, agents, tools, grants or credentials are copied. Purchasing starts disabled. This does not deploy or certify production."
+                  : editor.command === "archive"
+                    ? "Archive this preparation record? Environments containing existing records cannot be archived."
+                    : "Restore this record to Preparing? Runtime access will remain unavailable."}
             </p>
             {editor.kind === "create" && (
               <>
@@ -348,6 +384,18 @@ export function EnvironmentSetup({
                 disabled={busy}
               />
             </label>
+            {editor.kind === "activate" && (
+              <label className="product-check">
+                <input
+                  type="checkbox"
+                  checked={activationReviewed}
+                  disabled={busy}
+                  onChange={(e) => setActivationReviewed(e.target.checked)}
+                />
+                I reviewed the assigned members and the empty local runtime
+                boundary.
+              </label>
+            )}
             {formError && (
               <p className="ops-alert" role="alert">
                 {formError}
@@ -364,15 +412,21 @@ export function EnvironmentSetup({
               </button>
               <button
                 className="btn btn-primary"
-                disabled={busy || needsRefresh}
+                disabled={
+                  busy ||
+                  needsRefresh ||
+                  (editor.kind === "activate" && !activationReviewed)
+                }
               >
                 {busy
                   ? "Saving…"
                   : editor.kind === "create"
                     ? "Prepare environment"
-                    : editor.command === "archive"
-                      ? "Confirm archive"
-                      : "Restore to Preparing"}
+                    : editor.kind === "activate"
+                      ? "Confirm local activation"
+                      : editor.command === "archive"
+                        ? "Confirm archive"
+                        : "Restore to Preparing"}
               </button>
             </div>
           </form>

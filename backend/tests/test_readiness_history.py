@@ -9,7 +9,7 @@ from nexus.db import ReadinessEvidence, SchemaVersion, InferenceCall, User, Audi
 def test_readiness_delivery_and_acceptance_separate(ctx):
     assert ctx['client'].get('/v1/production-readiness').status_code==401
     h,_=auth(ctx);report=ctx['client'].get('/v1/production-readiness').json()
-    assert report['total_workstreams']==18 and report['implemented']==1 and report['partial']==16 and report['not_implemented']==1
+    assert report['total_workstreams']==18 and report['implemented']==1 and report['partial']==17 and report['not_implemented']==0
     assert report['accepted']==0 and not report['production_ready']
     payload={'outcome':'passed','summary':'SQLite admission contention was tested in a disposable local environment.','reference':'https://example.invalid/evidence/run-1','expected_version':0}
     saved=ctx['client'].put('/v1/production-readiness/traffic_controls',headers=h,json=payload)
@@ -21,10 +21,12 @@ def test_readiness_delivery_and_acceptance_separate(ctx):
     with ctx['db']() as db:assert db.scalar(select(func.count()).select_from(Audit).where(Audit.event=='readiness.evidence_recorded'))==2
 
 
-def test_missing_capability_cannot_be_attested_complete(ctx):
+def test_partial_capability_cannot_be_attested_complete(ctx):
     h,_=auth(ctx)
     payload={'outcome':'passed','summary':'Claimed acceptance cannot implement missing software.','reference':'','expected_version':0}
-    assert ctx['client'].put('/v1/production-readiness/workspace_lifecycle',headers=h,json=payload).status_code==422
+    assert ctx['client'].put('/v1/production-readiness/workspace_lifecycle',headers=h,json=payload).status_code==200
+    report=ctx['client'].get('/v1/production-readiness').json()
+    assert report['accepted']==0 and not report['production_ready']
     assert ctx['client'].put('/v1/production-readiness/missing',headers=h,json=payload).status_code==404
 
 

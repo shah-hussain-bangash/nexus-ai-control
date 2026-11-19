@@ -23,7 +23,7 @@ def test_default_environment_preserves_current_runtime_and_members(ctx):
     auth(ctx)
     result=ctx['client'].get('/v1/workspace-environments').json()
     assert result['workspace']['id']=='northstar'
-    assert result['current_environment']=='staging' and result['switching_enabled'] is False
+    assert result['current_environment']=='staging' and result['switching_enabled'] is True
     assert len(result['items'])==1 and result['items'][0]['human_runtime_enabled'] is True
     members=ctx['client'].get('/v1/workspace-environments/staging/assignments').json()
     assert len(members['items'])==3 and members['editing_enabled']

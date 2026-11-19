@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { api, ApiError } from "./api";
+import { api, ApiError, setCsrf } from "./api";
+import { sessionContext } from "./sessionContext";
 import { Modal } from "./RuntimeDialog";
 import type { EnvironmentRecord } from "./environmentSetup";
 import {
@@ -109,6 +110,11 @@ export function EnvironmentMembersDialog({
       const result = await api<unknown>(path + "/control", "POST", payload);
       if (!assignmentAcknowledged(result, payload, environment.key))
         throw new Error("Unconfirmed membership response.");
+      if (payload.user_id === sessionContext.capture().context?.user_id) {
+        setCsrf("");
+        sessionContext.clear();
+        return;
+      }
     } catch (e) {
       setNeedsRefresh(true);
       setError(
@@ -157,9 +163,11 @@ export function EnvironmentMembersDialog({
           dispatched.
         </p>
         <p>
-          Preparing environments do not enable runtime access. Environment
-          switching remains unavailable. Current owner access to staging is
-          protected.
+          Preparing environments do not enable runtime access.{" "}
+          {data?.switching_enabled
+            ? "An assigned owner can review local activation in Environment setup."
+            : "Environment switching remains unavailable in this mode."}{" "}
+          Current owner access to staging is protected.
         </p>
         {(readOnly || (data && !data.editing_enabled)) && (
           <p>

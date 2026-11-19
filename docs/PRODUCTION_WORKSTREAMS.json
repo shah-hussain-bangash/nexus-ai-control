@@ -2,8 +2,8 @@
   "release": "0.16.2",
   "scope": "Production extension workstreams; source delivery and deployment acceptance are separate.",
   "implemented": 1,
-  "partial": 16,
-  "not_implemented": 1,
+  "partial": 17,
+  "not_implemented": 0,
   "production_ready": false,
   "accepted_by_default": 0,
   "workstreams": [
@@ -91,8 +91,8 @@
       "id": "workspace_lifecycle",
       "title": "Workspace & environment lifecycle",
       "area": "Governance",
-      "delivery": "not_implemented",
-      "required_evidence": "Create/switch environments with controlled membership and isolation tests.",
+      "delivery": "partial",
+      "required_evidence": "Local empty-environment activation, versioned switching, membership and isolation tests are implemented. Pilot activation, controlled imports, active-environment retirement and deployment acceptance remain.",
       "workspace": "settings"
     },
     {
