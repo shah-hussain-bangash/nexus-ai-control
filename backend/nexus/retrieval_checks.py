@@ -12,6 +12,7 @@ from .db import RetrievalCheck, Organization, KnowledgeDocument, now, public
 from .documents import document_for, search_documents, can_read
 from .service import audit, canonical
 from .security import fail, digest, PERMISSIONS
+from .runtime_context import runtime_environment
 
 
 class CheckCase(Strict):
@@ -59,8 +60,8 @@ class Removal(Strict):
         return value.strip()
 
 
-def accessible(record,user):
-    return record.org_id==user.org_id and record.env=='staging' and (record.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set()))
+def accessible(record,user,environment):
+    return bool(user.active) and record.org_id==user.org_id and record.env==environment and (record.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set()))
 
 
 def summary(record):
@@ -68,12 +69,14 @@ def summary(record):
 
 
 def checked_detail(db,record,user):
+    environment=runtime_environment(db,user.org_id)
+    if not accessible(record,user,environment):fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Retrieval evidence is not visible to this account.')
     # Saved test queries/results are author/admin-only. Historical evidence never
     # bypasses a revoked/deleted source ACL. No excerpts are retained in evidence.
     versions=record.result['source_versions'];current={}
     for id in versions:
-        doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.id==id,KnowledgeDocument.org_id==user.org_id))
-        if not doc or not can_read(doc,user):fail(409,'EVIDENCE_ACCESS_CHANGED','A referenced source is no longer readable. Create a new suite from currently authorized sources.')
+        doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.id==id,KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id)))
+        if not doc or not can_read(doc,user,environment):fail(409,'EVIDENCE_ACCESS_CHANGED','A referenced source is no longer readable. Create a new suite from currently authorized sources.')
         current[id]=doc.version
     from .documents import allowed_docs
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
@@ -82,8 +85,8 @@ def checked_detail(db,record,user):
 
 
 def record_for(db,id,user):
-    record=db.scalar(select(RetrievalCheck).where(RetrievalCheck.id==id,RetrievalCheck.org_id==user.org_id,RetrievalCheck.env=='staging'))
-    if not record or not accessible(record,user):fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Retrieval evidence is not visible to this account.')
+    record=db.scalar(select(RetrievalCheck).where(RetrievalCheck.id==id,RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id)))
+    if not record or not accessible(record,user,runtime_environment(db,user.org_id)):fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Retrieval evidence is not visible to this account.')
     return record
 
 
@@ -112,7 +115,7 @@ def register_retrieval_checks(app,factory,settings,human):
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:
             user=human(request,db)
-            query=select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env=='staging')
+            query=select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id))
             if 'policy' not in PERMISSIONS.get(user.role,set()):query=query.where(RetrievalCheck.author_id==user.id)
             rows=db.scalars(query.order_by(RetrievalCheck.created.desc(),RetrievalCheck.id).offset(offset).limit(limit+1)).all()
             return {'items':[summary(r) for r in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
@@ -123,14 +126,14 @@ def register_retrieval_checks(app,factory,settings,human):
             user=human(request,db,True,'operate')
             if not 8<=len(idempotency_key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character check key.')
             db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-            hashed=digest(canonical(body.model_dump()));previous=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==idempotency_key))
+            hashed=digest(canonical(body.model_dump()));previous=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id),RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==idempotency_key))
             if previous:
                 if previous.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to another retrieval check.')
                 return checked_detail(db,previous,user)
-            count=db.scalar(select(func.count()).select_from(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id))
+            count=db.scalar(select(func.count()).select_from(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id)))
             if count>=100:fail(429,'CHECK_CAPACITY','Retain at most 100 check records per workspace; remove obsolete evidence before creating more.')
             result=execute(db,user,body)
-            record=RetrievalCheck(org_id=user.org_id,author_id=user.id,name=body.name,config=body.model_dump(),result=result,idem_key=idempotency_key,request_digest=hashed)
+            record=RetrievalCheck(org_id=user.org_id,env=runtime_environment(db,user.org_id),author_id=user.id,name=body.name,config=body.model_dump(),result=result,idem_key=idempotency_key,request_digest=hashed)
             db.add(record);db.flush()
             audit(db,user.org_id,user.id,'retrieval.checked',detail={'check_id':record.id,'cases':len(body.cases),'passed':result['passed_cases'],'corpus_fingerprint':result['corpus_fingerprint']})
             return checked_detail(db,record,user)
@@ -139,7 +142,7 @@ def register_retrieval_checks(app,factory,settings,human):
     def recover(body:Recover,request:Request):
         with factory() as db:
             user=human(request,db,True)
-            record=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env=='staging',RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==body.key))
+            record=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id),RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==body.key))
             if not record:fail(404,'CHECK_INTENT_NOT_FOUND','No committed check is visible. Retry the unchanged request using the same key.')
             return summary(record)
 
