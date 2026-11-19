@@ -169,6 +169,50 @@ export async function api<T = any>(
       "Only interface-plan actions are interactive in this synthetic preview. Run the full source for authenticated control-plane operations.",
     );
   const url = new URL(path, location.origin);
+  if (url.pathname === "/v1/workspace-environments") {
+    return {
+      workspace: { id: "northstar", name: "Northstar · synthetic preview" },
+      current_environment: "staging",
+      switching_enabled: false,
+      read_only: true,
+      items: [
+        {
+          key: "staging",
+          name: "Staging",
+          state: "active",
+          version: 1,
+          human_runtime_enabled: true,
+        },
+        {
+          key: "production",
+          name: "Production",
+          state: "preparing",
+          version: 1,
+          human_runtime_enabled: false,
+        },
+      ],
+    } as T;
+  }
+  if (
+    /^\/v1\/workspace-environments\/(staging|production)\/assignments$/.test(
+      url.pathname,
+    )
+  ) {
+    return {
+      items: url.pathname.includes("/staging/")
+        ? [
+            {
+              id: "preview-owner",
+              name: "Preview Owner",
+              role: "owner",
+              active: true,
+            },
+          ]
+        : [],
+      editing_enabled: false,
+      switching_enabled: false,
+    } as T;
+  }
   if (["/v1/agent-runs","/v1/documents","/v1/retrieval-checks",
     "/v1/hybrid-search/history","/v1/ingestion-jobs"].includes(url.pathname)) {
     const base=working[url.pathname],offset=Number(url.searchParams.get("offset")||0),limit=Number(url.searchParams.get("limit")||20);
