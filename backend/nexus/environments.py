@@ -87,7 +87,7 @@ def register_environments(app,factory,settings,human):
             return {'workspace':{'id':user.org_id,'name':organization.name},'items':[{**serialize(row,switching_enabled(settings)),'owner_assigned':bool(db.get(EnvironmentAssignment,(user.id,user.org_id,row.key))),
                     **(runtime_review(db,user.org_id,row.key) if row.state in ('active','suspended') else {})} for row in rows],
                     'current_environment':runtime_environment(db,user.org_id),'switching_enabled':switching_enabled(settings),'activation_enabled':switching_enabled(settings),'runtime_control_enabled':switching_enabled(settings),
-                    'boundary':'Local activation starts an empty runtime with purchasing disabled. Assigned active members can select active environments. No records, workloads or credentials are promoted; pilot activation is unavailable.'}
+                    'boundary':'Local activation starts an empty runtime with purchasing disabled. Paused runtimes may be reviewed for resume or permanent retirement. Retirement retains records and reserves the key. No records, workloads or credentials are promoted; pilot lifecycle controls are unavailable.'}
 
     @app.post('/v1/workspace-environments/{key}/activate')
     def activate(key:str,body:ActivationInput,request:Request):
@@ -175,7 +175,7 @@ def register_environments(app,factory,settings,human):
             environment=db.get(WorkspaceEnvironment,(actor.org_id,key),with_for_update=True)
             if not environment:fail(404,'ENVIRONMENT_NOT_FOUND','Environment not found in this workspace.')
             if environment.version!=body.expected_version:fail(409,'STALE_VERSION','Environment or assignments changed. Refresh before confirming.')
-            if environment.state not in ('active','preparing'):fail(409,'ENVIRONMENT_STATE','Restore this environment before changing assignments.')
+            if environment.state not in ('active','preparing'):fail(409,'ENVIRONMENT_STATE','Assignments can change only in Active or Preparing environments.')
             target=db.scalar(select(User).where(User.id==body.user_id,User.org_id==actor.org_id).with_for_update())
             if not target:fail(404,'MEMBER_NOT_FOUND','Member is not in this workspace.')
             if key=='staging' and target.role=='owner':fail(409,'OWNER_PROTECTED','Current owner access requires a separate reviewed ownership procedure.')

@@ -27,6 +27,12 @@ Queued or executing actions, pending approvals, unknown outcomes, paused/unfinis
 
 **Resume runtime** requires a new versioned owner review and restores access using the existing policies, agents, grants and credentials. Review that configuration before resuming. Resume does not restore signed-out sessions or replay jobs. Members sign in to staging and explicitly select the resumed environment again. Both commands are local-only and audited in the initiating environment. No records, credentials, approvals or budget reservations are deleted or reset. Schema remains 11.
 
+## Retire a paused local runtime
+
+An assigned owner, working from staging, can choose **Retire runtime** for an idle paused environment. Review the warning, enter a reason, type the exact environment key and confirm the review checkbox. Active environments must be paused first. The same environment-version, session-count and unfinished-work checks used by pause/resume apply again under the workspace admission lock. Stale or uncertain results require refresh, not automatic retry.
+
+Retirement is a terminal runtime state in this app: it cannot be resumed, reactivated, restored to Preparing or used for new assignments. The key remains reserved. Existing records, configuration, assignments and credentials are retained; no data is deleted, budget reset, job replayed or external provider credential revoked. Workload access and environment selection stay blocked. Owners can still see the retired inventory entry and retained assignments. Historical runtime rows remain in the database and backups under their original environment; retirement does not copy them into staging. The audit event is recorded in the initiating staging ledger. Schema remains 11 and pilot retirement is unavailable.
+
 ## Remaining scope
 
-Pilot activation, controlled imports/promotions, active-environment retirement, independent security review and deployment acceptance remain future work. Active environments cannot be archived through preparation controls. No deployment acceptance is granted by the local tests or a recorded operator attestation; workspace/environment lifecycle is marked partial in the roadmap.
+Pilot lifecycle, controlled imports/promotions, independent security review and deployment acceptance remain future work. Active and retired environments cannot be archived through preparation controls. No deployment acceptance is granted by the local tests or a recorded operator attestation; workspace/environment lifecycle is marked partial in the roadmap.
