@@ -16,6 +16,7 @@ from .schemas import Strict
 from .db import KnowledgeDocument,DocumentChunk,Organization,User,DocumentUpdate,IngestionJob,now,public
 from .security import fail,digest,PERMISSIONS
 from .service import audit,canonical
+from .runtime_context import runtime_environment
 
 ROLES=('owner','security','engineer','approver','auditor')
 
@@ -68,19 +69,20 @@ class Replace(Note):
 class Recover(Strict):
     key: str = Field(min_length=8,max_length=128)
 
-def can_read(doc,user):
-    return doc.org_id==user.org_id and doc.env=='staging' and doc.status=='indexed' and (user.role in ('owner','security') or doc.author_id==user.id or user.role in doc.allowed_roles or user.id in doc.allowed_users)
+def can_read(doc,user,environment):
+    return bool(user.active) and doc.org_id==user.org_id and doc.env==environment and doc.status=='indexed' and (user.role in ('owner','security') or doc.author_id==user.id or user.role in doc.allowed_roles or user.id in doc.allowed_users)
 
-def can_manage(doc,user):
-    return doc.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set())
+def can_manage(doc,user,environment):
+    return can_read(doc,user,environment) and (doc.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set()))
 
 def metadata(doc):
     return {key:getattr(doc,key) for key in ('id','org_id','env','title','filename','author_id','language','content_hash','byte_count','allowed_roles','allowed_users','version','status','created','updated')}
 
-def document_for(db,id,user,manage=False):
-    doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.id==id,KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env=='staging'))
-    if not doc or not can_read(doc,user):fail(404,'DOCUMENT_NOT_FOUND','Document not found in your authorized scope.')
-    if manage and not can_manage(doc,user):fail(403,'DOCUMENT_OWNER_REQUIRED','Only the author or an authorized security/owner role can manage this document.')
+def document_for(db,id,user,manage=False,environment=None):
+    environment=runtime_environment(db,user.org_id,environment)
+    doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.id==id,KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==environment))
+    if not doc or not can_read(doc,user,environment):fail(404,'DOCUMENT_NOT_FOUND','Document not found in your authorized scope.')
+    if manage and not can_manage(doc,user,environment):fail(403,'DOCUMENT_OWNER_REQUIRED','Only the author or an authorized security/owner role can manage this document.')
     return doc
 
 def validate_members(db,org,users):
@@ -107,20 +109,24 @@ def decode(body):
     return raw,text
 
 def index_document(db,doc):
+    environment=runtime_environment(db,doc.org_id,doc.env)
     for pos,start in enumerate(range(0,len(doc.content),620)):
         text=doc.content[start:start+700]
-        db.add(DocumentChunk(org_id=doc.org_id,document_id=doc.id,document_version=doc.version,position=pos,text=text,content_hash=digest(text)))
+        db.add(DocumentChunk(org_id=doc.org_id,env=environment,document_id=doc.id,document_version=doc.version,position=pos,text=text,content_hash=digest(text)))
 
-def allowed_docs(db,user):
+def allowed_docs(db,user,environment=None):
+    environment=runtime_environment(db,user.org_id,environment)
     # Access is checked before any text/chunk enters the retrieval corpus.
-    rows=db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env=='staging',KnowledgeDocument.status=='indexed').order_by(KnowledgeDocument.created.desc())).all()
-    return [doc for doc in rows if can_read(doc,user)]
+    rows=db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==environment,KnowledgeDocument.status=='indexed').order_by(KnowledgeDocument.created.desc())).all()
+    return [doc for doc in rows if can_read(doc,user,environment)]
 
-def search_documents(db,user,query,top_k):
-    docs=allowed_docs(db,user);by_id={d.id:d for d in docs}
+def search_documents(db,user,query,top_k,environment=None):
+    environment=runtime_environment(db,user.org_id,environment)
+    docs=allowed_docs(db,user,environment);by_id={d.id:d for d in docs}
     terms=list(dict.fromkeys(re.findall(r'\w+',query.casefold())))[:64]
     if not docs or not terms:return []
-    corpus=db.scalars(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env=='staging',DocumentChunk.document_id.in_(by_id)).order_by(DocumentChunk.document_id,DocumentChunk.position)).all()
+    corpus=db.scalars(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==environment,DocumentChunk.document_id.in_(by_id)).order_by(DocumentChunk.document_id,DocumentChunk.position)).all()
+    corpus=[chunk for chunk in corpus if chunk.document_version==by_id[chunk.document_id].version]
     tokens=[Counter(re.findall(r'\w+',c.text.casefold())) for c in corpus];average=sum(sum(t.values()) for t in tokens)/max(1,len(tokens)) or 1
     df={term:sum(term in t for t in tokens) for term in terms};ranked=[]
     for chunk,token in zip(corpus,tokens):
@@ -147,14 +153,14 @@ def register_documents(app,factory,settings,human):
             if not 8<=len(idempotency_key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character upload key.')
             raw,text=decode(body);validate_members(db,user.org_id,body.allowed_users)
             db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-            hashed=digest(canonical(body.model_dump()));existing=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.author_id==user.id,KnowledgeDocument.idem_key==idempotency_key))
+            hashed=digest(canonical(body.model_dump()));existing=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id),KnowledgeDocument.author_id==user.id,KnowledgeDocument.idem_key==idempotency_key))
             if existing:
                 if existing.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This upload key belongs to another document request.')
                 if existing.status!='indexed':fail(409,'DOCUMENT_DELETED','This upload was deleted. Choose a new upload key to create a new document.')
                 return metadata(existing)
-            count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.status=='indexed'))
+            count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id),KnowledgeDocument.status=='indexed'))
             if count>=200:fail(429,'DOCUMENT_CAPACITY','This bounded workspace supports 200 active text documents.')
-            doc=KnowledgeDocument(org_id=user.org_id,title=body.title,filename=body.filename,author_id=user.id,language=body.language,content=text,content_hash=digest(text),byte_count=len(raw),allowed_roles=sorted(set(body.allowed_roles)),allowed_users=sorted(set(body.allowed_users)),idem_key=idempotency_key,request_digest=hashed)
+            doc=KnowledgeDocument(org_id=user.org_id,env=runtime_environment(db,user.org_id),title=body.title,filename=body.filename,author_id=user.id,language=body.language,content=text,content_hash=digest(text),byte_count=len(raw),allowed_roles=sorted(set(body.allowed_roles)),allowed_users=sorted(set(body.allowed_users)),idem_key=idempotency_key,request_digest=hashed)
             db.add(doc);db.flush();index_document(db,doc)
             audit(db,user.org_id,user.id,'document.ingested',detail={'document_id':doc.id,'version':doc.version,'bytes':doc.byte_count,'sha256':doc.content_hash})
             return metadata(doc)
@@ -168,7 +174,7 @@ def register_documents(app,factory,settings,human):
     def recover(body:Recover,request:Request):
         with factory() as db:
             user=human(request,db,True)
-            doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env=='staging',KnowledgeDocument.author_id==user.id,KnowledgeDocument.idem_key==body.key))
+            doc=db.scalar(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id),KnowledgeDocument.author_id==user.id,KnowledgeDocument.idem_key==body.key))
             if not doc:fail(404,'UPLOAD_INTENT_NOT_FOUND','No committed upload is visible for this intent. Retry the unchanged upload with the same key before starting a different intent.')
             return metadata(doc)
 
@@ -176,9 +182,9 @@ def register_documents(app,factory,settings,human):
     def detail(id:str,request:Request):
         with factory() as db:
             user=human(request,db);doc=document_for(db,id,user)
-            intake=db.scalar(select(IngestionJob).where(IngestionJob.document_id==doc.id,IngestionJob.org_id==user.org_id))
+            intake=db.scalar(select(IngestionJob).where(IngestionJob.document_id==doc.id,IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id)))
             provenance=None if not intake else {'original_filename':intake.filename,'original_sha256':intake.original_sha256,'original_bytes':intake.original_bytes,'extraction':intake.extraction,'published_version':intake.published_version,'current_version_matches':intake.published_version==doc.version}
-            return {**metadata(doc),'content':doc.content,'can_manage':can_manage(doc,user),'provenance':provenance}
+            return {**metadata(doc),'content':doc.content,'can_manage':can_manage(doc,user,runtime_environment(db,user.org_id)),'provenance':provenance}
 
     @app.put('/v1/documents/{id}/access')
     def access(id:str,body:Access,request:Request):
@@ -187,7 +193,7 @@ def register_documents(app,factory,settings,human):
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','Document permissions changed. Refresh before applying access changes.')
             validate_members(db,user.org_id,body.allowed_users)
             doc.allowed_roles=sorted(set(body.allowed_roles));doc.allowed_users=sorted(set(body.allowed_users));doc.version+=1;doc.updated=now()
-            db.execute(update(DocumentChunk).where(DocumentChunk.document_id==doc.id).values(document_version=doc.version))
+            db.execute(update(DocumentChunk).where(DocumentChunk.document_id==doc.id,DocumentChunk.org_id==doc.org_id,DocumentChunk.env==doc.env).values(document_version=doc.version))
             audit(db,user.org_id,user.id,'document.access_changed',detail={'document_id':doc.id,'version':doc.version,'note':body.note.strip()});return metadata(doc)
 
     @app.delete('/v1/documents/{id}')
@@ -195,7 +201,7 @@ def register_documents(app,factory,settings,human):
         with factory.begin() as db:
             user=human(request,db,True,'operate');db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name));doc=document_for(db,id,user,True)
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','Document changed. Refresh before deletion.')
-            db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==doc.id,DocumentChunk.org_id==user.org_id));doc.content='';doc.status='deleted';doc.version+=1;doc.updated=now()
+            db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==doc.id,DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id)));doc.content='';doc.status='deleted';doc.version+=1;doc.updated=now()
             audit(db,user.org_id,user.id,'document.deleted',detail={'document_id':doc.id,'version':doc.version,'note':body.note.strip()})
             return {'id':doc.id,'status':'deleted','chunks_removed':True,'boundary':'Content is logically removed from active storage and retrieval. Backup/WAL erasure and retention policy remain deployment responsibilities.'}
 
@@ -205,7 +211,7 @@ def register_documents(app,factory,settings,human):
         with factory() as db:
             user=human(request,db);doc=document_for(db,id,user)
             if version!=doc.version:fail(409,'STALE_CITATION','The source content or permissions changed. Search again for a current citation.')
-            row=db.scalar(select(DocumentChunk).where(DocumentChunk.document_id==id,DocumentChunk.org_id==user.org_id,DocumentChunk.document_version==version,DocumentChunk.position==chunk-1))
+            row=db.scalar(select(DocumentChunk).where(DocumentChunk.document_id==id,DocumentChunk.org_id==user.org_id,DocumentChunk.env==doc.env,DocumentChunk.document_version==version,DocumentChunk.position==chunk-1))
             if not row:fail(404,'CITATION_NOT_FOUND','The citation chunk is unavailable.')
             return {**metadata(doc),'chunk':chunk,'excerpt':row.text,'sha256':row.content_hash,'citation':f'{id}:v{version}:chunk{chunk}','verified_current':True}
 
@@ -216,17 +222,17 @@ def register_documents(app,factory,settings,human):
             if not 8<=len(idempotency_key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character update key.')
             db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
             doc=document_for(db,id,user,True);hashed=digest(canonical({'document_id':id,**body.model_dump()}))
-            previous=db.scalar(select(DocumentUpdate).where(DocumentUpdate.org_id==user.org_id,DocumentUpdate.author_id==user.id,DocumentUpdate.idem_key==idempotency_key))
+            previous=db.scalar(select(DocumentUpdate).where(DocumentUpdate.org_id==user.org_id,DocumentUpdate.env==runtime_environment(db,user.org_id),DocumentUpdate.author_id==user.id,DocumentUpdate.idem_key==idempotency_key))
             if previous:
                 if previous.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to a different document update.')
                 return {**previous.receipt,'current_version':doc.version,'replayed':True}
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','The source or permissions changed. Refresh and review the new source before replacing content.')
             raw,text=decode(body);old_hash=doc.content_hash
-            db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==id,DocumentChunk.org_id==user.org_id))
+            db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==id,DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id)))
             doc.title=body.title;doc.filename=body.filename;doc.language=body.language;doc.content=text;doc.content_hash=digest(text);doc.byte_count=len(raw);doc.version+=1;doc.updated=now()
             index_document(db,doc);db.flush()
             receipt={**metadata(doc),'current_version':doc.version,'replayed':False}
-            db.add(DocumentUpdate(org_id=user.org_id,document_id=id,author_id=user.id,idem_key=idempotency_key,request_digest=hashed,receipt=receipt))
+            db.add(DocumentUpdate(org_id=user.org_id,env=doc.env,document_id=id,author_id=user.id,idem_key=idempotency_key,request_digest=hashed,receipt=receipt))
             audit(db,user.org_id,user.id,'document.content_replaced',detail={'document_id':id,'version':doc.version,'previous_sha256':old_hash,'sha256':doc.content_hash,'note':body.note.strip()})
             return receipt
 
@@ -234,6 +240,6 @@ def register_documents(app,factory,settings,human):
     def recover_update(id:str,body:Recover,request:Request):
         with factory() as db:
             user=human(request,db,True);doc=document_for(db,id,user,True)
-            receipt=db.scalar(select(DocumentUpdate).where(DocumentUpdate.document_id==id,DocumentUpdate.org_id==user.org_id,DocumentUpdate.author_id==user.id,DocumentUpdate.idem_key==body.key))
+            receipt=db.scalar(select(DocumentUpdate).where(DocumentUpdate.document_id==id,DocumentUpdate.org_id==user.org_id,DocumentUpdate.env==runtime_environment(db,user.org_id),DocumentUpdate.author_id==user.id,DocumentUpdate.idem_key==body.key))
             if not receipt:fail(404,'UPDATE_INTENT_NOT_FOUND','No committed update is visible for this intent. Retry the unchanged request with its same key.')
             return {**receipt.receipt,'current_version':doc.version,'replayed':True}

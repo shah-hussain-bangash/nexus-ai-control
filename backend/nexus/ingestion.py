@@ -19,7 +19,7 @@ from .documents import validate_members,index_document
 from .schemas import Strict
 from .security import fail,digest,PERMISSIONS
 from .service import audit,canonical
-from .runtime_context import environment_user_allowed
+from .runtime_context import environment_user_allowed,runtime_environment
 
 ACTIVE=('queued','processing','awaiting_review')
 class Intake(Strict):
@@ -48,11 +48,11 @@ class Publish(Control):reviewed:Literal[True]
 class Recover(Strict):key:str=Field(min_length=8,max_length=128)
 
 
-def manageable(job,user):return job.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set())
+def manageable(job,user,environment):return bool(user.active) and job.org_id==user.org_id and job.env==environment and (job.author_id==user.id or 'policy' in PERMISSIONS.get(user.role,set()))
 def job_for(db,id,user,lock=False):
-    q=select(IngestionJob).where(IngestionJob.id==id,IngestionJob.org_id==user.org_id,IngestionJob.env=='staging')
+    q=select(IngestionJob).where(IngestionJob.id==id,IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id))
     job=db.scalar(q.with_for_update() if lock else q)
-    if not job or not manageable(job,user):fail(404,'INTAKE_NOT_FOUND','Intake record is not visible to this account.')
+    if not job or not manageable(job,user,runtime_environment(db,user.org_id)):fail(404,'INTAKE_NOT_FOUND','Intake record is not visible to this account.')
     return job
 
 def serialize(job,detail=False):
@@ -88,7 +88,7 @@ def register_ingestion(app,factory,settings,human):
     @app.get('/v1/ingestion-jobs')
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:
-            user=human(request,db);q=select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.env=='staging',IngestionJob.status!='archived')
+            user=human(request,db);q=select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id),IngestionJob.status!='archived')
             if 'policy' not in PERMISSIONS.get(user.role,set()):q=q.where(IngestionJob.author_id==user.id)
             rows=db.scalars(q.order_by(IngestionJob.created.desc(),IngestionJob.id).offset(offset).limit(limit+1)).all()
             return {'items':[serialize(j) for j in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
@@ -101,21 +101,21 @@ def register_ingestion(app,factory,settings,human):
             ext,data=decode(body)
             if not settings.ingestion_ocr_enabled and (ext in ('png','jpg','jpeg') or body.extraction_mode=='ocr'):fail(422,'OCR_DISABLED','The operator must enable OCR and provision its language data first.')
             db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name));hashed=digest(canonical(body.model_dump()))
-            old=db.scalar(select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.author_id==user.id,IngestionJob.idem_key==idempotency_key))
+            old=db.scalar(select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id),IngestionJob.author_id==user.id,IngestionJob.idem_key==idempotency_key))
             if old:
                 if old.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This intake key belongs to a different immutable file request.')
                 return serialize(old)
             validate_members(db,user.org_id,body.allowed_users)
-            q=select(func.count()).select_from(IngestionJob).where(IngestionJob.org_id==user.org_id)
+            q=select(func.count()).select_from(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id))
             if db.scalar(q)>=500 or db.scalar(q.where(IngestionJob.status!='archived'))>=50 or db.scalar(q.where(IngestionJob.status.in_(ACTIVE)))>=10:fail(429,'INTAKE_CAPACITY','This bounded workspace permits 10 active jobs, 50 retained jobs and 500 lifetime receipts. Archive obsolete terminal records or review retention with the operator.')
-            job=IngestionJob(org_id=user.org_id,author_id=user.id,title=body.title,filename=body.filename,format=ext,language=body.language,extraction_mode=body.extraction_mode,original_data=data,original_sha256=hashlib.sha256(data).hexdigest(),original_bytes=len(data),allowed_roles=sorted(set(body.allowed_roles)),allowed_users=sorted(set(body.allowed_users)),idem_key=idempotency_key,request_digest=hashed)
+            job=IngestionJob(org_id=user.org_id,env=runtime_environment(db,user.org_id),author_id=user.id,title=body.title,filename=body.filename,format=ext,language=body.language,extraction_mode=body.extraction_mode,original_data=data,original_sha256=hashlib.sha256(data).hexdigest(),original_bytes=len(data),allowed_roles=sorted(set(body.allowed_roles)),allowed_users=sorted(set(body.allowed_users)),idem_key=idempotency_key,request_digest=hashed)
             db.add(job);db.flush();audit(db,user.org_id,user.id,'intake.queued',detail={'job_id':job.id,'format':ext,'bytes':len(data),'sha256':job.original_sha256})
             return serialize(job)
 
     @app.post('/v1/ingestion-jobs/recover')
     def recover(body:Recover,request:Request):
         with factory() as db:
-            user=human(request,db,True);job=db.scalar(select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.author_id==user.id,IngestionJob.idem_key==body.key))
+            user=human(request,db,True);job=db.scalar(select(IngestionJob).where(IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id),IngestionJob.author_id==user.id,IngestionJob.idem_key==body.key))
             if not job:fail(404,'INTAKE_INTENT_NOT_FOUND','No committed intake is visible. Retry the unchanged request with its same key.')
             return serialize(job)
 
@@ -150,9 +150,9 @@ def register_ingestion(app,factory,settings,human):
             author=db.get(User,job.author_id)
             if not author or author.org_id!=job.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,job.org_id,job.env):fail(403,'INTAKE_AUTHOR_REVOKED','The original requesting author is no longer authorized.')
             validate_members(db,user.org_id,job.allowed_users)
-            count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.status=='indexed'))
+            count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id),KnowledgeDocument.status=='indexed'))
             if count>=200:fail(429,'DOCUMENT_CAPACITY','This workspace already has 200 active source documents.')
-            doc=KnowledgeDocument(org_id=user.org_id,title=job.title,filename=job.filename,author_id=job.author_id,language=job.language,content=job.extracted_text,content_hash=digest(job.extracted_text),byte_count=len(job.extracted_text.encode()),allowed_roles=job.allowed_roles,allowed_users=job.allowed_users,idem_key='intake-'+job.id,request_digest=job.request_digest)
+            doc=KnowledgeDocument(org_id=user.org_id,env=job.env,title=job.title,filename=job.filename,author_id=job.author_id,language=job.language,content=job.extracted_text,content_hash=digest(job.extracted_text),byte_count=len(job.extracted_text.encode()),allowed_roles=job.allowed_roles,allowed_users=job.allowed_users,idem_key='intake-'+job.id,request_digest=job.request_digest)
             db.add(doc);db.flush();index_document(db,doc);job.document_id=doc.id;job.published_version=doc.version;release(job,'indexed');job.original_data=b'';job.extracted_text=''
             audit(db,user.org_id,user.id,'intake.published',detail={'job_id':job.id,'document_id':doc.id,'version':doc.version,'original_sha256':job.original_sha256,'text_sha256':doc.content_hash,'review_note':body.note,'reviewed':True});return serialize(job)
 
@@ -186,15 +186,15 @@ def run_ingestion_once(factory,settings,extractor=None):
             release(job,'failed','WORKER_INTERRUPTED');audit(db,job.org_id,'worker','intake.interrupted',detail={'job_id':job.id},env=job.env)
         job=db.scalar(select(IngestionJob).where(IngestionJob.status=='queued').order_by(IngestionJob.created).with_for_update(skip_locked=True).limit(1))
         if not job:return False
-        token=uid();claimed=db.execute(update(IngestionJob).where(IngestionJob.id==job.id,IngestionJob.version==job.version,IngestionJob.status=='queued').values(status='processing',version=job.version+1,attempts=job.attempts+1,lease_token=token,lease_until=now()+90,updated=now()))
+        token=uid();claimed=db.execute(update(IngestionJob).where(IngestionJob.id==job.id,IngestionJob.org_id==job.org_id,IngestionJob.env==job.env,IngestionJob.version==job.version,IngestionJob.status=='queued').values(status='processing',version=job.version+1,attempts=job.attempts+1,lease_token=token,lease_until=now()+90,updated=now()))
         if not claimed.rowcount:return False
-        id=job.id;data=bytes(job.original_data);author=db.get(User,job.author_id)
+        id=job.id;org=job.org_id;environment=job.env;data=bytes(job.original_data);author=db.get(User,job.author_id)
         permitted=author and author.org_id==job.org_id and author.active and 'operate' in PERMISSIONS.get(author.role,set()) and environment_user_allowed(db,author.id,job.org_id,job.env)
         db.expunge(job)
     try:result=(extractor or extract_file)(data,job,settings) if permitted else {'error_code':'REQUESTER_REVOKED'}
     except Exception:result={'error_code':'EXTRACTION_UNAVAILABLE'}
     with factory.begin() as db:
-        current=db.scalar(select(IngestionJob).where(IngestionJob.id==id,IngestionJob.status=='processing',IngestionJob.lease_token==token).with_for_update())
+        current=db.scalar(select(IngestionJob).where(IngestionJob.id==id,IngestionJob.org_id==org,IngestionJob.env==environment,IngestionJob.status=='processing',IngestionJob.lease_token==token).with_for_update())
         if not current:return True  # cancellation/expiry fences off stale publication
         author=db.get(User,current.author_id)
         if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env) or 'operate' not in PERMISSIONS.get(author.role,set()):

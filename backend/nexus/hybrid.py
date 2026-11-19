@@ -10,6 +10,7 @@ from .documents import allowed_docs,can_read
 from .schemas import Strict
 from .security import fail,PERMISSIONS
 from .service import audit,canonical
+from .runtime_context import runtime_environment
 KIND='hybrid_search'
 METHOD='Local TF-IDF / corpus-fitted LSA + normalized BM25; no neural model'
 
@@ -55,17 +56,19 @@ def compute(payload):
   except (ValueError,UnicodeError):return {'error_code':'RANKING_FAILED'}
 
 def visible_run(db,row,user):
+ environment=runtime_environment(db,user.org_id)
+ if not row or row.org_id!=user.org_id or row.env!=environment or row.kind!=KIND or not user.active or (row.author_id!=user.id and 'policy' not in PERMISSIONS.get(user.role,set())):fail(404,'SEARCH_NOT_FOUND','Search history is not visible to this account.')
  result=row.result or {};items=[];hidden=0
  for hit in result.get('hits',[]):
   doc=db.get(KnowledgeDocument,hit['document_id'])
-  if not doc or not can_read(doc,user) or doc.version!=hit['document_version']:hidden+=1;continue
-  chunk=db.scalar(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env=='staging',DocumentChunk.document_id==doc.id,DocumentChunk.document_version==doc.version,DocumentChunk.position==hit['position'],DocumentChunk.content_hash==hit['sha256']))
+  if not doc or not can_read(doc,user,environment) or doc.version!=hit['document_version']:hidden+=1;continue
+  chunk=db.scalar(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id),DocumentChunk.document_id==doc.id,DocumentChunk.document_version==doc.version,DocumentChunk.position==hit['position'],DocumentChunk.content_hash==hit['sha256']))
   if not chunk:hidden+=1;continue
   items.append({'document_id':doc.id,'document_version':doc.version,'title':doc.title,'filename':doc.filename,'chunk':chunk.position+1,'excerpt':chunk.text,'sha256':chunk.content_hash,'citation':f'{doc.id}:v{doc.version}:chunk{chunk.position+1}',**{k:hit[k] for k in ('score','semantic_score','lexical_score')}})
  return {'id':row.id,'status':row.status,'created':row.created,'duration_ms':row.duration_ms,'method':METHOD,'items':items,'withheld_stale_or_inaccessible':hidden,'rank':result.get('rank',0),'vocabulary':result.get('vocabulary',0),'corpus_chunks':result.get('corpus_chunks',0),'source_count':result.get('source_count',0),'error_code':result.get('error_code',''),'parameters':result.get('parameters',{}),'provider_calls':0,'query_text_stored':False,'boundary':'Ranked source excerpts only. Scores are not calibrated confidence. Current ACL/version checks apply again to saved history.'}
 
 def owned_run(db,id,user):
- row=db.scalar(select(WorkbenchRun).where(WorkbenchRun.id==id,WorkbenchRun.org_id==user.org_id,WorkbenchRun.env=='staging',WorkbenchRun.kind==KIND))
+ row=db.scalar(select(WorkbenchRun).where(WorkbenchRun.id==id,WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND))
  if not row or (row.author_id!=user.id and 'policy' not in PERMISSIONS.get(user.role,set())):fail(404,'SEARCH_NOT_FOUND','Search history is not visible to this account.')
  return row
 
@@ -77,7 +80,7 @@ def register_hybrid(app,factory,settings,human):
  @app.get('/v1/hybrid-search/history')
  def history(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(10,ge=1,le=25)):
   with factory() as db:
-   user=human(request,db);q=select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env=='staging',WorkbenchRun.kind==KIND)
+   user=human(request,db);q=select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND)
    if 'policy' not in PERMISSIONS.get(user.role,set()):q=q.where(WorkbenchRun.author_id==user.id)
    rows=db.scalars(q.order_by(WorkbenchRun.created.desc(),WorkbenchRun.id).offset(offset).limit(limit+1)).all()
    return {'items':[visible_run(db,r,user) for r in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
@@ -89,7 +92,7 @@ def register_hybrid(app,factory,settings,human):
  def recover(body:Recover,request:Request):
   with factory() as db:
    user=human(request,db,True);key=hashlib.sha256(body.key.encode()).hexdigest()
-   rows=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env=='staging',WorkbenchRun.kind==KIND,WorkbenchRun.author_id==user.id)).all()
+   rows=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND,WorkbenchRun.author_id==user.id)).all()
    row=next((r for r in rows if r.result.get('key')==key),None)
    if not row:fail(404,'SEARCH_NOT_FOUND','No acknowledged search matches this account and key.')
    return visible_run(db,row,user)
@@ -100,7 +103,7 @@ def register_hybrid(app,factory,settings,human):
   with factory.begin() as db:
    user=human(request,db,True)
    db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-   records=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env=='staging',WorkbenchRun.kind==KIND)).all()
+   records=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND)).all()
    previous=next((r for r in records if r.author_id==user.id and r.result.get('key')==key),None)
    if previous:
     if previous.result.get('fingerprint')!=fingerprint:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to a different search.')
@@ -118,23 +121,24 @@ def register_hybrid(app,factory,settings,human):
      if byid[s.id].version!=s.version:fail(409,'SOURCE_CHANGED','A selected source revision changed. Refresh before searching.')
     docs=[byid[s.id] for s in body.sources];byid={d.id:d for d in docs}
    if len(docs)>20:fail(422,'SOURCE_SELECTION_REQUIRED','Select at most 20 authorized documents for this bounded corpus search.')
-   chunks=db.scalars(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env=='staging',DocumentChunk.document_id.in_(byid)).order_by(DocumentChunk.document_id,DocumentChunk.position)).all() if docs else []
+   chunks=db.scalars(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id),DocumentChunk.document_id.in_(byid)).order_by(DocumentChunk.document_id,DocumentChunk.position)).all() if docs else []
    chunks=[c for c in chunks if c.document_version==byid[c.document_id].version]
    if len(chunks)>128:fail(422,'CORPUS_LIMIT','Select a smaller corpus of at most 128 chunks. No sources were silently omitted.')
    snapshots=[{'id':d.id,'version':d.version,'hash':d.content_hash} for d in docs];metadata=[{'document_id':c.document_id,'document_version':c.document_version,'position':c.position,'sha256':c.content_hash} for c in chunks]
-   payload={'texts':[c.text for c in chunks],**body.model_dump(exclude={'sources'})};author=user.id;org=user.org_id
-   parameters=body.model_dump(exclude={'query','sources'});row=WorkbenchRun(org_id=org,kind=KIND,status='processing',duration_ms=0,author_id=author,result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(docs),'corpus_chunks':len(chunks)})
+   payload={'texts':[c.text for c in chunks],**body.model_dump(exclude={'sources'})};author=user.id;org=user.org_id;environment=runtime_environment(db,org)
+   parameters=body.model_dump(exclude={'query','sources'});row=WorkbenchRun(org_id=org,env=environment,kind=KIND,status='processing',duration_ms=0,author_id=author,result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(docs),'corpus_chunks':len(chunks)})
    db.add(row);db.flush();id=row.id;audit(db,org,author,'retrieval.hybrid.started',detail={'run_id':id,'source_count':len(docs),'corpus_chunks':len(chunks)})
   start=time.perf_counter()
   try:result=compute(payload) if chunks else {'scores':[],'rank':0,'vocabulary':0}
   except Exception:result={'error_code':'RANKING_FAILED'}
   with factory.begin() as db:
-   row=db.get(WorkbenchRun,id);user=human(request,db);valid=True
-   if user.id!=author or user.org_id!=org:fail(403,'SEARCH_SCOPE_CHANGED','Session scope changed while searching.')
+   user=human(request,db);valid=True
+   if user.id!=author or user.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'SEARCH_SCOPE_CHANGED','Session scope changed while searching.')
+   row=owned_run(db,id,user)
    if row.status!='processing':return visible_run(db,row,user)
    for source in snapshots:
     doc=db.get(KnowledgeDocument,source['id'])
-    if not doc or not can_read(doc,user) or doc.version!=source['version'] or doc.content_hash!=source['hash']:valid=False
+    if not doc or not can_read(doc,user,environment) or doc.version!=source['version'] or doc.content_hash!=source['hash']:valid=False
    row.duration_ms=round((time.perf_counter()-start)*1000,3)
    error=result.get('error_code','')
    if not valid:error='SOURCE_SCOPE_CHANGED'
