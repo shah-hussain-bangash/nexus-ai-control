@@ -14,6 +14,7 @@ import "./enterpriseRuntime.css";
 import "./environmentSetup.css";
 import { activationPayload, canActivateEnvironment } from "./environmentSwitch";
 import { EnvironmentAssetCopy } from "./EnvironmentAssetCopyPanel";
+import { ConnectorCheckPanel } from "./ConnectorCheckPanel";
 import {
   canControlRuntime,
   runtimeControlPayload,
@@ -394,6 +395,12 @@ export function EnvironmentSetup({
       </div>
       {inventory?.activation_enabled && !inventory.read_only && (
         <EnvironmentAssetCopy
+          user={me.user}
+          environment={inventory.current_environment}
+        />
+      )}
+      {inventory?.activation_enabled && !inventory.read_only && (
+        <ConnectorCheckPanel
           user={me.user}
           environment={inventory.current_environment}
         />

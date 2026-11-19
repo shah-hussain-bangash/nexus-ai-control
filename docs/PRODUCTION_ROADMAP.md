@@ -6,7 +6,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 
 | Workstream | Source state | Remaining evidence / scope |
 | --- | --- | --- |
-| Customer business connectors | partial | Real API adapters, sandbox contract tests and approval-bound dispatch. |
+| Customer business connectors | partial | HTTP contract adapter, owner-reviewed governed supplier checks, receipt recovery and approval-bound dispatch are implemented. Customer sandbox acceptance, purchase/idempotency/isolation drills and deployment evidence remain. |
 | Durable agent execution | partial | Pause/resume, cancellation and worker crash recovery for multi-step agents. |
 | Document ingestion & OCR | partial | Authorized ingestion jobs, parsing, OCR and deletion propagation. |
 | Semantic retrieval & reranking | partial | Local ACL-first LSA/BM25 retrieval is implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain. |
