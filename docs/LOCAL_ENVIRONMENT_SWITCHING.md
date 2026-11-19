@@ -19,6 +19,14 @@ After the first switch, runtime requests must include their selected context ID 
 
 Background operations keep their persisted origin environment when a browser switches. Workers check active environment membership before work and before publication. A switch does not cancel an existing job or move its result. Audit events record activation and selection in the initiating environment's ledger. Workspace account provisioning receipts remain workspace-wide to avoid duplicate account creation across selections.
 
+## Pause and resume a local runtime
+
+From staging, an assigned owner can choose **Pause runtime** for another active environment in Workspace settings. Review the selected-session count, confirm the checkbox and supply a reason. Pausing preserves records, configuration and membership, blocks runtime access and revokes only sessions selected into that environment. Staging and the initiating session's current environment are protected. Membership editing is unavailable while paused.
+
+Queued or executing actions, pending approvals, unknown outcomes, paused/unfinished durable runs, queued/processing/awaiting-review ingestion and pending/unknown inference block the change. Finish, cancel or reconcile these through their normal controls first. Unknown future status values also block. The server rechecks this activity and the reviewed session count under the same workspace lock used by human and workload admission. A stale snapshot requires refresh; no automatic retry occurs.
+
+**Resume runtime** requires a new versioned owner review and restores access using the existing policies, agents, grants and credentials. Review that configuration before resuming. Resume does not restore signed-out sessions or replay jobs. Members sign in to staging and explicitly select the resumed environment again. Both commands are local-only and audited in the initiating environment. No records, credentials, approvals or budget reservations are deleted or reset. Schema remains 11.
+
 ## Remaining scope
 
 Pilot activation, controlled imports/promotions, active-environment retirement, independent security review and deployment acceptance remain future work. Active environments cannot be archived through preparation controls. No deployment acceptance is granted by the local tests or a recorded operator attestation; workspace/environment lifecycle is marked partial in the roadmap.

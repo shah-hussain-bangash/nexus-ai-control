@@ -5,6 +5,8 @@ export type EnvironmentRecord = {
   version: number;
   human_runtime_enabled: boolean;
   owner_assigned?: boolean;
+  unfinished_work?: Record<string, number>;
+  selected_sessions?: number;
 };
 export type EnvironmentCommand = "archive" | "restore";
 const validKey = /^[a-z][a-z0-9-]{1,31}$/;
@@ -65,6 +67,7 @@ export function environmentStateLabel(row: EnvironmentRecord, current: string) {
   if (row.key === current && row.human_runtime_enabled) return "Current";
   if (row.state === "preparing") return "Preparing";
   if (row.state === "archived") return "Archived";
+  if (row.state === "suspended") return "Paused";
   if (row.state === "active" && row.human_runtime_enabled) return "Active";
   return "Unavailable";
 }

@@ -260,7 +260,7 @@ def create_app(settings=None):
     @app.post('/v1/gateway/tools/{id}:execute', status_code=202)
     def gateway(id: str, body: ActionInput, request: Request, authorization: str = Header(default=''), idempotency_key: str = Header()):
         with factory.begin() as db:
-            a = authenticate_agent(authorization.removeprefix('Bearer '), db, settings, request)
+            a = authenticate_agent(authorization.removeprefix('Bearer '), db, settings, request,write=True)
             t = scoped(db, Tool, id, a.org_id)
             action = submit_action(db, settings, a, t, body, idempotency_key, 'agent:' + a.id, a.owner_id)
             result = public(action)
@@ -519,6 +519,8 @@ def create_app(settings=None):
     from .session_context import register_session_context, response_context_valid
     register_session_context(app,factory,settings,human)
     register_environments(app,factory,settings,human)
+    from .environment_runtime import register_environment_runtime
+    register_environment_runtime(app,factory,settings,human)
     @app.get('/v1/runtime-context')
     def runtime_context(request:Request):
         with factory() as db:
