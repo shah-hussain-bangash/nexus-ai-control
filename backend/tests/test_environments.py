@@ -26,8 +26,9 @@ def test_default_environment_preserves_current_runtime_and_members(ctx):
     assert result['current_environment']=='staging' and result['switching_enabled'] is False
     assert len(result['items'])==1 and result['items'][0]['human_runtime_enabled'] is True
     members=ctx['client'].get('/v1/workspace-environments/staging/assignments').json()
-    assert len(members['items'])==3 and not members['editing_enabled']
-    assert all(set(row)=={'id','name','role','active'} for row in members['items'])
+    assert len(members['items'])==3 and members['editing_enabled']
+    assert members['environment']['version']==1 and members['candidates']==[]
+    assert all(set(row)=={'id','name','email','role','active','revision'} for row in members['items'])
 
 
 def test_registered_environment_cannot_activate_or_switch_runtime(ctx):

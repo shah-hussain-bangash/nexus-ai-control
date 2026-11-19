@@ -53,6 +53,27 @@
   border-bottom: 1px solid var(--border, #b8c6da);
   overflow-wrap: anywhere;
 }
+.environment-assignment-add,
+.environment-assignment-confirm {
+  border-top: 1px solid var(--border, #b8c6da);
+  margin-top: 20px;
+  padding-top: 20px;
+}
+.environment-members .btn {
+  align-self: flex-start;
+}
+.ops-dialog .runtime-form.environment-members-dialog {
+  display: block;
+}
+.environment-members-dialog .live-actions {
+  align-items: flex-start;
+}
+.environment-members-dialog .field {
+  margin: 16px 0;
+}
+.environment-members-dialog .environment-assignment-confirm .runtime-check {
+  align-items: flex-start;
+}
 @media (max-width: 600px) {
   .environment-setup .runtime-card,
   .environment-card {
