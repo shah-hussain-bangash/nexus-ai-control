@@ -51,7 +51,9 @@ Document/search/ingestion propagation is covered by the subsequent
 `PHASE_1_DOCUMENT_CONTEXT.md` increment. Workbench and persistent workflow
 propagation is covered by `PHASE_1_WORKBENCH_CONTEXT.md`.
 Inference budgeting and admission use the shared workspace limits documented in
-`PHASE_1_INFERENCE_CONTEXT.md`. Session selection, runtime activation, remaining
+`PHASE_1_INFERENCE_CONTEXT.md`. Readiness/interface propagation and identity
+binding checks are covered by `PHASE_1_REMAINING_CONTEXT.md`.
+Session selection, runtime activation, remaining
 worker/resource propagation, root client caches and design handoffs must be
 reviewed before any environment selector is enabled. Preparing assignments and
 internal binding alone grant no new runtime access.

@@ -6,7 +6,7 @@ import jwt
 from fastapi import HTTPException
 from sqlalchemy import select
 from .db import SessionRecord, User, Agent, now
-from .runtime_context import CURRENT_ENVIRONMENT, environment_user_allowed, bind_runtime_context
+from .runtime_context import CURRENT_ENVIRONMENT, environment_user_allowed, bind_runtime_context, bound_runtime_context
 
 
 def fail(status, code, message):
@@ -46,6 +46,14 @@ def require_environment_access(db,user,environment=CURRENT_ENVIRONMENT):
         fail(403,'ENVIRONMENT_ACCESS_DENIED','Access to the current environment is unavailable. Contact your workspace owner.')
 
 
+def require_identity_context(db,org_id,environment=CURRENT_ENVIRONMENT):
+    # Authentication is not permission to retarget an existing operation. Use a
+    # fresh session for a different workspace/environment, even with cached rows.
+    context=bound_runtime_context(db)
+    if context is not None and context!=(org_id,environment):
+        fail(409,'IDENTITY_CONTEXT_CHANGED','The authenticated identity does not match this operation context. Start a fresh operation.')
+
+
 def session_user(request, db, write=False):
     raw = request.cookies.get('nexus_session', '')
     session = db.get(SessionRecord, digest(raw))
@@ -55,6 +63,7 @@ def session_user(request, db, write=False):
     if write and not hmac.compare_digest(request.headers.get('X-CSRF-Token', ''), session.csrf):
         fail(403, 'CSRF_FAILED', 'Refresh your session and try again.')
     require_request_context(request,user.org_id)
+    require_identity_context(db,user.org_id)
     require_environment_access(db,user)
     bind_runtime_context(db,user.org_id)
     return user
@@ -74,6 +83,7 @@ def permit(user, permission):
 
 
 def issue_session(db, user, settings):
+    require_identity_context(db,user.org_id)
     require_environment_access(db,user)
     token = secrets.token_urlsafe(40); csrf = secrets.token_urlsafe(32)
     db.add(SessionRecord(id=digest(token), user_id=user.id, csrf=csrf, expires=now() + settings.session_seconds))
@@ -97,6 +107,7 @@ def authenticate_agent(token, db, settings, request=None):
     if agent.status != 'active' or agent.generation != claims['generation']:
         fail(403, 'AGENT_INACTIVE', 'Agent is suspended, revoked or inactive.')
     require_request_context(request,agent.org_id)
+    require_identity_context(db,agent.org_id,agent.env)
     if not environment_user_allowed(db,agent.owner_id,agent.org_id,agent.env):
         fail(403,'ENVIRONMENT_ACCESS_DENIED','The workload environment or owner authorization is unavailable.')
     bind_runtime_context(db,agent.org_id,agent.env)
