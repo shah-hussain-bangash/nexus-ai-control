@@ -35,4 +35,4 @@ Retirement is a terminal runtime state in this app: it cannot be resumed, reacti
 
 ## Remaining scope
 
-Pilot lifecycle, controlled imports/promotions, independent security review and deployment acceptance remain future work. Active and retired environments cannot be archived through preparation controls. No deployment acceptance is granted by the local tests or a recorded operator attestation; workspace/environment lifecycle is marked partial in the roadmap.
+Reviewed standalone prompt/guardrail draft copying is described in [Reviewed design copying](REVIEWED_DESIGN_COPY.md). Pilot lifecycle, general configuration imports/promotions, independent security review and deployment acceptance remain future work. Active and retired environments cannot be archived through preparation controls. No deployment acceptance is granted by the local tests or a recorded operator attestation; workspace/environment lifecycle is marked partial in the roadmap.

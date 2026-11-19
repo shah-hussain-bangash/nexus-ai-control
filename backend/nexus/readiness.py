@@ -22,7 +22,7 @@ GATES = [
  ('traffic_controls','Inference traffic controls','Runtime','implemented','Shared-database admission limits, concurrency reservations and saturation behavior.','models'),
  ('usage_governance','Usage & cost governance','Runtime','partial','Invoice reconciliation, evidence retention and account-level cost controls.','usage'),
  ('identity_lifecycle','Identity & workload lifecycle','Governance','partial','IdP provisioning/offboarding, verified MFA and workload federation.','settings'),
- ('workspace_lifecycle','Workspace & environment lifecycle','Governance','partial','Local activation, versioned switching, pause/resume, retained-record retirement, membership and isolation tests are implemented. Pilot lifecycle, controlled imports and deployment acceptance remain.','settings'),
+ ('workspace_lifecycle','Workspace & environment lifecycle','Governance','partial','Local lifecycle, membership isolation and reviewed standalone prompt/guardrail draft copying with receipt recovery are implemented. Pilot lifecycle, general configuration promotion and deployment acceptance remain.','settings'),
  ('secrets_network','Secrets & network isolation','Governance','partial','Managed-secret injection, rotation and deployment-enforced egress isolation.','connectors'),
  ('telemetry_alerts','Telemetry, alerts & SLOs','Operations','partial','External logs/metrics/traces, service objectives and operator notification drills.','observability'),
  ('audit_retention','Audit integrity & retention','Governance','partial','Immutable off-host archive, retention rules and evidence export verification.','audit'),

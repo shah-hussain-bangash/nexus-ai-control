@@ -92,7 +92,7 @@
       "title": "Workspace & environment lifecycle",
       "area": "Governance",
       "delivery": "partial",
-      "required_evidence": "Local activation, versioned switching, pause/resume, retained-record retirement, membership and isolation tests are implemented. Pilot lifecycle, controlled imports and deployment acceptance remain.",
+      "required_evidence": "Local lifecycle, membership isolation and reviewed standalone prompt/guardrail draft copying with receipt recovery are implemented. Pilot lifecycle, general configuration promotion and deployment acceptance remain.",
       "workspace": "settings"
     },
     {
