@@ -13,6 +13,7 @@ from sqlalchemy import select, update
 from .db import OIDCTransaction, User, now
 from .security import digest, fail, issue_session
 from .service import audit
+from .runtime_context import CURRENT_ENVIRONMENT
 
 
 def origin(url):
@@ -119,5 +120,5 @@ def finish(factory, settings, state, binding, code):
             fail(403, 'NO_MEMBERSHIP', 'Ask your administrator for workspace access.')
         user.oidc_subject = subject
         token, _ = issue_session(db, user, settings)
-        audit(db, user.org_id, user.id, 'session.oidc_created', detail={'acr': str(claims.get('acr', 'unspecified'))})
+        audit(db, user.org_id, user.id, 'session.oidc_created', detail={'acr': str(claims.get('acr', 'unspecified'))},env=CURRENT_ENVIRONMENT)
         return token

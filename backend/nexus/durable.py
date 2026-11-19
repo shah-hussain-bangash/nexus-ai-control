@@ -246,7 +246,7 @@ def run_flow_once(factory,settings):
             if not agent or agent.org_id!=run.org_id or agent.env!=run.env or agent.status!='active' or agent.generation!=run.generation or not environment_user_allowed(db,agent.owner_id,run.org_id,run.env):fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
             if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
             elif definition['kind']=='governed_action':
-                tool=scoped(db,Tool,definition['tool_id'],run.org_id)
+                tool=scoped(db,Tool,definition['tool_id'],run.org_id,environment=run.env)
                 body=ActionInput.model_validate(definition['request'])
                 action=submit_action(db,settings,agent,tool,body,'run-'+run.id+'-'+str(run.cursor),'durable:'+author.id,author.id)
                 step.action_id=action.id;step.status='waiting_action';step.updated=now();touch(run,'waiting_action');event(db,run,'worker','action_submitted',{'action_id':action.id})

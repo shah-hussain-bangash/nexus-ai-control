@@ -26,6 +26,7 @@ from .security import (session_user, issue_session, password_valid, digest, fail
                        workload_token, authenticate_agent, PERMISSIONS)
 from .service import scoped, submit_action, active_policy, decide, audit, verify
 from .policy import evaluate
+from .runtime_context import CURRENT_ENVIRONMENT, runtime_environment
 from .mock_connector import UncertainOutcome
 from .business_connector import business_connector, connector_identity, connector_profile
 
@@ -130,7 +131,7 @@ def create_app(settings=None):
             stored = user.password_hash if user else '0' * 32 + ':' + '0' * 64
             if not password_valid(body.password, stored) or not user: fail(401, 'INVALID_CREDENTIALS', 'Email or password is incorrect.')
             token, csrf = issue_session(db, user, settings)
-            audit(db, user.org_id, user.id, 'session.created')
+            audit(db, user.org_id, user.id, 'session.created',env=CURRENT_ENVIRONMENT)
         session_cookie(response, token)
         return {'user': public(user), 'csrf': csrf}
 
@@ -149,7 +150,7 @@ def create_app(settings=None):
             session = db.get(SessionRecord, digest(request.cookies['nexus_session']))
             return {'user': public(user), 'csrf': session.csrf, 'permissions': sorted(PERMISSIONS[user.role]),
                     'workspace': 'Northstar Operations' if user.org_id == 'northstar' else user.org_id,
-                    'environment': 'staging', 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
+                    'environment': runtime_environment(db,user.org_id), 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
 
     @app.get('/v1/overview')
     def overview(request: Request):
@@ -330,7 +331,7 @@ def create_app(settings=None):
             fail(422, 'INVALID_LIMITS', 'Maximum must exceed the nonnegative approval threshold.')
         with factory.begin() as db:
             u = human(request, db, True, 'policy')
-            current = db.scalar(select(Policy).where(Policy.org_id == u.org_id, Policy.env == 'staging',
+            current = db.scalar(select(Policy).where(Policy.org_id == u.org_id, Policy.env == runtime_environment(db,u.org_id),
                                 Policy.version == body.expected_version).with_for_update())
             if not current or not current.active:
                 fail(409, 'STALE_VERSION', 'Policy changed. Refresh and review.')
@@ -459,7 +460,7 @@ def create_app(settings=None):
         with factory() as db:
             u = human(request, db)
             return {'users': [{'id': v.id, 'name': v.name, 'email': v.email, 'role': v.role, 'active': v.active} for v in db.scalars(select(User).where(User.org_id == u.org_id))],
-                    'mode': settings.mode, 'environment': 'staging', 'policy_engine': settings.policy_mode,
+                    'mode': settings.mode, 'environment': runtime_environment(db,u.org_id), 'policy_engine': settings.policy_mode,
                     'database': 'SQLite local' if settings.database_url.startswith('sqlite') else 'PostgreSQL',
                     'limitations': ['Synthetic connector selected' if settings.business_connector=='synthetic' else 'HTTP adapter configured; customer acceptance not recorded', 'Cloud pilot not deployed', 'Provider billing not connected',
                                     'Schedule the supplied cleanup job; distributed rate limiting remains pilot work'],
@@ -515,7 +516,7 @@ def create_app(settings=None):
     def runtime_context(request:Request):
         with factory() as db:
             user=human(request,db)
-            return {'workspace_id':user.org_id,'environment':'staging','access_checked':True,'switching_enabled':False}
+            return {'workspace_id':user.org_id,'environment':runtime_environment(db,user.org_id),'access_checked':True,'switching_enabled':False}
     from .interfaces import register_interfaces
     register_interfaces(app, factory, settings, human)
 

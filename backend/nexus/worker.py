@@ -41,11 +41,11 @@ def run_once(factory, settings, connector):
             candidate.status='blocked';candidate.reason='DISPATCH_ENVIRONMENT_ACCESS_CHANGED';candidate.updated=now()
             audit(db,candidate.org_id,'worker','execution.blocked',candidate)
             return True
-        policy = active_policy(db, candidate.org_id)
+        policy = active_policy(db, candidate.org_id,environment=candidate.env)
         grant = db.scalar(select(Grant).where(Grant.org_id == candidate.org_id, Grant.env == candidate.env,
                      Grant.agent_id == candidate.agent_id, Grant.tool_id == candidate.tool_id,
                      Grant.scope == candidate.envelope['action']))
-        approval = db.scalar(select(Approval).where(Approval.action_id == candidate.id))
+        approval = db.scalar(select(Approval).where(Approval.action_id == candidate.id,Approval.org_id==candidate.org_id,Approval.env==candidate.env))
         valid = (agent and agent.status == 'active' and agent.generation == candidate.generation and grant and
                  policy.version == candidate.policy_version and candidate.envelope.get('destination')==connector_identity(settings) and digest(canonical(candidate.envelope)) == candidate.payload_hash)
         if candidate.decision == 'require_approval':

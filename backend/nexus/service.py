@@ -8,32 +8,42 @@ from .schemas import PurchaseArguments, SupplierArguments
 from .security import fail, digest
 from .policy import evaluate
 from .business_connector import connector_identity
+from .runtime_context import runtime_environment
 
 
 def canonical(value): return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True)
 
 
-def audit(db, org, actor, event, action=None, detail=None, env='staging'):
-    db.add(Audit(org_id=org, env=action.env if action else env, actor=actor, event=event, action_id=action.id if action else None,
+def audit(db, org, actor, event, action=None, detail=None, env=None):
+    if action:
+        if action.org_id!=org or action.env is None or env is not None and env!=action.env:
+            raise RuntimeError('Audit source does not match the requested workspace/environment.')
+        env=action.env
+    environment=runtime_environment(db,org,env)
+    db.add(Audit(org_id=org, env=environment, actor=actor, event=event, action_id=action.id if action else None,
                  trace_id=action.trace_id if action else None, detail=detail or {}))
 
 
-def scoped(db, model, id, org):
-    query = select(model).where(model.id == id, model.org_id == org, model.env == 'staging')
+def scoped(db, model, id, org, environment=None):
+    environment=runtime_environment(db,org,environment)
+    query = select(model).where(model.id == id, model.org_id == org, model.env == environment)
     if model is Agent: query = query.with_for_update()
     value = db.scalar(query)
     if not value: fail(404, 'NOT_FOUND', 'Record not found in this workspace.')
     return value
 
 
-def active_policy(db, org):
-    policy = db.scalar(select(Policy).where(Policy.org_id == org, Policy.env == 'staging', Policy.active == 1).with_for_update())
+def active_policy(db, org, environment=None):
+    environment=runtime_environment(db,org,environment)
+    policy = db.scalar(select(Policy).where(Policy.org_id == org, Policy.env == environment, Policy.active == 1).with_for_update())
     if not policy: fail(503, 'CONTROL_UNAVAILABLE', 'No active policy. No tool was called.')
     return policy
 
 
 def submit_action(db, settings, agent, tool, body, key, principal, requester):
-    agent = db.scalar(select(Agent).where(Agent.id == agent.id).with_for_update().execution_options(populate_existing=True))
+    environment=runtime_environment(db,agent.org_id,agent.env)
+    agent = db.scalar(select(Agent).where(Agent.id == agent.id,Agent.org_id==agent.org_id,Agent.env==environment).with_for_update().execution_options(populate_existing=True))
+    if not agent:fail(403,'AGENT_INACTIVE','Agent identity is unavailable in this environment.')
     if len(key) < 8 or len(key) > 128: fail(422, 'INVALID_KEY', 'Use an 8-128 character idempotency key.')
     request_digest = digest(canonical({'agent': agent.id, 'tool': tool.id, **body.model_dump()}))
     previous = db.scalar(select(Action).where(Action.org_id == agent.org_id, Action.env == agent.env,
@@ -52,7 +62,7 @@ def submit_action(db, settings, agent, tool, body, key, principal, requester):
         args = (SupplierArguments if tool.kind == 'supplier' else PurchaseArguments).model_validate(body.arguments).model_dump()
     except ValidationError: fail(422, 'INVALID_ARGUMENTS', 'Tool arguments do not match the registered schema.')
     if (settings.mode != 'local' or settings.business_connector=='http') and body.simulation != 'normal': fail(403, 'SIMULATION_DISABLED', 'Fault injection is local-only.')
-    policy = active_policy(db, agent.org_id)
+    policy = active_policy(db, agent.org_id,environment)
     grant = db.scalar(select(Grant).where(Grant.org_id == agent.org_id, Grant.env == agent.env,
                      Grant.agent_id == agent.id, Grant.tool_id == tool.id, Grant.scope == body.action))
     result = evaluate(settings, body.action, args, policy) if grant else {'decision': 'deny', 'reason': 'TOOL_GRANT_MISSING'}
@@ -77,15 +87,15 @@ def submit_action(db, settings, agent, tool, body, key, principal, requester):
 
 
 def decide(db, user, approval, decision):
-    action = scoped(db, Action, approval.action_id, user.org_id)
+    action = scoped(db, Action, approval.action_id, user.org_id,approval.env)
     if approval.requester_id == user.id: fail(403, 'SELF_APPROVAL', 'A different authorized reviewer must decide this action.')
     if approval.expires <= now(): fail(409, 'APPROVAL_EXPIRED', 'Approval expired. Submit a new action.')
-    policy = active_policy(db, user.org_id)
+    policy = active_policy(db, user.org_id,approval.env)
     if policy.version != approval.policy_version: fail(409, 'POLICY_CHANGED', 'Policy changed. Submit a new action for review.')
     if decision.request_hash != approval.payload_hash or digest(canonical(action.envelope)) != approval.payload_hash:
         fail(409, 'PAYLOAD_CHANGED', 'Action fingerprint does not match the reviewed request.')
     status = {'approve': 'approved', 'reject': 'rejected', 'request_changes': 'changes_requested'}[decision.decision]
-    changed = db.execute(update(Approval).where(Approval.id == approval.id, Approval.org_id == user.org_id,
+    changed = db.execute(update(Approval).where(Approval.id == approval.id, Approval.org_id == user.org_id,Approval.env==action.env,
                   Approval.status == 'pending', Approval.version == decision.expected_version).values(
                   status=status, version=Approval.version + 1, approver_id=user.id, comment=decision.comment))
     if changed.rowcount != 1: fail(409, 'STALE_VERSION', 'This request was already decided or changed. Refresh to review.')
