@@ -3,7 +3,7 @@ import { FileUp, RefreshCw, ShieldCheck, ArrowRight } from "lucide-react";
 import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { sendLiveIntent, liveIntentScope } from "./liveIntent";
-import { readRecovery, clearRecovery } from "./inferenceRecovery";
+import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { registerNavigationGuard } from "./navigationGuard";
 import { queuedFileMetadata } from "./liveRequests";
 import "./intake.css";
@@ -66,7 +66,7 @@ export function IntakeQueue({
     [note, setNote] = useState(""),
     [reviewed, setReviewed] = useState(false),
     [discard, setDiscard] = useState(false);
-  const scope = liveIntentScope("intake", me.user.org_id, me.user.id),
+  const scope = liveIntentScope("intake", me.user.org_id, me.user.id, me.environment),
     [intent, setIntent] = useState(() => pending(scope));
   const canOperate = me.permissions?.includes("operate"),
     selected = useRef(""),
@@ -188,7 +188,7 @@ export function IntakeQueue({
       const r = await api("/v1/ingestion-jobs/recover", "POST", {
         key: intent.key,
       });
-      clearRecovery(sessionStorage, scope);
+      acknowledgeRecovery(sessionStorage, scope, intent, r);
       setIntent(null);
       await load();
       await inspect(r.id);

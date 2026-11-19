@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "./api";
 import { sendLiveIntent, liveIntentScope } from "./liveIntent";
-import { readRecovery, clearRecovery } from "./inferenceRecovery";
+import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { procurementRun, intakeMetadata, runControls } from "./liveRequests";
 import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
@@ -79,7 +79,7 @@ export function DurableExecution({
     [purpose, setPurpose] = useState(
       me.synthetic ? "Synthetic replacement equipment" : "",
     );
-  const scope = liveIntentScope("run", me.user.org_id, me.user.id);
+  const scope = liveIntentScope("run", me.user.org_id, me.user.id, me.environment);
   const [pendingRun, setPendingRun] = useState(() => pendingIntent(scope));
   const canEdit = me.permissions?.includes("operate"),
     canReview = me.permissions?.includes("approve"),
@@ -158,7 +158,7 @@ export function DurableExecution({
       const r = await api("/v1/agent-runs/recover", "POST", {
         key: pendingRun.key,
       });
-      clearRecovery(sessionStorage, scope);
+      acknowledgeRecovery(sessionStorage, scope, pendingRun, r);
       setPendingRun(null);
       setSelected(r.id);
       setNotice("Original run recovered without dispatching it again.");
@@ -620,14 +620,14 @@ export function DocumentLibrary({ me }: { me: Row }) {
     [managing, setManaging] = useState(""),
     [note, setNote] = useState(""),
     [leave, setLeave] = useState(false);
-  const scope = liveIntentScope("document", me.user.org_id, me.user.id);
+  const scope = liveIntentScope("document", me.user.org_id, me.user.id, me.environment);
   const [pendingUpload, setPendingUpload] = useState(() =>
     pendingIntent(scope),
   );
   const pending = useRef<() => void>(() => {}),
     canEdit = me.permissions?.includes("operate");
   const updateScope =
-    liveIntentScope("document-update", me.user.org_id, me.user.id) +
+    liveIntentScope("document-update", me.user.org_id, me.user.id, me.environment) +
     ":" +
     (detail?.id || "none");
   useEffect(() => {
@@ -746,7 +746,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
       const d = await api("/v1/documents/recover", "POST", {
         key: pendingUpload.key,
       });
-      clearRecovery(sessionStorage, scope);
+      acknowledgeRecovery(sessionStorage, scope, pendingUpload, d);
       setPendingUpload(null);
       setNotice("Original upload recovered; current state: " + d.status + ".");
       await load();
@@ -766,7 +766,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
         "POST",
         { key: updateIntent.key },
       );
-      clearRecovery(sessionStorage, updateScope);
+      acknowledgeRecovery(sessionStorage, updateScope, updateIntent, receipt);
       setUpdateIntent(null);
       setNotice(
         "Update acknowledged at version " +

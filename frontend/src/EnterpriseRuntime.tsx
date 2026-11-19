@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
-import { readRecovery, clearRecovery } from "./inferenceRecovery";
+import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import "./live.css";
 import "./enterpriseRuntime.css";
 type Row = Record<string, any>;
@@ -27,15 +27,16 @@ function Alerts({ error, notice }: { error: string; notice: string }) {
 function useIntent(me: Row, kind: "member" | "hybrid-search") {
   const scope = liveIntentScope(
     kind,
-    me.user.org_id || me.organization?.id || "workspace",
+    me.user.org_id,
     me.user.id,
+    me.environment,
   );
   const recover = async (path: string) => {
     const pending = readRecovery(sessionStorage, scope);
     if (!pending)
       throw Error("There is no unacknowledged submission for this account.");
     const result = await api(path, "POST", { key: pending.key });
-    clearRecovery(sessionStorage, scope);
+    acknowledgeRecovery(sessionStorage, scope, pending, result);
     return result;
   };
   return { scope, recover };

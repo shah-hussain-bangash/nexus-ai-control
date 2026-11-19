@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { sendLiveIntent, liveIntentScope } from "./liveIntent";
-import { readRecovery, clearRecovery } from "./inferenceRecovery";
+import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { registerNavigationGuard } from "./navigationGuard";
 type Row = Record<string, any>;
 type Case = {
@@ -43,7 +43,7 @@ export function RetrievalQuality({
     [removing, setRemoving] = useState<Row | null>(null),
     [note, setNote] = useState(""),
     [discard, setDiscard] = useState(false);
-  const scope = liveIntentScope("retrieval-check", me.user.org_id, me.user.id),
+  const scope = liveIntentScope("retrieval-check", me.user.org_id, me.user.id, me.environment),
     [intent, setIntent] = useState(() => pending(scope));
   const afterLeave = useRef<() => void>(() => {}),
     canRun = me.permissions?.includes("operate");
@@ -130,7 +130,7 @@ export function RetrievalQuality({
       const r = await api("/v1/retrieval-checks/recover", "POST", {
         key: intent.key,
       });
-      clearRecovery(sessionStorage, scope);
+      acknowledgeRecovery(sessionStorage, scope, intent, r);
       setIntent(null);
       setNotice("Original check recovered without rerunning retrieval.");
       await load();

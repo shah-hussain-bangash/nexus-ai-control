@@ -74,7 +74,7 @@ test("uncertain and terminal runs expose no blind retry", () => {
 });
 test("reload recovery retains only a scoped key and fingerprint and reuses that key", async () => {
   const s = storage(),
-    scope = liveIntentScope("run", "org", "user");
+    scope = liveIntentScope("run", "org", "user", "staging");
   const body = { agent: "a", purpose: "Private request text" };
   await assert.rejects(
     sendLiveIntent(
@@ -100,7 +100,7 @@ test("reload recovery retains only a scoped key and fingerprint and reuses that 
 });
 test("a changed uncertain intent is blocked and definite input rejection clears it", async () => {
   const s = storage(),
-    scope = liveIntentScope("document", "org", "user");
+    scope = liveIntentScope("document", "org", "user", "staging");
   await assert.rejects(
     sendLiveIntent(
       s,
@@ -124,7 +124,7 @@ test("a changed uncertain intent is blocked and definite input rejection clears 
     }),
   );
   assert.equal(readRecovery(s, scope), null);
-  assert.notEqual(scope, liveIntentScope("run", "org", "user"));
+  assert.notEqual(scope, liveIntentScope("run", "org", "user", "staging"));
 });
 
 test("document updates and retrieval checks have isolated recovery scopes", () => {
@@ -134,6 +134,7 @@ test("document updates and retrieval checks have isolated recovery scopes", () =
         kind as "run" | "document" | "document-update" | "retrieval-check",
         "org",
         "user",
+        "staging",
       ),
   );
   assert.equal(new Set(scopes).size, 4);
@@ -141,7 +142,7 @@ test("document updates and retrieval checks have isolated recovery scopes", () =
 });
 test("a stale revision rejection clears only the rejected update intent", async () => {
   const s = storage(),
-    scope = liveIntentScope("document-update", "org", "user");
+    scope = liveIntentScope("document-update", "org", "user", "staging");
   await assert.rejects(
     sendLiveIntent(s, scope, { expected_version: 1 }, async () => {
       throw Object.assign(Error("source changed"), {
@@ -201,10 +202,10 @@ test("queued binary intake accepts only bounded plain supported files", () => {
 });
 test("queued intake recovery is isolated by request kind, organization and author", () => {
   const scopes = [
-    liveIntentScope("intake", "org", "owner"),
-    liveIntentScope("document", "org", "owner"),
-    liveIntentScope("intake", "other", "owner"),
-    liveIntentScope("intake", "org", "reviewer"),
+    liveIntentScope("intake", "org", "owner", "staging"),
+    liveIntentScope("document", "org", "owner", "staging"),
+    liveIntentScope("intake", "other", "owner", "staging"),
+    liveIntentScope("intake", "org", "reviewer", "staging"),
   ];
   assert.equal(new Set(scopes).size, 4);
 });
@@ -212,9 +213,9 @@ test("queued intake recovery is isolated by request kind, organization and autho
 test("Search and member recovery stay scoped; definitive pre-admission conflicts allow revised intent", async () => {
   const s = storage();
   for (const kind of ["hybrid-search", "member"] as const) {
-    const scope = liveIntentScope(kind, "org", "owner");
-    assert.notEqual(scope, liveIntentScope(kind, "other", "owner"));
-    assert.notEqual(scope, liveIntentScope(kind, "org", "reviewer"));
+    const scope = liveIntentScope(kind, "org", "owner", "staging");
+    assert.notEqual(scope, liveIntentScope(kind, "other", "owner", "staging"));
+    assert.notEqual(scope, liveIntentScope(kind, "org", "reviewer", "staging"));
     await assert.rejects(
       sendLiveIntent(s, scope, { revision: 1 }, async () => {
         throw Object.assign(new Error("Changed source"), {
