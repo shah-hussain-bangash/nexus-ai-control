@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import select,func,delete
 from conftest import auth
-from nexus.db import SessionRecord,SessionRuntimeContext,SchemaVersion,User,EnvironmentAssignment,WorkspaceEnvironment,migrate
+from nexus.db import SessionRecord,SessionRuntimeContext,SchemaVersion,User,EnvironmentAssignment,WorkspaceEnvironment,migrate,CURRENT_SCHEMA
 from nexus.security import digest
 
 
@@ -96,7 +96,7 @@ def test_schema_nine_upgrade_preserves_credentials_sessions_and_revoked_access(c
         db.execute(delete(EnvironmentAssignment).where(EnvironmentAssignment.user_id==owner))
     with ctx['app'].state.engine.begin() as connection:
         SessionRuntimeContext.__table__.drop(connection)
-        connection.execute(delete(SchemaVersion).where(SchemaVersion.version==10))
+        connection.execute(delete(SchemaVersion).where(SchemaVersion.version>=10))
     migrate(ctx['app'].state.engine,ctx['db']);migrate(ctx['app'].state.engine,ctx['db'])
     with ctx['db']() as db:
         assert before_sessions==[(s.id,s.user_id,s.csrf,s.expires) for s in db.scalars(select(SessionRecord))]
@@ -104,5 +104,5 @@ def test_schema_nine_upgrade_preserves_credentials_sessions_and_revoked_access(c
         row=db.get(SessionRuntimeContext,session_id)
         assert row.environment=='staging' and row.revision==1
         assert not db.get(EnvironmentAssignment,(owner,'northstar','staging'))
-        assert db.scalar(select(func.max(SchemaVersion.version)))==10
+        assert db.scalar(select(func.max(SchemaVersion.version)))==CURRENT_SCHEMA
     assert ctx['client'].get('/v1/me').status_code==403
