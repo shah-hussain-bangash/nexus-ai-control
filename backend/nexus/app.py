@@ -23,7 +23,7 @@ from .db import (database, User, SessionRecord, Agent, Tool, Grant, Policy, Acti
                  Export, Evaluation, Incident, SchemaVersion, now, public, uid, CURRENT_SCHEMA)
 from .schemas import SupplierArguments, PurchaseArguments, Login, AgentInput, Reason, GrantInput, ConsoleAction, ActionInput, ApprovalDecision, PolicyInput
 from .security import (session_user, issue_session, password_valid, digest, fail, permit,
-                       workload_token, authenticate_agent, PERMISSIONS)
+                       workload_token, authenticate_agent, PERMISSIONS, get_session_context, public_session_context)
 from .service import scoped, submit_action, active_policy, decide, audit, verify
 from .policy import evaluate
 from .runtime_context import CURRENT_ENVIRONMENT, runtime_environment
@@ -150,7 +150,7 @@ def create_app(settings=None):
             session = db.get(SessionRecord, digest(request.cookies['nexus_session']))
             return {'user': public(user), 'csrf': session.csrf, 'permissions': sorted(PERMISSIONS[user.role]),
                     'workspace': 'Northstar Operations' if user.org_id == 'northstar' else user.org_id,
-                    'environment': runtime_environment(db,user.org_id), 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
+                    'environment': runtime_environment(db,user.org_id), 'runtime_context':public_session_context(get_session_context(db,session,user)), 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
 
     @app.get('/v1/overview')
     def overview(request: Request):
@@ -511,6 +511,8 @@ def create_app(settings=None):
     from .hybrid import register_hybrid
     register_hybrid(app,factory,settings,human)
     from .environments import register_environments
+    from .session_context import register_session_context
+    register_session_context(app,factory,human)
     register_environments(app,factory,settings,human)
     @app.get('/v1/runtime-context')
     def runtime_context(request:Request):

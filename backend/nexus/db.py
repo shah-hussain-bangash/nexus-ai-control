@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 def uid(): return str(uuid.uuid4())
 def now(): return time.time()
 
-CURRENT_SCHEMA = 9
+CURRENT_SCHEMA = 10
 
 
 class Base(DeclarativeBase): pass
@@ -72,6 +72,18 @@ class OIDCTransaction(Base):
     verifier_ciphertext: Mapped[str] = mapped_column(Text)
     expires: Mapped[float] = mapped_column(Float, index=True)
     used_at: Mapped[float] = mapped_column(Float, default=0)
+
+
+class SessionRuntimeContext(Base):
+    __tablename__ = 'session_runtime_contexts'
+    __table_args__ = (ForeignKeyConstraint(['user_id','org_id'],['users.id','users.org_id']),
+                     ForeignKeyConstraint(['org_id','environment'],['workspace_environments.org_id','workspace_environments.key']))
+    session_id: Mapped[str] = mapped_column(ForeignKey('sessions.id',ondelete='CASCADE'),primary_key=True)
+    user_id: Mapped[str] = mapped_column(String)
+    org_id: Mapped[str] = mapped_column(String)
+    environment: Mapped[str] = mapped_column(String)
+    revision: Mapped[int] = mapped_column(Integer,default=1)
+    binding_id: Mapped[str] = mapped_column(String,default=uid)
 
 
 class Scoped:
@@ -416,7 +428,7 @@ def migrate(engine, factory):
         version = connection.scalar(select(func.max(SchemaVersion.version))) or 0
         if version > CURRENT_SCHEMA: raise RuntimeError('Database schema is newer than this application; upgrade the source first.')
         if version < 1:
-            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('workspace_environments','environment_assignments','oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
+            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('session_runtime_contexts','workspace_environments','environment_assignments','oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
             Base.metadata.create_all(connection, tables=baseline)
             connection.execute(SchemaVersion.__table__.insert().values(version=1, applied=now()))
         if version < 2:
@@ -471,6 +483,16 @@ def migrate(engine, factory):
                 if org in organizations and (user_id,org,'staging') not in assigned:
                     connection.execute(EnvironmentAssignment.__table__.insert().values(user_id=user_id,org_id=org,environment_key='staging',created=now()))
             connection.execute(SchemaVersion.__table__.insert().values(version=9,applied=now()))
+
+        if version < 10:
+            SessionRuntimeContext.__table__.create(connection,checkfirst=True)
+            existing=set(connection.scalars(select(SessionRuntimeContext.session_id)))
+            # Legacy sessions never selected an environment. Preserve every
+            # credential and add staging metadata only; grant no membership.
+            for session_id,user_id,org in connection.execute(select(SessionRecord.id,User.id,User.org_id).join(User,User.id==SessionRecord.user_id)):
+                if session_id not in existing:
+                    connection.execute(SessionRuntimeContext.__table__.insert().values(session_id=session_id,user_id=user_id,org_id=org,environment='staging',revision=1,binding_id=uid()))
+            connection.execute(SchemaVersion.__table__.insert().values(version=10,applied=now()))
 
 
 def public(row):

@@ -57,13 +57,14 @@ import {
   Zap,
 } from "lucide-react";
 import { api, setCsrf } from "./api";
+import { sessionContext } from "./sessionContext";
 import { recoveryPanelKey } from "./recoveryContext";
 import { FlagshipHub } from "./FlagshipHub";
 import { RuntimeConsole } from "./RuntimeConsole";
 import { ProductionBoard } from "./ProductionBoard";
 import { ImplementationStudio } from "./ImplementationStudio";
 
-import { submitIntent, submissionMessage } from "./runIntent";
+import { submitIntent, submissionMessage, IntentKeyRegistry } from "./runIntent";
 import "./styles.css";
 import "./neon.css";
 import "./flagship.css";
@@ -441,7 +442,7 @@ function Login({ onSignedIn }: { onSignedIn: () => void }) {
     </div>
   );
 }
-function App() {
+function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
   const [largeText, setLargeText] = useState(() => {
     try {
       return localStorage.getItem("nexus.largeText") === "1";
@@ -499,7 +500,6 @@ function App() {
     [auditError, setAuditError] = useState("");
   const auditRequest = useRef(0);
   const [auditRevision, setAuditRevision] = useState(0);
-  const keys = useRef(new Map<string, string>());
   function openRun() {
     setRunToolId("");
     setModal({ type: "run" });
@@ -509,9 +509,13 @@ function App() {
     try {
       const r = await api("/v1/me");
       recoveryPanelKey(r);
+      sessionContext.adopt(r);
       setMe(r);
       setCsrf(r.csrf);
-    } catch {
+    } catch (e) {
+      if ((e as {code?:string}).code === "STALE_CONTEXT_RESPONSE") return;
+      sessionContext.clear();
+      setCsrf("");
       setMe(null);
     } finally {
       setLoading(false);
@@ -554,6 +558,10 @@ function App() {
   }
   useEffect(() => {
     session();
+    const discover = () => { if (document.visibilityState === "visible") session(); };
+    window.addEventListener("focus", discover);
+    document.addEventListener("visibilitychange", discover);
+    return () => { window.removeEventListener("focus",discover); document.removeEventListener("visibilitychange",discover); };
   }, []);
   useEffect(() => {
     if (me) {
@@ -942,6 +950,8 @@ function App() {
                 const leave = () =>
                   perform(async () => {
                     await api("/auth/logout", "POST");
+                    setCsrf("");
+                    sessionContext.clear();
                     setMe(null);
                   }, "Signed out.");
                 if (!requestNavigationGuard(leave)) leave();
@@ -2090,7 +2100,7 @@ function App() {
                 const fingerprint = JSON.stringify(body);
                 perform(
                   () =>
-                    submitIntent(keys.current, fingerprint, (key) =>
+                    submitIntent(intentKeys.forContext(recoveryPanelKey(me)), fingerprint, (key) =>
                       api("/v1/console/actions", "POST", body, key),
                     ),
                   submissionMessage,
@@ -2755,8 +2765,14 @@ function App() {
     </div>
   );
 }
+function ContextRoot() {
+  const intentKeys = useRef(new IntentKeyRegistry());
+  const [epoch,setEpoch] = useState(() => sessionContext.capture().epoch);
+  useEffect(() => sessionContext.subscribe(setEpoch),[]);
+  return <App key={epoch} intentKeys={intentKeys.current} />;
+}
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ContextRoot />
   </React.StrictMode>,
 );
