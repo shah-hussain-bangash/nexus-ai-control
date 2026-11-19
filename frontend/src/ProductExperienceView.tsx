@@ -325,6 +325,7 @@ export function ProductExperience({ me, onNavigate, onDesign }: Props) {
         workspaceScope,
         current,
       );
+      if (!current()) return;
       setCandidate(imported);
       setImportAck(false);
       setError("");
