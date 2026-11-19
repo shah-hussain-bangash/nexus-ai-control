@@ -15,7 +15,8 @@ export function liveIntentScope(
     | "intake"
     | "hybrid-search"
     | "member"
-    | "asset-copy",
+    | "asset-copy"
+    | "connector-check",
   org: string,
   user: string,
   environment: string,
