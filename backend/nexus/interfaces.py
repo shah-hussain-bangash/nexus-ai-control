@@ -10,6 +10,7 @@ from datetime import date, datetime
 from fastapi import Request
 from pydantic import Field, StrictBool, model_validator
 from sqlalchemy import select
+from .runtime_context import runtime_environment
 from .schemas import Strict
 from .db import WorkspaceAsset, AssetRevision, public
 from .security import fail
@@ -192,12 +193,13 @@ def register_interfaces(app,factory,settings,human):
         if settings.mode!='local':fail(403,'LOCAL_ONLY','Synthetic interface examples are local-only.')
         with factory.begin() as db:
             user=human(request,db,True,'policy');created=0
+            environment=runtime_environment(db,user.org_id)
             for spec in catalog()['modules']:
-                exists=db.scalar(select(WorkspaceAsset.id).where(WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env=='staging',WorkspaceAsset.kind=='blueprint',WorkspaceAsset.name==spec['sample_name']))
+                exists=db.scalar(select(WorkspaceAsset.id).where(WorkspaceAsset.org_id==user.org_id,WorkspaceAsset.env==environment,WorkspaceAsset.kind=='blueprint',WorkspaceAsset.name==spec['sample_name']))
                 if exists:continue
                 config=Blueprint(module=spec['id'],values={f['id']:f['default'] for f in spec['fields']}).model_dump()
-                row=WorkspaceAsset(org_id=user.org_id,kind='blueprint',name=spec['sample_name'],description=spec['description'],config=config,author_id=user.id)
+                row=WorkspaceAsset(org_id=user.org_id,env=environment,kind='blueprint',name=spec['sample_name'],description=spec['description'],config=config,author_id=user.id)
                 db.add(row);db.flush()
-                db.add(AssetRevision(org_id=user.org_id,asset_id=row.id,version=row.version,snapshot=public(row),author_id=user.id));created+=1
+                db.add(AssetRevision(org_id=user.org_id,env=row.env,asset_id=row.id,version=row.version,snapshot=public(row),author_id=user.id));created+=1
             audit(db,user.org_id,user.id,'interface.examples_loaded',detail={'created':created,'runtime_activated':False})
             return {'created':created,'runtime_activated':False,'synthetic':True}

@@ -8,6 +8,7 @@ from .schemas import Strict
 from .db import ReadinessEvidence, now, public
 from .service import audit
 from .security import fail
+from .runtime_context import runtime_environment
 
 # These are this project's workstreams, not a universal production checklist.
 GATES = [
@@ -55,8 +56,9 @@ class EvidenceInput(Strict):
         return value
 
 
-def readiness(db, org_id):
-    evidence={r.gate:r for r in db.scalars(select(ReadinessEvidence).where(ReadinessEvidence.org_id==org_id,ReadinessEvidence.env=='staging')).all()}
+def readiness(db, org_id, environment=None):
+    environment=runtime_environment(db,org_id,environment)
+    evidence={r.gate:r for r in db.scalars(select(ReadinessEvidence).where(ReadinessEvidence.org_id==org_id,ReadinessEvidence.env==environment)).all()}
     gates=[]
     for key,title,group,delivery,required,view in GATES:
         row=evidence.get(key)
@@ -78,13 +80,14 @@ def register_readiness(app,factory,settings,human):
         with factory.begin() as db:
             user=human(request,db,True,'policy')
             if definition[3]=='not_implemented' and body.outcome=='passed':fail(422,'CAPABILITY_MISSING','This source release does not implement this capability. Evidence cannot mark it as passed.')
-            row=db.scalar(select(ReadinessEvidence).where(ReadinessEvidence.org_id==user.org_id,ReadinessEvidence.env=='staging',ReadinessEvidence.gate==gate))
+            environment=runtime_environment(db,user.org_id)
+            row=db.scalar(select(ReadinessEvidence).where(ReadinessEvidence.org_id==user.org_id,ReadinessEvidence.env==environment,ReadinessEvidence.gate==gate))
             if row:
-                changed=db.execute(update(ReadinessEvidence).where(ReadinessEvidence.id==row.id,ReadinessEvidence.version==body.expected_version).values(outcome=body.outcome,summary=body.summary,reference=body.reference,version=ReadinessEvidence.version+1,updated=now(),author_id=user.id))
+                changed=db.execute(update(ReadinessEvidence).where(ReadinessEvidence.id==row.id,ReadinessEvidence.org_id==user.org_id,ReadinessEvidence.env==environment,ReadinessEvidence.version==body.expected_version).values(outcome=body.outcome,summary=body.summary,reference=body.reference,version=ReadinessEvidence.version+1,updated=now(),author_id=user.id))
                 if changed.rowcount!=1:fail(409,'STALE_VERSION','Another reviewer changed the evidence. Refresh before recording.')
                 db.refresh(row)
             else:
                 if body.expected_version!=0:fail(409,'STALE_VERSION','Refresh the current evidence version.')
-                row=ReadinessEvidence(org_id=user.org_id,gate=gate,outcome=body.outcome,summary=body.summary,reference=body.reference,author_id=user.id);db.add(row);db.flush()
+                row=ReadinessEvidence(org_id=user.org_id,env=environment,gate=gate,outcome=body.outcome,summary=body.summary,reference=body.reference,author_id=user.id);db.add(row);db.flush()
             audit(db,user.org_id,user.id,'readiness.evidence_recorded',detail={'gate':gate,'outcome':row.outcome,'version':row.version,'summary':body.summary,'reference':body.reference})
             return public(row)
