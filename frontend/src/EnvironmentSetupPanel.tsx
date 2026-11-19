@@ -54,6 +54,7 @@ export function EnvironmentSetup({
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [activationReviewed, setActivationReviewed] = useState(false);
+  const [confirmationKey, setConfirmationKey] = useState("");
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<EnvironmentRecord | null>(null);
   useEffect(() => {
@@ -95,6 +96,7 @@ export function EnvironmentSetup({
     setEditor(value);
     setNote("");
     setActivationReviewed(false);
+    setConfirmationKey("");
     setFormError("");
     setNotice("");
     if (value.kind === "create") {
@@ -134,6 +136,7 @@ export function EnvironmentSetup({
                   editor.command,
                   note,
                   activationReviewed,
+                  confirmationKey,
                 )
               : environmentControlPayload(
                   editor.row,
@@ -192,7 +195,9 @@ export function EnvironmentSetup({
           : editor.kind === "runtime"
             ? editor.command === "pause"
               ? "Environment paused. Records are preserved and its selected sessions were signed out."
-              : "Environment resumed. Existing configuration is available to assigned members; signed-out sessions stay signed out."
+              : editor.command === "retire"
+                ? "Environment retired. Records are retained, runtime access is permanently disabled and this key is reserved."
+                : "Environment resumed. Existing configuration is available to assigned members; signed-out sessions stay signed out."
             : editor.command === "archive"
               ? "Environment archived."
               : "Environment restored to Preparing.",
@@ -287,11 +292,13 @@ export function EnvironmentSetup({
                   ? "Your current runtime environment is protected."
                   : row.state === "archived"
                     ? "Archived setup record. Restore it to continue preparation."
-                    : row.state === "suspended"
-                      ? "Runtime paused. Records and assignments are preserved; access is blocked until reviewed resume."
-                      : row.human_runtime_enabled
-                        ? "Active local runtime. Assigned members can select it from the header."
-                        : "Preparation only. No runtime access is enabled."}
+                    : row.state === "retired"
+                      ? "Runtime permanently retired. Records and assignments are retained. This key is reserved and cannot be reactivated or reused."
+                      : row.state === "suspended"
+                        ? "Runtime paused. Records and assignments are preserved; access is blocked until reviewed resume."
+                        : row.human_runtime_enabled
+                          ? "Active local runtime. Assigned members can select it from the header."
+                          : "Preparation only. No runtime access is enabled."}
               </p>
               {row.unfinished_work &&
                 Object.values(row.unfinished_work).some(
@@ -353,7 +360,7 @@ export function EnvironmentSetup({
                       {command === "archive" ? "Archive" : "Restore"}
                     </button>
                   ))}
-                {(["pause", "resume"] as const)
+                {(["pause", "resume", "retire"] as const)
                   .filter((command) =>
                     canControlRuntime(
                       row,
@@ -367,12 +374,16 @@ export function EnvironmentSetup({
                       className="btn"
                       key={command}
                       disabled={!!locked}
-                      aria-label={`${command === "pause" ? "Pause" : "Resume"} ${row.name} runtime`}
+                      aria-label={`${command === "pause" ? "Pause" : command === "retire" ? "Retire" : "Resume"} ${row.name} runtime`}
                       onClick={() =>
                         openEditor({ kind: "runtime", row, command })
                       }
                     >
-                      {command === "pause" ? "Pause runtime" : "Resume runtime"}
+                      {command === "pause"
+                        ? "Pause runtime"
+                        : command === "retire"
+                          ? "Retire runtime"
+                          : "Resume runtime"}
                     </button>
                   ))}
               </div>
@@ -388,7 +399,7 @@ export function EnvironmentSetup({
               : editor.kind === "activate"
                 ? `Activate ${editor.row.name} locally?`
                 : editor.kind === "runtime"
-                  ? `${editor.command === "pause" ? "Pause" : "Resume"} ${editor.row.name} runtime?`
+                  ? `${editor.command === "pause" ? "Pause" : editor.command === "retire" ? "Retire" : "Resume"} ${editor.row.name} runtime?`
                   : `${editor.command === "archive" ? "Archive" : "Restore"} ${editor.row.name}`
           }
           onClose={() => {
@@ -404,7 +415,9 @@ export function EnvironmentSetup({
                   : editor.kind === "runtime"
                     ? editor.command === "pause"
                       ? `This blocks runtime access and signs out ${editor.row.selected_sessions} selected sessions. Records, assignments and configuration are preserved. Unfinished work blocks this change. Switch to staging before managing this environment.`
-                      : "This restores runtime access for assigned members using the existing policies, agents, grants and credentials. Review that configuration before resuming. Signed-out sessions are not restored and no work is replayed."
+                      : editor.command === "retire"
+                        ? "This permanently retires the paused local runtime. Records, assignments and configuration are retained. Runtime access cannot be resumed, the environment cannot be reactivated and its key cannot be reused. This does not delete data or revoke credentials at external providers."
+                        : "This restores runtime access for assigned members using the existing policies, agents, grants and credentials. Review that configuration before resuming. Signed-out sessions are not restored and no work is replayed."
                     : editor.command === "archive"
                       ? "Archive this preparation record? Environments containing existing records cannot be archived."
                       : "Restore this record to Preparing? Runtime access will remain unavailable."}
@@ -453,6 +466,19 @@ export function EnvironmentSetup({
                 disabled={busy}
               />
             </label>
+            {editor.kind === "runtime" && editor.command === "retire" && (
+              <label className="field">
+                <span>Type environment key {editor.row.key} to retire</span>
+                <input
+                  value={confirmationKey}
+                  onChange={(event) => setConfirmationKey(event.target.value)}
+                  disabled={busy}
+                  required
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+            )}
             {(editor.kind === "activate" || editor.kind === "runtime") && (
               <label className="product-check">
                 <input
@@ -486,7 +512,10 @@ export function EnvironmentSetup({
                   busy ||
                   needsRefresh ||
                   ((editor.kind === "activate" || editor.kind === "runtime") &&
-                    !activationReviewed)
+                    !activationReviewed) ||
+                  (editor.kind === "runtime" &&
+                    editor.command === "retire" &&
+                    confirmationKey !== editor.row.key)
                 }
               >
                 {busy
@@ -498,7 +527,9 @@ export function EnvironmentSetup({
                       : editor.kind === "runtime"
                         ? editor.command === "pause"
                           ? "Confirm pause"
-                          : "Confirm resume"
+                          : editor.command === "retire"
+                            ? "Confirm permanent retirement"
+                            : "Confirm resume"
                         : editor.command === "archive"
                           ? "Confirm archive"
                           : "Restore to Preparing"}

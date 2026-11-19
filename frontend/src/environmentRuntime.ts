@@ -1,6 +1,6 @@
 import type { EnvironmentRecord } from "./environmentSetup.ts";
 import { environmentReason } from "./environmentSetup.ts";
-export type RuntimeCommand = "pause" | "resume";
+export type RuntimeCommand = "pause" | "resume" | "retire";
 export function canControlRuntime(
   row: EnvironmentRecord,
   current: string,
@@ -32,10 +32,15 @@ export function runtimeControlPayload(
   command: RuntimeCommand,
   note: string,
   reviewed: boolean,
+  confirmationKey = "",
 ) {
   if (!reviewed || !canControlRuntime(row, current, enabled, command))
     throw Error(
       "Refresh and review the idle environment and session sign-out effect before continuing.",
+    );
+  if (command === "retire" && confirmationKey !== row.key)
+    throw Error(
+      "Type the exact environment key to confirm permanent retirement.",
     );
   return {
     command,
@@ -43,5 +48,6 @@ export function runtimeControlPayload(
     expected_selected_sessions: row.selected_sessions!,
     note: environmentReason(note),
     reviewed: true,
+    ...(command === "retire" ? { confirmation_key: confirmationKey } : {}),
   };
 }

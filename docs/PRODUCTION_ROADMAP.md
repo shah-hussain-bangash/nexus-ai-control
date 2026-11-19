@@ -16,7 +16,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Inference traffic controls | implemented | Shared-database admission limits, concurrency reservations and saturation behavior. |
 | Usage & cost governance | partial | Invoice reconciliation, evidence retention and account-level cost controls. |
 | Identity & workload lifecycle | partial | IdP provisioning/offboarding, verified MFA and workload federation. |
-| Workspace & environment lifecycle | partial | Local empty-environment activation, versioned switching, membership and isolation tests are implemented. Pilot activation, controlled imports, active-environment retirement and deployment acceptance remain. |
+| Workspace & environment lifecycle | partial | Local activation, versioned switching, pause/resume, retained-record retirement, membership and isolation tests are implemented. Pilot lifecycle, controlled imports and deployment acceptance remain. |
 | Secrets & network isolation | partial | Managed-secret injection, rotation and deployment-enforced egress isolation. |
 | Telemetry, alerts & SLOs | partial | External logs/metrics/traces, service objectives and operator notification drills. |
 | Audit integrity & retention | partial | Immutable off-host archive, retention rules and evidence export verification. |

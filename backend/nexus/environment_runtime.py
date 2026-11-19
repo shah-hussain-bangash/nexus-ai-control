@@ -1,4 +1,4 @@
-"""Reviewed local pause/resume; records are retained and unfinished work blocks pause."""
+"""Reviewed local runtime controls; retirement retains records and reserves the key."""
 from fastapi import Request
 from pydantic import Field,field_validator
 from typing import Literal
@@ -28,11 +28,12 @@ def runtime_review(db,org,key):
     return {'unfinished_work':counts,'selected_sessions':sessions}
 
 class RuntimeControl(Strict):
-    command:Literal['pause','resume']
+    command:Literal['pause','resume','retire']
     expected_version:int=Field(ge=1,strict=True)
     expected_selected_sessions:int=Field(ge=0,strict=True)
     reviewed:Literal[True]
     note:str=Field(min_length=5,max_length=500)
+    confirmation_key:str|None=Field(default=None,max_length=32,strict=True)
 
     @field_validator('note')
     @classmethod
@@ -43,7 +44,7 @@ class RuntimeControl(Strict):
 def register_environment_runtime(app,factory,settings,human):
     @app.post('/v1/workspace-environments/{key}/runtime-control')
     def control(key:str,body:RuntimeControl,request:Request):
-        if not switching_enabled(settings):fail(403,'LOCAL_ONLY','Runtime pause and resume are available only in local mode.')
+        if not switching_enabled(settings):fail(403,'LOCAL_ONLY','Runtime lifecycle controls are available only in local mode.')
         with factory.begin() as db:
             actor=human(request,db,True,'members')  # Shared organization admission lock.
             row=db.get(WorkspaceEnvironment,(actor.org_id,key),with_for_update=True)
@@ -55,6 +56,8 @@ def register_environment_runtime(app,factory,settings,human):
             if row.state!=required:fail(409,'ENVIRONMENT_STATE','This command is unavailable for the current environment state.')
             if actor.role!='owner' or not db.get(EnvironmentAssignment,(actor.id,actor.org_id,key)):
                 fail(403,'RUNTIME_OWNER_REQUIRED','An assigned active owner must review runtime controls.')
+            if body.command=='retire' and body.confirmation_key!=key:
+                fail(422,'RETIREMENT_CONFIRMATION_REQUIRED','Type the exact environment key to confirm permanent runtime retirement. Records are retained and this key cannot be reused.')
             review=runtime_review(db,actor.org_id,key)
             if any(review['unfinished_work'].values()):
                 fail(409,'ENVIRONMENT_BUSY','Finish, cancel or reconcile unfinished work in this environment before changing runtime state.')
@@ -62,7 +65,7 @@ def register_environment_runtime(app,factory,settings,human):
                 fail(409,'STALE_RUNTIME_REVIEW','Selected sessions changed. Refresh and review the sign-out effect again.')
             sessions=select(SessionRuntimeContext.session_id).where(SessionRuntimeContext.org_id==actor.org_id,SessionRuntimeContext.environment==key)
             revoked=db.execute(delete(SessionRecord).where(SessionRecord.id.in_(sessions))).rowcount
-            row.state='suspended' if body.command=='pause' else 'active';row.version+=1;row.updated=now()
+            row.state={'pause':'suspended','resume':'active','retire':'retired'}[body.command];row.version+=1;row.updated=now()
             audit(db,actor.org_id,actor.id,'environment.runtime_'+body.command,detail={
                 'environment_key':key,'version':row.version,'note':body.note,'sessions_revoked':revoked,'unfinished_work':review['unfinished_work'],'records_preserved':True})
             return {'key':key,'state':row.state,'version':row.version,'sessions_revoked':revoked,'records_preserved':True}

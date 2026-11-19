@@ -68,6 +68,7 @@ export function environmentStateLabel(row: EnvironmentRecord, current: string) {
   if (row.state === "preparing") return "Preparing";
   if (row.state === "archived") return "Archived";
   if (row.state === "suspended") return "Paused";
+  if (row.state === "retired") return "Retired";
   if (row.state === "active" && row.human_runtime_enabled) return "Active";
   return "Unavailable";
 }
