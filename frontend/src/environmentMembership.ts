@@ -4,6 +4,7 @@ import type { EnvironmentRecord } from "./environmentSetup";
 export type EnvironmentMember = {
   id: string;
   name: string;
+  email: string;
   role: string;
   active: boolean;
   revision: string;

@@ -123,8 +123,8 @@ def register_environments(app,factory,settings,human):
                 EnvironmentAssignment.org_id==user.org_id,EnvironmentAssignment.environment_key==key,User.org_id==user.org_id).order_by(User.name,User.id)).all()
             assigned={r.id for r in rows}
             by_id={u.id:u for u in users}
-            return {'items':[{'id':r.id,'name':r.name,'role':r.role,'active':bool(r.active),'revision':revision(db,by_id[r.id])} for r in rows],
-                    'candidates':[{'id':u.id,'name':u.name,'role':u.role,'active':True,'revision':revision(db,u)} for u in users
+            return {'items':[{'id':r.id,'name':r.name,'email':by_id[r.id].email,'role':r.role,'active':bool(r.active),'revision':revision(db,by_id[r.id])} for r in rows],
+                    'candidates':[{'id':u.id,'name':u.name,'email':u.email,'role':u.role,'active':True,'revision':revision(db,u)} for u in users
                                   if u.id not in assigned and u.active and not (key=='staging' and u.role=='owner')],
                     'environment':serialize(environment),
                     'editing_enabled':environment.state in ('active','preparing'),'switching_enabled':False}

@@ -12,6 +12,7 @@ import type {
 const member: EnvironmentMember = {
   id: "member-1",
   name: "Test Member",
+  email: "member@test.invalid",
   role: "engineer",
   active: true,
   revision: "a".repeat(64),

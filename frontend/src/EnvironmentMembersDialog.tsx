@@ -199,6 +199,7 @@ export function EnvironmentMembersDialog({
                   {data.items.map((member) => (
                     <li key={member.id}>
                       <strong>{member.name}</strong>
+                      <span>{member.email || member.id}</span>
                       <span>
                         {member.role} · {member.active ? "Active" : "Inactive"}
                       </span>
@@ -207,7 +208,7 @@ export function EnvironmentMembersDialog({
                         <button
                           className="btn"
                           disabled={locked || !!draft}
-                          aria-label={`Remove ${member.name} from ${environment.name}`}
+                          aria-label={`Remove ${member.name} (${member.email || member.id}) from ${environment.name}`}
                           onClick={() => confirm(member, "revoke")}
                         >
                           Remove assignment
@@ -236,7 +237,8 @@ export function EnvironmentMembersDialog({
                           <option value="">Choose a member</option>
                           {candidates.map((member) => (
                             <option key={member.id} value={member.id}>
-                              {member.name} · {member.role}
+                              {member.name} · {member.email || member.id} ·{" "}
+                              {member.role}
                             </option>
                           ))}
                         </select>
@@ -276,8 +278,9 @@ export function EnvironmentMembersDialog({
               {draft.member.name} · {environment.name}
             </h3>
             <p id="membership-change-summary">
-              Reviewed role: {draft.member.role}. This change will sign the
-              member out of all existing sessions.{" "}
+              Account: {draft.member.email || draft.member.id}. Reviewed role:{" "}
+              {draft.member.role}. This change will sign the member out of all
+              existing sessions.{" "}
               {draft.command === "grant"
                 ? "They must sign in again to use staging."
                 : "Their other environment assignments are preserved."}

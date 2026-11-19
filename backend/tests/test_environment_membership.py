@@ -152,3 +152,14 @@ def test_revocation_blocks_queued_work_before_a_business_effect(ctx):
     with ctx['db']() as db:
         row=db.get(Action,response.json()['id'])
         assert row.status=='blocked' and row.reason=='DISPATCH_ENVIRONMENT_ACCESS_CHANGED'
+
+
+def test_duplicate_member_names_are_distinguished_by_account_email(ctx):
+    with ctx['db'].begin() as db:
+        users=db.scalars(select(User).where(User.org_id=='northstar',User.role!='owner')).all()
+        for user in users:user.name='Same Name'
+    rows=[row for row in snapshot(ctx)['items'] if row['name']=='Same Name']
+    assert len(rows)==2 and len({row['email'] for row in rows})==2
+    assert change(ctx).status_code==200
+    candidates=snapshot(ctx)['candidates']
+    assert len(candidates)==1 and candidates[0]['email']=='reviewer@nexus.local'

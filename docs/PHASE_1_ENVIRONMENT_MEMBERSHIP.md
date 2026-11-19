@@ -10,6 +10,8 @@ approved release; the review branch keeps 0.16.2.
 
 Open **Workspace settings → Environment setup → View assignments**. The dialog
 shows assigned members and eligible active members from the same workspace.
+Account email identifies each member in the list, chooser and confirmation so
+identical names do not lead to an ambiguous access decision.
 Choose an assignment or removal, review the member and environment, provide a
 5–500 character reason, and acknowledge the session sign-out effect before
 confirming. Cancel and closing the dialog perform no write.
@@ -58,7 +60,9 @@ security or cancellation of an external effect.
 
 ## Validation and review
 
-- Full Windows backend regression: 359 passed, 20 service/platform skips.
+- Initial full Windows backend regression: 359 passed, 20 service/platform skips.
+  The affected environment files also pass after adding account-email references
+  and the duplicate-name regression. Consult final GitHub CI for the combined suite.
 - New API cases cover grant/revoke, fresh sign-in, account preservation, tenant
   and owner boundaries, CSRF, malformed/unreviewed input, stale member/environment
   revisions, archived/preparing environments and queued dispatch after revocation.
