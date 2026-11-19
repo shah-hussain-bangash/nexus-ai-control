@@ -17,8 +17,10 @@ from typing import Literal
 from pydantic import Field
 from sqlalchemy import select, update, func
 from sqlalchemy.exc import IntegrityError
+from .runtime_context import runtime_environment
+from .inference_accounting import workspace_budget,ensure_budget,admission_counts,reserve_budget,settle_budget
 from .schemas import Strict
-from .db import InferenceBudget, InferenceCall, WorkspaceAsset, Organization, public
+from .db import InferenceCall, WorkspaceAsset, Organization, public
 from .security import fail
 from .service import audit
 from .workbench import asset_for, retrieve, check_guardrail, validate_config
@@ -108,11 +110,12 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
 
 
 def settle(db, row, ins, outs, status, result):
+    runtime_environment(db,row.org_id,row.env)
     charged = cost(ins, outs, {'input': row.input_rate, 'output': row.output_rate})
-    changed = db.execute(update(InferenceCall).where(InferenceCall.id == row.id, InferenceCall.status.in_(('pending', 'unknown'))).values(status=status, charged=charged, input_tokens=ins, output_tokens=outs, result=result))
+    changed = db.execute(update(InferenceCall).where(InferenceCall.id == row.id, InferenceCall.org_id == row.org_id, InferenceCall.env == row.env, InferenceCall.status.in_(('pending', 'unknown'))).values(status=status, charged=charged, input_tokens=ins, output_tokens=outs, result=result))
     if changed.rowcount != 1:
         fail(409, 'CALL_ALREADY_SETTLED', 'This call was already settled; refresh its evidence.')
-    db.execute(update(InferenceBudget).where(InferenceBudget.org_id == row.org_id, InferenceBudget.period == row.period).values(held=InferenceBudget.held-row.reserved, spent=InferenceBudget.spent+charged))
+    settle_budget(db,row,charged)
     db.refresh(row)
 
 
@@ -121,10 +124,11 @@ def register_inference(app, factory, settings, human):
     def status(request: Request):
         with factory() as db:
             user = human(request, db)
-            budget = db.scalar(select(InferenceBudget).where(InferenceBudget.org_id == user.org_id, InferenceBudget.period == period()))
-            calls = db.scalars(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == 'staging').order_by(InferenceCall.created.desc()).limit(50)).all()
-            completed = db.scalar(select(func.count()).select_from(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.status == 'completed'))
-            return {'enabled': bool(settings.live_inference), 'period': period(), 'currency': 'USD', 'limit_micro_usd': micro(settings.monthly_budget_usd), 'held_micro_usd': budget.held if budget else 0, 'spent_micro_usd': budget.spent if budget else 0, 'completed_calls': completed, 'calls': [public(c) for c in calls], 'max_output_tokens': settings.inference_max_output, 'requests_per_minute': settings.inference_requests_per_minute, 'max_inflight': settings.inference_max_inflight, 'boundary': 'Operator-priced inference only. No business tools. Reservations use conservative input/output bounds; prices exclude provider fees and tax. Cloud readiness is not certified.'}
+            environment=runtime_environment(db,user.org_id)
+            budget = workspace_budget(db,user.org_id,environment,period())
+            calls = db.scalars(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id)).order_by(InferenceCall.created.desc()).limit(50)).all()
+            completed = db.scalar(select(func.count()).select_from(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == environment, InferenceCall.status == 'completed'))
+            return {'budget_scope':'workspace','admission_scope':'workspace','environment':environment,'enabled': bool(settings.live_inference), 'period': period(), 'currency': 'USD', 'limit_micro_usd': micro(settings.monthly_budget_usd), 'held_micro_usd': budget.held if budget else 0, 'spent_micro_usd': budget.spent if budget else 0, 'completed_calls': completed, 'calls': [public(c) for c in calls], 'max_output_tokens': settings.inference_max_output, 'requests_per_minute': settings.inference_requests_per_minute, 'max_inflight': settings.inference_max_inflight, 'boundary': 'Operator-priced inference only. No business tools. Reservations use conservative input/output bounds; prices exclude provider fees and tax. Cloud readiness is not certified.'}
 
     @app.get('/v1/inference-calls')
     def history(request:Request,q:str=Query('',max_length=120),status:Literal['all','pending','completed','unknown','reconciled']='all',limit:int=Query(10,ge=1,le=25),cursor:str=Query('',max_length=2048)):
@@ -137,7 +141,7 @@ def register_inference(app, factory, settings, human):
     def recover(body:RecoverInput,request:Request):
         with factory() as db:
             user=human(request,db,True,'operate')
-            row=db.scalar(select(InferenceCall).where(InferenceCall.org_id==user.org_id,InferenceCall.env=='staging',InferenceCall.author_id==user.id,InferenceCall.key_hash==hashlib.sha256(body.key.encode()).hexdigest()))
+            row=db.scalar(select(InferenceCall).where(InferenceCall.org_id==user.org_id,InferenceCall.env==runtime_environment(db,user.org_id),InferenceCall.author_id==user.id,InferenceCall.key_hash==hashlib.sha256(body.key.encode()).hexdigest()))
             if not row:fail(404,'CALL_NOT_FOUND','No matching request record was found for your account. Review the ledger before creating a new intent.')
             return public(row)
 
@@ -150,62 +154,67 @@ def register_inference(app, factory, settings, human):
         with factory() as db:
             user = human(request, db, True, 'operate')
             fingerprint = hashlib.sha256(json.dumps({'author': user.id, **body.model_dump()}, sort_keys=True).encode()).hexdigest()
-            previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.key_hash == key_hash))
+            previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id), InferenceCall.key_hash == key_hash))
             if previous:
                 if previous.request_hash != fingerprint: fail(409, 'IDEMPOTENCY_CONFLICT', 'This key belongs to a different request.')
                 return public(previous)
             if not settings.live_inference: fail(503, 'INFERENCE_DISABLED', 'Live provider execution is disabled by the server operator.')
-            model = asset_for(db, user, body.model_id)
-            if model.kind != 'model' or model.status != 'validated' or model.version != body.expected_version:
-                fail(409, 'MODEL_NOT_CHECKED', 'Check and refresh this exact model configuration before live execution.')
-            config = validate_config('model', model.config)
-            if body.max_output_tokens > min(config['token_limit'], settings.inference_max_output):
-                fail(422, 'OUTPUT_LIMIT', 'Requested output exceeds the route/server token limit.')
-            url, headers, rates = route(config, settings)
-            query = body.query.strip()
-            if not query: fail(422, 'QUERY_REQUIRED', 'Enter a nonempty request.')
-            citations = retrieve(db, user.org_id, query) if body.retrieve_evidence else []
-            evidence = '\n\n'.join('['+str(i+1)+'] '+c['text'] for i,c in enumerate(citations))
-            content = query + ('\n\nUntrusted reference excerpts:\n' + evidence if citations else '')
-            rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == 'staging', WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(100)).all()
-            for rule in rules:
-                checked = check_guardrail(content, rule.config)
-                if checked['verdict'] == 'blocked': fail(422, 'GUARDRAIL_BLOCKED', 'A saved input guardrail blocked this request. No provider call was made.')
-                content = checked['output']
-            # Input upper bound uses UTF-8 bytes plus fixed chat-envelope allowance.
-            upper_input = len(content.encode('utf-8')) + 2048
-            reserved = max(1, cost(upper_input, body.max_output_tokens, rates))
-            org = user.org_id; author = user.id; model_version = model.version
+            org=user.org_id;author=user.id;environment=runtime_environment(db,org)
         try:
             with factory.begin() as db:
                 locked_org=db.scalar(select(Organization.id).where(Organization.id==org).with_for_update())
                 if not locked_org:fail(403,'WORKSPACE_UNAVAILABLE','Workspace access is unavailable.')
                 current=human(request,db,True,'operate')
-                if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before admission.')
-                row = InferenceCall(org_id=org, key_hash=key_hash, request_hash=fingerprint, author_id=author, asset_id=body.model_id, asset_version=model_version, period=period(), reserved=reserved, input_rate=str(rates['input']), output_rate=str(rates['output']))
+                if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before admission.')
+                user=current
+                previous=db.scalar(select(InferenceCall).where(InferenceCall.org_id==org,InferenceCall.env==environment,InferenceCall.key_hash==key_hash))
+                if previous:
+                    if previous.request_hash!=fingerprint:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to a different request.')
+                    return public(previous)
+                if not settings.live_inference:fail(503,'INFERENCE_DISABLED','Live provider execution is disabled by the server operator.')
+                model = asset_for(db, user, body.model_id)
+                if model.kind != 'model' or model.status != 'validated' or model.version != body.expected_version:
+                    fail(409, 'MODEL_NOT_CHECKED', 'Check and refresh this exact model configuration before live execution.')
+                config = validate_config('model', model.config)
+                if body.max_output_tokens > min(config['token_limit'], settings.inference_max_output):
+                    fail(422, 'OUTPUT_LIMIT', 'Requested output exceeds the route/server token limit.')
+                url, headers, rates = route(config, settings)
+                query = body.query.strip()
+                if not query: fail(422, 'QUERY_REQUIRED', 'Enter a nonempty request.')
+                citations = retrieve(db, user.org_id, query) if body.retrieve_evidence else []
+                evidence = '\n\n'.join('['+str(i+1)+'] '+c['text'] for i,c in enumerate(citations))
+                content = query + ('\n\nUntrusted reference excerpts:\n' + evidence if citations else '')
+                rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(100)).all()
+                for rule in rules:
+                    checked = check_guardrail(content, rule.config)
+                    if checked['verdict'] == 'blocked': fail(422, 'GUARDRAIL_BLOCKED', 'A saved input guardrail blocked this request. No provider call was made.')
+                    content = checked['output']
+                # Input upper bound uses UTF-8 bytes plus fixed chat-envelope allowance.
+                upper_input = len(content.encode('utf-8')) + 2048
+                reserved = max(1, cost(upper_input, body.max_output_tokens, rates))
+                model_version = model.version
+                # Preparation can outlast access changes. Re-read authorization
+                # before committing a reservation or sending any provider work.
+                db.expire_all()
+                current=human(request,db,True,'operate')
+                if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before admission.')
+                row = InferenceCall(org_id=org, env=environment, key_hash=key_hash, request_hash=fingerprint, author_id=author, asset_id=body.model_id, asset_version=model_version, period=period(), reserved=reserved, input_rate=str(rates['input']), output_rate=str(rates['output']))
                 db.add(row); db.flush()
-                from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-                from sqlalchemy.dialects.postgresql import insert as pg_insert
-                insert = sqlite_insert if db.bind.dialect.name == 'sqlite' else pg_insert
-                db.execute(insert(InferenceBudget).values(id=__import__('uuid').uuid4().hex, org_id=org, env='staging', created=time.time(), period=row.period, held=0, spent=0).on_conflict_do_nothing(index_elements=['org_id', 'period']))
-                db.scalar(select(InferenceBudget).where(InferenceBudget.org_id==org,InferenceBudget.period==row.period).with_for_update())
-                stamp=time.time()
-                recent=db.scalar(select(func.count()).select_from(InferenceCall).where(InferenceCall.org_id==org,InferenceCall.created>stamp-60))
-                pending=db.scalar(select(func.count()).select_from(InferenceCall).where(InferenceCall.org_id==org,InferenceCall.status=='pending',InferenceCall.created>stamp-300))
+                ensure_budget(db,org,environment,row.period)
+                recent,pending=admission_counts(db,org,environment)
                 # The newly flushed row is included in both counts.
                 if recent>settings.inference_requests_per_minute:
                     fail(429,'INFERENCE_RATE_LIMIT','The organization inference request rate is saturated. Retry later with the same intent key.')
                 if pending>settings.inference_max_inflight:
                     fail(429,'INFERENCE_CONCURRENCY_LIMIT','The organization inference concurrency limit is saturated. No provider request was sent.')
-                charged = db.execute(update(InferenceBudget).where(InferenceBudget.org_id == org, InferenceBudget.period == row.period, InferenceBudget.held+InferenceBudget.spent+reserved <= micro(settings.monthly_budget_usd)).values(held=InferenceBudget.held+reserved))
-                if charged.rowcount != 1: fail(429, 'MONTHLY_BUDGET_EXCEEDED', 'The monthly operator-priced budget has insufficient unreserved capacity.')
+                reserve_budget(db,org,environment,row.period,reserved,micro(settings.monthly_budget_usd))
                 audit(db, org, author, 'inference.reserved', detail={'call_id': row.id, 'asset_id': body.model_id, 'version': model_version, 'reserved_micro_usd': reserved})
                 call_id = row.id
         except IntegrityError:
             with factory() as db:
                 current=human(request,db,True,'operate')
-                if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before recovery.')
-                previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == org, InferenceCall.key_hash == key_hash))
+                if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before recovery.')
+                previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == org, InferenceCall.env == environment, InferenceCall.key_hash == key_hash))
                 if previous and previous.request_hash == fingerprint: return public(previous)
                 fail(409, 'IDEMPOTENCY_CONFLICT', 'Refresh the existing request before retrying.')
         started = time.perf_counter()
@@ -215,14 +224,17 @@ def register_inference(app, factory, settings, human):
             result['citations'] = citations
             # Saved output is scoped to this organization. Prompt text and credentials are not logged or stored.
             with factory.begin() as db:
-                row = db.get(InferenceCall, call_id)
+                row = db.scalar(select(InferenceCall).where(InferenceCall.id==call_id,InferenceCall.org_id==org,InferenceCall.env==environment).with_for_update())
+                if not row:fail(409,'CALL_CONTEXT_CHANGED','The stored call context changed; its reservation needs operator review.')
                 settle(db, row, result['input_tokens'], result['output_tokens'], 'completed', result)
                 row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 audit(db, row.org_id, author, 'inference.completed', detail={'call_id': call_id, 'charged_micro_usd': row.charged},env=row.env)
                 response=public(row)
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
             with factory.begin() as db:
-                row = db.get(InferenceCall, call_id)
+                row = db.scalar(select(InferenceCall).where(InferenceCall.id==call_id,InferenceCall.org_id==org,InferenceCall.env==environment).with_for_update())
+                if not row:fail(409,'CALL_CONTEXT_CHANGED','The stored call context changed; its reservation needs operator review.')
+                if row.status!='pending':fail(409,'CALL_ALREADY_SETTLED','This call was already settled; refresh its evidence.')
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 row.result = {'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
                 audit(db, row.org_id, author, 'inference.unknown', detail={'call_id': call_id},env=row.env)
@@ -232,14 +244,14 @@ def register_inference(app, factory, settings, human):
         # cannot undo an outbound call, but must prevent its answer being returned.
         with factory() as db:
             current=human(request,db,True,'operate')
-            if current.id!=author or current.org_id!=org:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed while inference was running.')
+            if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed while inference was running.')
         return response
 
     @app.post('/v1/inference/{id}/reconcile')
     def reconcile(id: str, body: ReconcileInput, request: Request):
         with factory.begin() as db:
             user = human(request, db, True, 'members')
-            row = db.scalar(select(InferenceCall).where(InferenceCall.id == id, InferenceCall.org_id == user.org_id, InferenceCall.env == 'staging').with_for_update())
+            row = db.scalar(select(InferenceCall).where(InferenceCall.id == id, InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id)).with_for_update())
             if not row: fail(404, 'CALL_NOT_FOUND', 'Inference call not found.')
             if row.status not in ('unknown', 'pending'): fail(409, 'CALL_ALREADY_SETTLED', 'Only unresolved requests can be reconciled.')
             # Pending can represent a crashed worker; allow time beyond max request duration.

@@ -270,20 +270,20 @@ export function RuntimeConsole({ me }: { me: Row }) {
             </div>
             <div>
               <Wallet size={18} />
-              <span>Monthly limit · {runtime.period} UTC</span>
+              <span>Workspace monthly limit · {runtime.period} UTC</span>
               <strong>{usd(runtime.limit_micro_usd)}</strong>
             </div>
             <div>
-              <span>Recorded charge / reserved</span>
+              <span>Workspace charge / reserved</span>
               <strong>
                 {usd(runtime.spent_micro_usd)} / {usd(runtime.held_micro_usd)}
               </strong>
             </div>
           </div>
           <p className="runtime-boundary">
-            Limits: {runtime.requests_per_minute} admitted requests/minute ·{" "}
+            Workspace limits: {runtime.requests_per_minute} admitted requests/minute ·{" "}
             {runtime.max_inflight} concurrent pending dispatches (300-second
-            window).{" "}
+            window). Shared across environments.{" "}
           </p>
           <p className="runtime-boundary">
             {runtime.boundary} Rates are operator-configured estimates, not an
