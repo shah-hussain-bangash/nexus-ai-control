@@ -11,6 +11,8 @@ import {
   copyOutcome,
   type CopyAsset,
   type CopyTarget,
+  workflowReferences,
+  type ReferenceChoice,
 } from "./environmentAssetCopy";
 
 export function EnvironmentAssetCopy({
@@ -38,8 +40,46 @@ export function EnvironmentAssetCopy({
   const [pending, setPending] = useState<RecoveryRecord | null>(null),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [references, setReferences] = useState<ReferenceChoice[]>([]),
+    [mapped, setMapped] = useState<Record<string, string>>({}),
+    [referencesLoading, setReferencesLoading] = useState(false),
+    [referencesError, setReferencesError] = useState("");
   const asset = assets.find((a) => a.id === assetId),
     target = targets.find((t) => t.key === targetKey);
+  let required: ReturnType<typeof workflowReferences> = [],
+    mappingError = "";
+  try {
+    if (asset) required = workflowReferences(asset);
+  } catch (e) {
+    mappingError = (e as Error).message;
+  }
+  useEffect(() => {
+    let active = true;
+    setReferences([]);
+    setMapped({});
+    setReviewed(false);
+    setReferencesError("");
+    if (!asset || asset.kind !== "workflow" || !target) {
+      setReferencesLoading(false);
+      return;
+    }
+    setReferencesLoading(true);
+    api(
+      `/v1/environment-asset-copies/target/${encodeURIComponent(target.key)}/references?expected_version=${target.version}`,
+    )
+      .then((data) => {
+        if (active) setReferences(data.items);
+      })
+      .catch((e) => {
+        if (active) setReferencesError((e as Error).message);
+      })
+      .finally(() => {
+        if (active) setReferencesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [assetId, targetKey, target?.version]);
   useEffect(() => {
     let active = true;
     load().catch((e) => {
@@ -62,7 +102,7 @@ export function EnvironmentAssetCopy({
       setAssets(
         source.assets.filter(
           (a: CopyAsset) =>
-            ["prompt", "guardrail"].includes(a.kind) &&
+            ["prompt", "guardrail", "workflow"].includes(a.kind) &&
             a.status === "validated",
         ),
       );
@@ -88,10 +128,41 @@ export function EnvironmentAssetCopy({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!asset || !target || busy || pending) return;
+    if (
+      !asset ||
+      !target ||
+      busy ||
+      pending ||
+      referencesLoading ||
+      referencesError ||
+      mappingError
+    )
+      return;
     let body;
     try {
-      body = copyPayload(environment, asset, target, name, note, reviewed);
+      const mappings = required.map((ref) => {
+        const chosen = references.find(
+          (row) => row.id === mapped[ref.node_id] && row.kind === ref.kind,
+        );
+        if (!chosen)
+          throw Error(
+            "Select a validated target design for every referenced workflow step.",
+          );
+        return {
+          node_id: ref.node_id,
+          target_asset_id: chosen.id,
+          expected_target_asset_version: chosen.version,
+        };
+      });
+      body = copyPayload(
+        environment,
+        asset,
+        target,
+        name,
+        note,
+        reviewed,
+        mappings,
+      );
     } catch (e) {
       setError((e as Error).message);
       return;
@@ -142,15 +213,24 @@ export function EnvironmentAssetCopy({
       setBusy(false);
     }
   }
-  const locked = busy || loading || !!pending;
+  const locked = busy || loading || !!pending || referencesLoading;
+  const mappingsReady =
+    !mappingError &&
+    !referencesError &&
+    required.every((ref) =>
+      references.some(
+        (row) => row.id === mapped[ref.node_id] && row.kind === ref.kind,
+      ),
+    );
   return (
     <section className="panel runtime-card" aria-label="Copy reviewed designs">
       <h2>Copy reviewed designs</h2>
       <p>
-        Copy a validated prompt or guardrail from <strong>{environment}</strong>{" "}
-        into a different assigned active local environment. Each copy starts as
-        a new draft. Existing designs, validation history, credentials, agents
-        and approvals are never overwritten or copied.
+        Copy a validated prompt, guardrail or workflow from{" "}
+        <strong>{environment}</strong> into a different assigned active local
+        environment. Each copy starts as a new draft. Existing designs,
+        validation history, credentials, agents and approvals are never
+        overwritten or copied.
       </p>
       <button
         className="btn"
@@ -202,7 +282,9 @@ export function EnvironmentAssetCopy({
               setReviewed(false);
             }}
           >
-            <option value="">Choose a validated prompt or guardrail</option>
+            <option value="">
+              Choose a validated prompt, guardrail or workflow
+            </option>
             {assets.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} · {a.kind} · v{a.version}
@@ -237,6 +319,56 @@ export function EnvironmentAssetCopy({
             ))}
           </select>
         </label>
+        {referencesLoading && (
+          <p role="status">Loading target reference designs…</p>
+        )}
+        {(mappingError || referencesError) && (
+          <p role="alert" className="ops-alert">
+            {mappingError || referencesError}
+          </p>
+        )}
+        {asset?.kind === "workflow" && required.length > 0 && (
+          <fieldset disabled={locked || !target}>
+            <legend>Map workflow references</legend>
+            <p>
+              Select an existing validated target design for each step. Source
+              dependencies, contents and validation history are not copied.
+              Every target version is checked again before saving the new
+              workflow draft.
+            </p>
+            {required.map((ref) => (
+              <label className="field" key={ref.node_id}>
+                <span>
+                  Target for {ref.label} ({ref.kind})
+                </span>
+                <select
+                  value={mapped[ref.node_id] || ""}
+                  onChange={(event) => {
+                    setMapped((previous) => ({
+                      ...previous,
+                      [ref.node_id]: event.target.value,
+                    }));
+                    setReviewed(false);
+                  }}
+                >
+                  <option value="">
+                    Choose a validated {ref.kind} in the target
+                  </option>
+                  {references
+                    .filter((row) => row.kind === ref.kind)
+                    .map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.name} · v{row.version} · {row.id.slice(0, 8)}
+                      </option>
+                    ))}
+                </select>
+                <small>
+                  Source {ref.source_asset_id} · v{ref.source_version}
+                </small>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <label className="field">
           <span>New draft name</span>
           <input
@@ -266,7 +398,7 @@ export function EnvironmentAssetCopy({
           <input
             type="checkbox"
             checked={reviewed}
-            disabled={locked}
+            disabled={locked || !mappingsReady}
             onChange={(e) => setReviewed(e.target.checked)}
           />
           I reviewed the source contents and target access. The copy is a new
@@ -274,13 +406,14 @@ export function EnvironmentAssetCopy({
         </label>
         {!loading && (!assets.length || !targets.length) && (
           <p>
-            Validate a prompt or guardrail in this environment and assign
-            yourself to another active local environment to enable copying.
+            Validate a prompt, guardrail or workflow in this environment and
+            assign yourself to another active local environment to enable
+            copying.
           </p>
         )}
         <button
           className="btn btn-primary"
-          disabled={locked || !asset || !target || !reviewed}
+          disabled={locked || !asset || !target || !reviewed || !mappingsReady}
         >
           {busy ? "Saving…" : "Copy as new draft"}
         </button>
