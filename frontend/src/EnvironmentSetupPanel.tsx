@@ -13,6 +13,11 @@ import "./live.css";
 import "./enterpriseRuntime.css";
 import "./environmentSetup.css";
 import { activationPayload, canActivateEnvironment } from "./environmentSwitch";
+import {
+  canControlRuntime,
+  runtimeControlPayload,
+  type RuntimeCommand,
+} from "./environmentRuntime";
 
 type Inventory = {
   workspace: { id: string; name: string };
@@ -20,11 +25,13 @@ type Inventory = {
   current_environment: string;
   read_only?: boolean;
   activation_enabled?: boolean;
+  runtime_control_enabled?: boolean;
 };
 type Editor =
   | { kind: "create" }
   | { kind: "control"; row: EnvironmentRecord; command: EnvironmentCommand }
-  | { kind: "activate"; row: EnvironmentRecord };
+  | { kind: "activate"; row: EnvironmentRecord }
+  | { kind: "runtime"; row: EnvironmentRecord; command: RuntimeCommand };
 const message = (error: unknown) =>
   error instanceof Error
     ? error.message
@@ -119,12 +126,21 @@ export function EnvironmentSetup({
                 note,
                 activationReviewed,
               )
-            : environmentControlPayload(
-                editor.row,
-                inventory.current_environment,
-                editor.command,
-                note,
-              );
+            : editor.kind === "runtime"
+              ? runtimeControlPayload(
+                  editor.row,
+                  inventory.current_environment,
+                  !!inventory.runtime_control_enabled,
+                  editor.command,
+                  note,
+                  activationReviewed,
+                )
+              : environmentControlPayload(
+                  editor.row,
+                  inventory.current_environment,
+                  editor.command,
+                  note,
+                );
       if (
         editor.kind === "create" &&
         inventory.items.some((row) => row.key === key.trim())
@@ -141,20 +157,23 @@ export function EnvironmentSetup({
       await api(
         editor.kind === "create"
           ? "/v1/workspace-environments"
-          : `/v1/workspace-environments/${encodeURIComponent(editor.row.key)}/${editor.kind === "activate" ? "activate" : "control"}`,
+          : `/v1/workspace-environments/${encodeURIComponent(editor.row.key)}/${editor.kind === "activate" ? "activate" : editor.kind === "runtime" ? "runtime-control" : "control"}`,
         "POST",
         payload,
       );
     } catch (e) {
       if (
         e instanceof ApiError &&
-        ["STALE_VERSION", "ENVIRONMENT_STATE"].includes(e.code)
+        [
+          "STALE_VERSION",
+          "ENVIRONMENT_STATE",
+          "STALE_RUNTIME_REVIEW",
+          "ENVIRONMENT_BUSY",
+        ].includes(e.code)
       ) {
         setEditor(null);
         setNeedsRefresh(true);
-        setError(
-          "This environment changed. Refresh the list before trying again.",
-        );
+        setError(e.message + " Refresh the list before trying again.");
       } else if (!(e instanceof ApiError) || e.status >= 500) {
         setNeedsRefresh(true);
         setFormError(
@@ -170,9 +189,13 @@ export function EnvironmentSetup({
         ? "Environment prepared. Assign an owner before local activation."
         : editor.kind === "activate"
           ? "Local environment activated. No records were copied; purchasing starts disabled."
-          : editor.command === "archive"
-            ? "Environment archived."
-            : "Environment restored to Preparing.",
+          : editor.kind === "runtime"
+            ? editor.command === "pause"
+              ? "Environment paused. Records are preserved and its selected sessions were signed out."
+              : "Environment resumed. Existing configuration is available to assigned members; signed-out sessions stay signed out."
+            : editor.command === "archive"
+              ? "Environment archived."
+              : "Environment restored to Preparing.",
     );
     try {
       await refresh();
@@ -264,10 +287,28 @@ export function EnvironmentSetup({
                   ? "Your current runtime environment is protected."
                   : row.state === "archived"
                     ? "Archived setup record. Restore it to continue preparation."
-                    : row.human_runtime_enabled
-                      ? "Active local runtime. Assigned members can select it from the header."
-                    : "Preparation only. No runtime access is enabled."}
+                    : row.state === "suspended"
+                      ? "Runtime paused. Records and assignments are preserved; access is blocked until reviewed resume."
+                      : row.human_runtime_enabled
+                        ? "Active local runtime. Assigned members can select it from the header."
+                        : "Preparation only. No runtime access is enabled."}
               </p>
+              {row.unfinished_work &&
+                Object.values(row.unfinished_work).some(
+                  (count) => count > 0,
+                ) && (
+                  <p>
+                    Unfinished work:{" "}
+                    {Object.entries(row.unfinished_work)
+                      .filter(([, count]) => count > 0)
+                      .map(
+                        ([kind, count]) =>
+                          `${kind.replaceAll("_", " ")}: ${count}`,
+                      )
+                      .join(", ")}
+                    . Finish, cancel or reconcile it before pausing.
+                  </p>
+                )}
               <div className="live-actions">
                 <button
                   className="btn"
@@ -312,6 +353,28 @@ export function EnvironmentSetup({
                       {command === "archive" ? "Archive" : "Restore"}
                     </button>
                   ))}
+                {(["pause", "resume"] as const)
+                  .filter((command) =>
+                    canControlRuntime(
+                      row,
+                      inventory.current_environment,
+                      !!inventory.runtime_control_enabled,
+                      command,
+                    ),
+                  )
+                  .map((command) => (
+                    <button
+                      className="btn"
+                      key={command}
+                      disabled={!!locked}
+                      aria-label={`${command === "pause" ? "Pause" : "Resume"} ${row.name} runtime`}
+                      onClick={() =>
+                        openEditor({ kind: "runtime", row, command })
+                      }
+                    >
+                      {command === "pause" ? "Pause runtime" : "Resume runtime"}
+                    </button>
+                  ))}
               </div>
             </article>
           ))}
@@ -324,7 +387,9 @@ export function EnvironmentSetup({
               ? "Prepare environment"
               : editor.kind === "activate"
                 ? `Activate ${editor.row.name} locally?`
-                : `${editor.command === "archive" ? "Archive" : "Restore"} ${editor.row.name}`
+                : editor.kind === "runtime"
+                  ? `${editor.command === "pause" ? "Pause" : "Resume"} ${editor.row.name} runtime?`
+                  : `${editor.command === "archive" ? "Archive" : "Restore"} ${editor.row.name}`
           }
           onClose={() => {
             if (!busy) setEditor(null);
@@ -336,9 +401,13 @@ export function EnvironmentSetup({
                 ? "This creates a Preparing record. It does not enable runtime access."
                 : editor.kind === "activate"
                   ? "This activates an empty local runtime for its assigned members. No records, agents, tools, grants or credentials are copied. Purchasing starts disabled. This does not deploy or certify production."
-                  : editor.command === "archive"
-                    ? "Archive this preparation record? Environments containing existing records cannot be archived."
-                    : "Restore this record to Preparing? Runtime access will remain unavailable."}
+                  : editor.kind === "runtime"
+                    ? editor.command === "pause"
+                      ? `This blocks runtime access and signs out ${editor.row.selected_sessions} selected sessions. Records, assignments and configuration are preserved. Unfinished work blocks this change. Switch to staging before managing this environment.`
+                      : "This restores runtime access for assigned members using the existing policies, agents, grants and credentials. Review that configuration before resuming. Signed-out sessions are not restored and no work is replayed."
+                    : editor.command === "archive"
+                      ? "Archive this preparation record? Environments containing existing records cannot be archived."
+                      : "Restore this record to Preparing? Runtime access will remain unavailable."}
             </p>
             {editor.kind === "create" && (
               <>
@@ -384,7 +453,7 @@ export function EnvironmentSetup({
                 disabled={busy}
               />
             </label>
-            {editor.kind === "activate" && (
+            {(editor.kind === "activate" || editor.kind === "runtime") && (
               <label className="product-check">
                 <input
                   type="checkbox"
@@ -392,8 +461,9 @@ export function EnvironmentSetup({
                   disabled={busy}
                   onChange={(e) => setActivationReviewed(e.target.checked)}
                 />
-                I reviewed the assigned members and the empty local runtime
-                boundary.
+                {editor.kind === "runtime"
+                  ? "I reviewed the environment, existing configuration and session sign-out effect."
+                  : "I reviewed the assigned members and the empty local runtime boundary."}
               </label>
             )}
             {formError && (
@@ -415,7 +485,8 @@ export function EnvironmentSetup({
                 disabled={
                   busy ||
                   needsRefresh ||
-                  (editor.kind === "activate" && !activationReviewed)
+                  ((editor.kind === "activate" || editor.kind === "runtime") &&
+                    !activationReviewed)
                 }
               >
                 {busy
@@ -424,9 +495,13 @@ export function EnvironmentSetup({
                     ? "Prepare environment"
                     : editor.kind === "activate"
                       ? "Confirm local activation"
-                      : editor.command === "archive"
-                        ? "Confirm archive"
-                        : "Restore to Preparing"}
+                      : editor.kind === "runtime"
+                        ? editor.command === "pause"
+                          ? "Confirm pause"
+                          : "Confirm resume"
+                        : editor.command === "archive"
+                          ? "Confirm archive"
+                          : "Restore to Preparing"}
               </button>
             </div>
           </form>

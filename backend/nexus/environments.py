@@ -79,12 +79,14 @@ def serialize(row,enabled=False):
 def register_environments(app,factory,settings,human):
     @app.get('/v1/workspace-environments')
     def listing(request:Request):
+        from .environment_runtime import runtime_review
         with factory() as db:
             user=human(request,db,False,'members')
             organization=db.get(Organization,user.org_id)
             rows=db.scalars(select(WorkspaceEnvironment).where(WorkspaceEnvironment.org_id==user.org_id).order_by(WorkspaceEnvironment.created,WorkspaceEnvironment.key)).all()
-            return {'workspace':{'id':user.org_id,'name':organization.name},'items':[{**serialize(row,switching_enabled(settings)),'owner_assigned':bool(db.get(EnvironmentAssignment,(user.id,user.org_id,row.key)))} for row in rows],
-                    'current_environment':runtime_environment(db,user.org_id),'switching_enabled':switching_enabled(settings),'activation_enabled':switching_enabled(settings),
+            return {'workspace':{'id':user.org_id,'name':organization.name},'items':[{**serialize(row,switching_enabled(settings)),'owner_assigned':bool(db.get(EnvironmentAssignment,(user.id,user.org_id,row.key))),
+                    **(runtime_review(db,user.org_id,row.key) if row.state in ('active','suspended') else {})} for row in rows],
+                    'current_environment':runtime_environment(db,user.org_id),'switching_enabled':switching_enabled(settings),'activation_enabled':switching_enabled(settings),'runtime_control_enabled':switching_enabled(settings),
                     'boundary':'Local activation starts an empty runtime with purchasing disabled. Assigned active members can select active environments. No records, workloads or credentials are promoted; pilot activation is unavailable.'}
 
     @app.post('/v1/workspace-environments/{key}/activate')

@@ -4,7 +4,7 @@ from fastapi import Request
 from pydantic import Field
 from sqlalchemy import select
 from .schemas import Strict
-from .db import SessionRecord,SessionRuntimeContext,User,WorkspaceEnvironment,EnvironmentAssignment,now
+from .db import SessionRecord,SessionRuntimeContext,User,Agent,WorkspaceEnvironment,EnvironmentAssignment,now
 from .security import digest,fail,get_session_context,public_session_context
 from .runtime_context import CURRENT_ENVIRONMENT,switching_enabled,environment_user_allowed
 from .service import audit
@@ -18,6 +18,13 @@ class Selection(Strict):
     reviewed:bool=Field(default=False,strict=True)
 
 def response_context_valid(request,factory,settings):
+    workload=getattr(request.state,'authenticated_workload_context',None)
+    if workload:
+        agent_id,org,environment,generation,owner_id=workload
+        with factory() as db:
+            agent=db.get(Agent,agent_id)
+            if not (agent and agent.status=='active' and (agent.org_id,agent.env,agent.generation,agent.owner_id)==(org,environment,generation,owner_id) and
+                    environment_user_allowed(db,owner_id,org,environment,allow_non_staging=switching_enabled(settings))):return False
     snapshot=getattr(request.state,'authenticated_context',None)
     if not snapshot or getattr(request.state,'context_logout',False):return True
     session_id,user_id,org,environment,revision,binding,role=snapshot

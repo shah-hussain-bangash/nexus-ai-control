@@ -137,12 +137,17 @@ def workload_token(agent, settings):
                        'iat': int(now()), 'exp': int(now()) + 300}, settings.agent_secret, algorithm='HS256')
 
 
-def authenticate_agent(token, db, settings, request=None):
+def authenticate_agent(token, db, settings, request=None,write=False):
     try:
         claims = jwt.decode(token, settings.agent_secret, algorithms=['HS256'], audience='nexus-gateway',
                             issuer='nexus-workload', options={'require': ['sub', 'org', 'env', 'exp', 'iat', 'generation']})
     except jwt.PyJWTError: fail(401, 'INVALID_AGENT_TOKEN', 'Workload authentication failed.')
-    agent = db.get(Agent, claims['sub'])
+    require_identity_context(db,claims['org'],claims['env'])
+    if write:
+        # Match human admission ordering. A pause cannot pass an empty-work
+        # review while a workload concurrently admits a new action.
+        db.execute(update(Organization).where(Organization.id==claims['org']).values(name=Organization.name))
+    agent = db.scalar(select(Agent).where(Agent.id==claims['sub']).execution_options(populate_existing=True))
     if not agent or agent.org_id != claims['org'] or agent.env != claims['env']:
         fail(401, 'INVALID_AGENT_TOKEN', 'Workload authentication failed.')
     if agent.status != 'active' or agent.generation != claims['generation']:
@@ -152,4 +157,6 @@ def authenticate_agent(token, db, settings, request=None):
     if not environment_user_allowed(db,agent.owner_id,agent.org_id,agent.env,allow_non_staging=switching_enabled(settings)):
         fail(403,'ENVIRONMENT_ACCESS_DENIED','The workload environment or owner authorization is unavailable.')
     bind_runtime_context(db,agent.org_id,agent.env)
+    if request is not None:
+        request.state.authenticated_workload_context=(agent.id,agent.org_id,agent.env,agent.generation,agent.owner_id)
     return agent
