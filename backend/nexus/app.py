@@ -26,7 +26,7 @@ from .security import (session_user, issue_session, password_valid, digest, fail
                        workload_token, authenticate_agent, PERMISSIONS, get_session_context, public_session_context)
 from .service import scoped, submit_action, active_policy, decide, audit, verify
 from .policy import evaluate
-from .runtime_context import CURRENT_ENVIRONMENT, runtime_environment
+from .runtime_context import CURRENT_ENVIRONMENT, runtime_environment, switching_enabled
 from .mock_connector import UncertainOutcome
 from .business_connector import business_connector, connector_identity, connector_profile
 
@@ -63,6 +63,10 @@ def create_app(settings=None):
         if content_length > limit:
             return JSONResponse({'error': {'code': 'PAYLOAD_TOO_LARGE', 'message': f'Maximum request size is {limit} bytes.'}}, 413)
         response = await call_next(request)
+        if response.status_code<400 and not response_context_valid(request,factory,settings):
+            replacement=JSONResponse({'error':{'code':'STALE_SESSION_CONTEXT','message':'Your workspace access or context changed. Refresh before continuing.'}},409)
+            if response.headers.get('X-Request-ID'):replacement.headers['X-Request-ID']=response.headers['X-Request-ID']
+            response=replacement
         if settings.mode != 'local': response.headers['Strict-Transport-Security'] = 'max-age=31536000'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
@@ -80,8 +84,8 @@ def create_app(settings=None):
     async def errors(request, exc):
         return JSONResponse({'error': exc.detail if isinstance(exc.detail, dict) else {'code': 'REQUEST_FAILED', 'message': str(exc.detail)}}, exc.status_code)
 
-    def human(request, db, write=False, permission=None):
-        u = session_user(request, db, write)
+    def human(request, db, write=False, permission=None,serialize=True):
+        u = session_user(request, db, write,serialize=serialize)
         if permission: permit(u, permission)
         return u
 
@@ -141,6 +145,7 @@ def create_app(settings=None):
             user = human(request, db, True)
             row = db.get(SessionRecord, digest(request.cookies['nexus_session'])); db.delete(row)
             audit(db, user.org_id, user.id, 'session.ended')
+        request.state.context_logout=True
         response.delete_cookie('nexus_session', path='/'); return {'status': 'signed_out'}
 
     @app.get('/v1/me')
@@ -150,7 +155,7 @@ def create_app(settings=None):
             session = db.get(SessionRecord, digest(request.cookies['nexus_session']))
             return {'user': public(user), 'csrf': session.csrf, 'permissions': sorted(PERMISSIONS[user.role]),
                     'workspace': 'Northstar Operations' if user.org_id == 'northstar' else user.org_id,
-                    'environment': runtime_environment(db,user.org_id), 'runtime_context':public_session_context(get_session_context(db,session,user)), 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
+                    'environment': runtime_environment(db,user.org_id), 'runtime_context':public_session_context(get_session_context(db,session,user,allow_non_staging=switching_enabled(settings)),switching_enabled(settings)), 'synthetic': settings.business_connector=='synthetic', 'mode': settings.mode, 'business_connector': connector_profile(settings)}
 
     @app.get('/v1/overview')
     def overview(request: Request):
@@ -511,14 +516,14 @@ def create_app(settings=None):
     from .hybrid import register_hybrid
     register_hybrid(app,factory,settings,human)
     from .environments import register_environments
-    from .session_context import register_session_context
-    register_session_context(app,factory,human)
+    from .session_context import register_session_context, response_context_valid
+    register_session_context(app,factory,settings,human)
     register_environments(app,factory,settings,human)
     @app.get('/v1/runtime-context')
     def runtime_context(request:Request):
         with factory() as db:
             user=human(request,db)
-            return {'workspace_id':user.org_id,'environment':runtime_environment(db,user.org_id),'access_checked':True,'switching_enabled':False}
+            return {'workspace_id':user.org_id,'environment':runtime_environment(db,user.org_id),'access_checked':True,'switching_enabled':switching_enabled(settings)}
     from .interfaces import register_interfaces
     register_interfaces(app, factory, settings, human)
 

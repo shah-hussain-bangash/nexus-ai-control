@@ -104,7 +104,7 @@ def test_preparing_membership_and_internal_context_do_not_enable_public_switchin
     for path in ('/v1/me','/v1/agents','/v1/settings','/v1/runtime-operations','/v1/runtime-context'):
         response=ctx['client'].get(path,headers={'X-Nexus-Environment':'production'})
         assert response.status_code==409,response.text
-        assert response.json()['error']['code']=='ENVIRONMENT_SWITCHING_UNAVAILABLE'
+        assert response.json()['error']['code']=='ENVIRONMENT_CONTEXT_CHANGED'
     assert ctx['client'].get('/v1/settings').json()['environment']=='staging'
     assert ctx['client'].get('/v1/runtime-context').json()['environment']=='staging'
 

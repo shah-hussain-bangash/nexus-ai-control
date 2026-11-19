@@ -2,7 +2,7 @@
 
 Generated from `backend/nexus/readiness.py` by `scripts/export_production_roadmap.py`. Update the source definitions, then regenerate these documents.
 
-Source states: **1 implemented awaiting acceptance, 16 partial, 1 not implemented.** No deployment acceptance is granted by these source states. The 216 function previews describe the intended UI scope.
+Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemented.** No deployment acceptance is granted by these source states. The 216 function previews describe the intended UI scope.
 
 | Workstream | Source state | Remaining evidence / scope |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Source states: **1 implemented awaiting acceptance, 16 partial, 1 not implemente
 | Inference traffic controls | implemented | Shared-database admission limits, concurrency reservations and saturation behavior. |
 | Usage & cost governance | partial | Invoice reconciliation, evidence retention and account-level cost controls. |
 | Identity & workload lifecycle | partial | IdP provisioning/offboarding, verified MFA and workload federation. |
-| Workspace & environment lifecycle | not_implemented | Create/switch environments with controlled membership and isolation tests. |
+| Workspace & environment lifecycle | partial | Local empty-environment activation, versioned switching, membership and isolation tests are implemented. Pilot activation, controlled imports, active-environment retirement and deployment acceptance remain. |
 | Secrets & network isolation | partial | Managed-secret injection, rotation and deployment-enforced egress isolation. |
 | Telemetry, alerts & SLOs | partial | External logs/metrics/traces, service objectives and operator notification drills. |
 | Audit integrity & retention | partial | Immutable off-host archive, retention rules and evidence export verification. |

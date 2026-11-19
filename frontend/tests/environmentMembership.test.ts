@@ -156,6 +156,7 @@ test("missing, mismatched or incomplete acknowledgements never count as a confir
     switching_enabled: false,
   };
   assert.equal(assignmentAcknowledged(receipt, request, "staging"), true);
+  assert.equal(assignmentAcknowledged({ ...receipt, switching_enabled: true }, request, "staging"), true);
   for (const value of [
     null,
     {},
@@ -164,7 +165,7 @@ test("missing, mismatched or incomplete acknowledgements never count as a confir
     { ...receipt, version: 4 },
     { ...receipt, status: "assigned" },
     { ...receipt, sessions_revoked: -1 },
-    { ...receipt, switching_enabled: true },
+    { ...receipt, switching_enabled: "true" },
   ])
     assert.equal(assignmentAcknowledged(value, request, "staging"), false);
 });

@@ -148,7 +148,7 @@ def register_ingestion(app,factory,settings,human):
             check_version(job,body)
             if job.status!='awaiting_review' or job.expires<=now() or not job.extracted_text:fail(409,'INTAKE_NOT_REVIEWABLE','Only an unexpired extracted result can be reviewed and published.')
             author=db.get(User,job.author_id)
-            if not author or author.org_id!=job.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,job.org_id,job.env):fail(403,'INTAKE_AUTHOR_REVOKED','The original requesting author is no longer authorized.')
+            if not author or author.org_id!=job.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,job.org_id,job.env,allow_non_staging=settings.mode=='local'):fail(403,'INTAKE_AUTHOR_REVOKED','The original requesting author is no longer authorized.')
             validate_members(db,user.org_id,job.allowed_users)
             count=db.scalar(select(func.count()).select_from(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==runtime_environment(db,user.org_id),KnowledgeDocument.status=='indexed'))
             if count>=200:fail(429,'DOCUMENT_CAPACITY','This workspace already has 200 active source documents.')
@@ -189,7 +189,7 @@ def run_ingestion_once(factory,settings,extractor=None):
         token=uid();claimed=db.execute(update(IngestionJob).where(IngestionJob.id==job.id,IngestionJob.org_id==job.org_id,IngestionJob.env==job.env,IngestionJob.version==job.version,IngestionJob.status=='queued').values(status='processing',version=job.version+1,attempts=job.attempts+1,lease_token=token,lease_until=now()+90,updated=now()))
         if not claimed.rowcount:return False
         id=job.id;org=job.org_id;environment=job.env;data=bytes(job.original_data);author=db.get(User,job.author_id)
-        permitted=author and author.org_id==job.org_id and author.active and 'operate' in PERMISSIONS.get(author.role,set()) and environment_user_allowed(db,author.id,job.org_id,job.env)
+        permitted=author and author.org_id==job.org_id and author.active and 'operate' in PERMISSIONS.get(author.role,set()) and environment_user_allowed(db,author.id,job.org_id,job.env,allow_non_staging=settings.mode=='local')
         db.expunge(job)
     try:result=(extractor or extract_file)(data,job,settings) if permitted else {'error_code':'REQUESTER_REVOKED'}
     except Exception:result={'error_code':'EXTRACTION_UNAVAILABLE'}
@@ -197,7 +197,7 @@ def run_ingestion_once(factory,settings,extractor=None):
         current=db.scalar(select(IngestionJob).where(IngestionJob.id==id,IngestionJob.org_id==org,IngestionJob.env==environment,IngestionJob.status=='processing',IngestionJob.lease_token==token).with_for_update())
         if not current:return True  # cancellation/expiry fences off stale publication
         author=db.get(User,current.author_id)
-        if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env) or 'operate' not in PERMISSIONS.get(author.role,set()):
+        if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env,allow_non_staging=settings.mode=='local') or 'operate' not in PERMISSIONS.get(author.role,set()):
             result={'error_code':'REQUESTER_REVOKED'}
         text=result.get('text','');error=result.get('error_code','')
         if not isinstance(text,str) or '\x00' in text or len(text.encode('utf-8'))>32768:error='EXTRACTOR_RESULT_INVALID'

@@ -27,7 +27,9 @@ export async function api<T = any>(
   key?: string,
 ): Promise<T> {
   const snapshot = sessionContext.capture();
-  const contextual = path.startsWith("/v1/") && path.split("?")[0] !== "/v1/me";
+  const contextual =
+    (path.startsWith("/v1/") || path.split("?")[0] === "/auth/logout") &&
+    path.split("?")[0] !== "/v1/me";
   const response = await fetch(path, {
     method,
     credentials: "same-origin",
@@ -54,6 +56,8 @@ export async function api<T = any>(
       "SESSION_CONTEXT_UNAVAILABLE",
       "STALE_SESSION_CONTEXT",
       "ENVIRONMENT_ACCESS_DENIED",
+      "ENVIRONMENT_CONTEXT_CHANGED",
+      "CSRF_FAILED",
     ].includes(data.error?.code)
   ) {
     csrf = "";

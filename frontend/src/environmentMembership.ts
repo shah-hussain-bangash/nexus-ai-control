@@ -14,6 +14,7 @@ export type AssignmentSnapshot = {
   candidates?: EnvironmentMember[];
   environment?: EnvironmentRecord;
   editing_enabled: boolean;
+  switching_enabled?: boolean;
 };
 export type AssignmentCommand = "grant" | "revoke";
 export function canChangeAssignment(
@@ -70,6 +71,6 @@ export function assignmentAcknowledged(
     typeof result.sessions_revoked === "number" &&
     Number.isInteger(result.sessions_revoked) &&
     result.sessions_revoked >= 0 &&
-    result.switching_enabled === false
+    typeof result.switching_enabled === "boolean"
   );
 }

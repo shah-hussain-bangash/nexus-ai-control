@@ -57,7 +57,7 @@ def test_preparing_membership_never_enables_runtime_and_archived_is_read_only(ct
     headers,_=auth(ctx)
     assert ctx['client'].post('/v1/workspace-environments',headers=headers,json={'key':'production','name':'Production','note':'Prepare synthetic environment.'}).status_code==201
     result=change(ctx,'grant','production')
-    assert result.status_code==200 and result.json()['switching_enabled'] is False
+    assert result.status_code==200 and result.json()['switching_enabled'] is True
     data=snapshot(ctx,'production')
     assert len(data['items'])==1 and data['environment']['state']=='preparing'
     with ctx['db']() as db:

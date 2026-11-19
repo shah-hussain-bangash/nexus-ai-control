@@ -1,4 +1,4 @@
-"""Current staging access gate; does not enable runtime environment switching."""
+"""Bound runtime isolation and mode-aware active-environment membership gates."""
 import re
 from sqlalchemy import select, and_, event, inspect
 from sqlalchemy.orm import Session, with_loader_criteria
@@ -61,8 +61,12 @@ def constrain_runtime_writes(db,flush_context,instances):
                 raise RuntimeError('Cross-context writes are not permitted.')
 
 
-def environment_user_allowed(db, user_id, org_id, environment=CURRENT_ENVIRONMENT):
-    if environment != CURRENT_ENVIRONMENT:
+def switching_enabled(settings):
+    return settings is not None and settings.mode=='local'
+
+
+def environment_user_allowed(db, user_id, org_id, environment=CURRENT_ENVIRONMENT,allow_non_staging=False):
+    if environment != CURRENT_ENVIRONMENT and not allow_non_staging:
         return False
     query=(select(EnvironmentAssignment.user_id)
            .join(WorkspaceEnvironment,and_(WorkspaceEnvironment.org_id==EnvironmentAssignment.org_id,

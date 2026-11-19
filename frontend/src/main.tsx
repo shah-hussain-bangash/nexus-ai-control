@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { api, setCsrf } from "./api";
 import { sessionContext } from "./sessionContext";
+import { EnvironmentSwitcher } from "./EnvironmentSwitcher";
 import { recoveryPanelKey } from "./recoveryContext";
 import { FlagshipHub } from "./FlagshipHub";
 import { RuntimeConsole } from "./RuntimeConsole";
@@ -1004,10 +1005,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
               <span>Jump to a view</span>
               <kbd>⌘ / Ctrl K</kbd>
             </button>
-            <span className="environment">
-              <i />
-              {friendly(me.environment)}
-            </span>
+            <EnvironmentSwitcher me={me} />
             <button
               className="text-size-control"
               onClick={() =>
@@ -1268,7 +1266,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                         <Badge value={a.status} />
                       </div>
                       <h2>{a.name}</h2>
-                      <p>Scoped workload identity · Staging</p>
+                      <p>Scoped workload identity · {me.environment}</p>
                       <div className="agent-tags">
                         <span>{a.framework}</span>
                         <span>v{a.version}</span>
@@ -1837,7 +1835,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                   <h2>Environment & controls</h2>
                   <dl>
                     {[
-                      ["Environment", "Staging"],
+                      ["Environment", me.environment],
                       ["Runtime", friendly(data.settings.mode || "local")],
                       ["Policy engine", data.settings.policy_engine],
                       ["Database", data.settings.database],
@@ -2535,7 +2533,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                 <div>
                   <Badge value={modal.row.status} />
                   <p>
-                    {modal.row.framework} · v{modal.row.version} · staging
+                    {modal.row.framework} · v{modal.row.version} · {me.environment}
                   </p>
                 </div>
               </div>

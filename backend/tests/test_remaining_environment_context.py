@@ -45,13 +45,14 @@ def test_readiness_evidence_versions_and_acceptance_stay_in_context(ctx,internal
     stale=internal.put(url,headers={'X-Test-Context':'production'},json=evidence());assert stale.status_code==409
     changed=internal.put(url,headers={'X-Test-Context':'production'},json=evidence(1,'failed'))
     assert changed.status_code==200 and changed.json()['version']==2
-    # Operator evidence cannot turn missing lifecycle software into acceptance.
-    assert internal.put('/v1/production-readiness/workspace_lifecycle',headers={'X-Test-Context':'production'},json=evidence()).status_code==422
+    # Operator evidence cannot turn partial lifecycle software into acceptance.
+    assert internal.put('/v1/production-readiness/workspace_lifecycle',headers={'X-Test-Context':'production'},json=evidence()).status_code==200
+    assert internal.get('/v1/production-readiness',headers={'X-Test-Context':'production'}).json()['accepted']==0
     with ctx['db']() as db:
         rows=db.scalars(select(ReadinessEvidence)).all()
-        assert {(r.env,r.version) for r in rows}=={('staging',1),('production',2)}
+        assert {(r.env,r.version) for r in rows}=={('staging',1),('production',1),('production',2)}
         events=db.scalars(select(Audit).where(Audit.event=='readiness.evidence_recorded')).all()
-        assert sorted(r.env for r in events)==['production','production','staging']
+        assert sorted(r.env for r in events)==['production','production','production','staging']
 
 
 def test_readiness_internal_helper_requires_bound_or_explicit_environment(ctx,internal):

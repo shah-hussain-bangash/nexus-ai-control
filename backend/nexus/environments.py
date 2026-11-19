@@ -1,12 +1,13 @@
-"""Organization-scoped environment inventory; runtime switching remains disabled."""
+"""Workspace environment inventory, assignments and reviewed empty local activation."""
 from typing import Literal
 from fastapi import Request
 from pydantic import Field, field_validator
 from sqlalchemy import select, update, delete, func
-from .db import Organization, User, SessionRecord, WorkspaceEnvironment, EnvironmentAssignment, Base, now, public
+from .db import Organization, User, SessionRecord, WorkspaceEnvironment, EnvironmentAssignment, Policy, Base, now, public,uid
 from .schemas import Strict
 from .security import fail
 from .service import audit
+from .runtime_context import switching_enabled,runtime_environment
 
 
 def assign_staging(db, user):
@@ -59,8 +60,20 @@ class AssignmentInput(Strict):
         return value.strip()
 
 
-def serialize(row):
-    return {**public(row),'human_runtime_enabled':row.key=='staging' and row.state=='active'}
+class ActivationInput(Strict):
+    expected_version:int=Field(ge=1,strict=True)
+    note:str=Field(min_length=5,max_length=500)
+    reviewed:Literal[True]
+
+    @field_validator('note')
+    @classmethod
+    def visible(cls,value):
+        if len(value.strip())<5 or any(ord(c)<32 or ord(c)==127 for c in value):raise ValueError('Include a visible activation reason on one line.')
+        return value.strip()
+
+
+def serialize(row,enabled=False):
+    return {**public(row),'human_runtime_enabled':row.state=='active' and (row.key=='staging' or enabled)}
 
 
 def register_environments(app,factory,settings,human):
@@ -70,9 +83,31 @@ def register_environments(app,factory,settings,human):
             user=human(request,db,False,'members')
             organization=db.get(Organization,user.org_id)
             rows=db.scalars(select(WorkspaceEnvironment).where(WorkspaceEnvironment.org_id==user.org_id).order_by(WorkspaceEnvironment.created,WorkspaceEnvironment.key)).all()
-            return {'workspace':{'id':user.org_id,'name':organization.name},'items':[serialize(row) for row in rows],
-                    'current_environment':'staging','switching_enabled':False,
-                    'boundary':'Environment inventory is available. New environments are preparing; runtime switching, promotion and non-staging data access are not enabled.'}
+            return {'workspace':{'id':user.org_id,'name':organization.name},'items':[{**serialize(row,switching_enabled(settings)),'owner_assigned':bool(db.get(EnvironmentAssignment,(user.id,user.org_id,row.key)))} for row in rows],
+                    'current_environment':runtime_environment(db,user.org_id),'switching_enabled':switching_enabled(settings),'activation_enabled':switching_enabled(settings),
+                    'boundary':'Local activation starts an empty runtime with purchasing disabled. Assigned active members can select active environments. No records, workloads or credentials are promoted; pilot activation is unavailable.'}
+
+    @app.post('/v1/workspace-environments/{key}/activate')
+    def activate(key:str,body:ActivationInput,request:Request):
+        if not switching_enabled(settings):fail(403,'LOCAL_ONLY','Environment activation is available only in local mode.')
+        with factory.begin() as db:
+            actor=human(request,db,True,'members')
+            row=db.get(WorkspaceEnvironment,(actor.org_id,key),with_for_update=True)
+            if not row:fail(404,'ENVIRONMENT_NOT_FOUND','Environment not found in this workspace.')
+            if key=='staging' or row.state!='preparing':fail(409,'ENVIRONMENT_STATE','Only a Preparing environment can be activated.')
+            if row.version!=body.expected_version:fail(409,'STALE_VERSION','Environment or assignments changed. Refresh before activating.')
+            if actor.role!='owner' or not db.get(EnvironmentAssignment,(actor.id,actor.org_id,key)):
+                fail(403,'ACTIVATION_OWNER_REQUIRED','An active owner must be assigned to this environment before activation.')
+            for table in Base.metadata.sorted_tables:
+                if 'org_id' in table.c and 'env' in table.c and table.name!='inference_budgets':
+                    if db.scalar(select(func.count()).select_from(table).where(table.c.org_id==actor.org_id,table.c.env==key)):
+                        fail(409,'ENVIRONMENT_NOT_EMPTY','Existing runtime data requires a separate reviewed import; activation cannot promote it.')
+            # Explicit control-plane insert: no scoped runtime session is retargeted
+            # and no source policy, agent, grant, tool or provider is copied.
+            db.execute(Policy.__table__.insert().values(id=uid(),org_id=actor.org_id,env=key,version=1,threshold='0.00',maximum='0.00',active=1,name='Local baseline: purchasing disabled',created=now()))
+            row.state='active';row.version+=1;row.updated=now()
+            audit(db,actor.org_id,actor.id,'environment.activated',detail={'environment_key':key,'version':row.version,'note':body.note,'empty_runtime':True,'purchasing_disabled':True})
+            return serialize(row,True)
 
     @app.post('/v1/workspace-environments',status_code=201)
     def create(body:EnvironmentInput,request:Request):
@@ -126,8 +161,8 @@ def register_environments(app,factory,settings,human):
             return {'items':[{'id':r.id,'name':r.name,'email':by_id[r.id].email,'role':r.role,'active':bool(r.active),'revision':revision(db,by_id[r.id])} for r in rows],
                     'candidates':[{'id':u.id,'name':u.name,'email':u.email,'role':u.role,'active':True,'revision':revision(db,u)} for u in users
                                   if u.id not in assigned and u.active and not (key=='staging' and u.role=='owner')],
-                    'environment':serialize(environment),
-                    'editing_enabled':environment.state in ('active','preparing'),'switching_enabled':False}
+                    'environment':serialize(environment,switching_enabled(settings)),
+                    'editing_enabled':environment.state in ('active','preparing'),'switching_enabled':switching_enabled(settings)}
 
     @app.post('/v1/workspace-environments/{key}/assignments/control')
     def change_assignment(key:str,body:AssignmentInput,request:Request):
@@ -156,6 +191,7 @@ def register_environments(app,factory,settings,human):
             audit(db,actor.org_id,actor.id,'environment.assignment_'+body.command,detail={
                 'environment_key':key,'member_id':target.id,'version':environment.version,
                 'sessions_revoked':revoked,'note':body.note})
+            if target.id==actor.id:request.state.context_logout=True  # Own session-revocation acknowledgement only.
             return {'status':'assigned' if body.command=='grant' else 'removed','member_id':target.id,
                     'environment_key':key,'version':environment.version,'sessions_revoked':revoked,
-                    'switching_enabled':False}
+                    'switching_enabled':switching_enabled(settings)}
