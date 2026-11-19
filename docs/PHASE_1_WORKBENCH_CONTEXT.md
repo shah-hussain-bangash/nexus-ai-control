@@ -41,8 +41,9 @@ collisions across contexts still require schema/admission review before switchin
 Existing global worker maintenance remains intentionally unbound and uses stored
 provenance. Raw SQL and maintenance fixtures are outside ORM context enforcement.
 
-Inference accounting and admission, runtime activation/session selection, remaining
-resource paths and root client caches need review before an environment selector.
+Inference accounting/admission is covered by `PHASE_1_INFERENCE_CONTEXT.md`.
+Runtime activation/session selection, remaining resource paths and root client
+caches need review before an environment selector.
 Workbenches retain their existing workspace role model; this is not new per-asset
 sharing or a new history-retention/erasure policy.
 
