@@ -9,7 +9,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Customer business connectors | partial | HTTP adapter, governed supplier checks, receipt recovery, approval-bound dispatch, unsigned evidence downloads and a disposable synthetic approval/idempotency/recovery/isolation drill are implemented. Real customer sandbox, purchase/idempotency/isolation acceptance and deployment evidence remain. |
 | Durable agent execution | partial | Pause/resume, cancellation and worker crash recovery for multi-step agents. |
 | Document ingestion & OCR | partial | Authorized ingestion jobs, parsing, OCR and deletion propagation. |
-| Semantic retrieval & reranking | partial | Local ACL-first LSA/BM25 retrieval and versioned Arabic search normalization are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain. |
+| Semantic retrieval & reranking | partial | Local ACL-first LSA/BM25 retrieval, Arabic normalization and a disposable combined knowledge drill are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain. |
 | Document-level permissions | partial | Source ACL enforcement across retrieval, indexing and deletion. |
 | Bilingual answer evaluation | partial | Reviewer-labelled retrieval metrics, precision targets, saved-run comparisons and a disposable synthetic retrieval drill are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain. |
 | Provider resilience | partial | Model-specific failure behavior, streaming/fallback if required, and live provider acceptance. |

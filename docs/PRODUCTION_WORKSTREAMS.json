@@ -36,7 +36,7 @@
       "title": "Semantic retrieval & reranking",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Local ACL-first LSA/BM25 retrieval and versioned Arabic search normalization are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.",
+      "required_evidence": "Local ACL-first LSA/BM25 retrieval, Arabic normalization and a disposable combined knowledge drill are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.",
       "workspace": "knowledge"
     },
     {
