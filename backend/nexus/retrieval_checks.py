@@ -5,7 +5,7 @@ production certification is performed by these checks.
 """
 from typing import Literal
 from fastapi import Request, Header, Query
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator, ValidationError
 from sqlalchemy import select, update, func
 from .schemas import Strict
 from .db import RetrievalCheck, Organization, KnowledgeDocument, now, public
@@ -15,6 +15,7 @@ from .security import fail, digest, PERMISSIONS
 from .runtime_context import runtime_environment
 from .search_text import NORMALIZATION_VERSION
 from .retrieval_metrics import language_metrics, result_with_precision, measure_case
+from .retrieval_comparison import compare_details
 
 
 class CheckCase(Strict):
@@ -55,6 +56,16 @@ class Recover(Strict):
     key: str = Field(min_length=8,max_length=128)
 
 
+class CompareInput(Strict):
+    baseline_id: str = Field(min_length=1,max_length=64)
+    candidate_id: str = Field(min_length=1,max_length=64)
+
+    @model_validator(mode='after')
+    def distinct(self):
+        if self.baseline_id==self.candidate_id:raise ValueError('Choose two different saved checks.')
+        return self
+
+
 class Removal(Strict):
     note: str = Field(min_length=5,max_length=500)
 
@@ -76,6 +87,23 @@ def summary(record):
 def check_config(body):
     # Omitting unset optional controls preserves exact legacy request fingerprints.
     return body.model_dump(exclude_none=True)
+
+
+def comparison_config(record):
+    config=check_config(CheckInput.model_validate(record.config));config.pop('name')
+    for case in config['cases']:case['expected_document_ids']=sorted(case['expected_document_ids'])
+    return config
+
+
+def validate_comparison_cases(detail,config):
+    cases=detail['result']['cases']
+    if len(cases)!=len(config['cases']):raise ValueError('Saved case count differs.')
+    for saved,defined in zip(cases,config['cases']):
+        if any(saved.get(key)!=defined.get(key) for key in ('query','expectation','query_language','minimum_precision_percent')):
+            raise ValueError('Saved case definition differs.')
+        if set(saved['expected_document_ids'])!=set(defined['expected_document_ids']):raise ValueError('Saved expected sources differ.')
+        referenced=set(saved['expected_document_ids']) | set(saved['retrieved_document_ids'])
+        if not referenced.issubset(detail['result']['source_versions']):raise ValueError('Saved source version references are incomplete.')
 
 
 def checked_detail(db,record,user):
@@ -131,6 +159,28 @@ def execute(db,user,body):
 
 
 def register_retrieval_checks(app,factory,settings,human):
+    @app.post('/v1/retrieval-checks/compare')
+    def compare(body:CompareInput,request:Request):
+        with factory.begin() as db:
+            # CSRF + the existing workspace lock keep source/identity controls ordered.
+            # No comparison record or audit evidence is created or changed.
+            user=human(request,db,True)
+            baseline=record_for(db,body.baseline_id,user);candidate=record_for(db,body.candidate_id,user)
+            if baseline.author_id!=user.id or candidate.author_id!=user.id:
+                fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Comparisons are available only for your own saved checks.')
+            left=checked_detail(db,baseline,user);right=checked_detail(db,candidate,user)
+            if any(record.result.get('actor_id')!=user.id or record.result.get('actor_role')!=user.role for record in (baseline,candidate)):
+                fail(409,'COMPARISON_ROLE_CHANGED','Both checks must have been run under your current account and role.')
+            try:
+                before=comparison_config(baseline);after=comparison_config(candidate)
+                validate_comparison_cases(left,before);validate_comparison_cases(right,after)
+            except (ValidationError,ValueError,TypeError,KeyError):
+                fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved check definitions cannot be compared by this release.')
+            if canonical(before)!=canonical(after):
+                fail(409,'COMPARISON_DEFINITION_CHANGED','Compare matching ordered queries, source expectations, top-k, language labels and precision targets. Suite names may differ.')
+            try:return compare_details(left,right)
+            except (ValueError,TypeError,KeyError):fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved measurements cannot be compared by this release.')
+
     @app.get('/v1/retrieval-checks')
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:
