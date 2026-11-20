@@ -99,6 +99,21 @@ connector settings. No customer credentials or running server are required. The
 command prints a report path in the ignored `backend/data/drills` folder. See
 `docs/SYNTHETIC_CONNECTOR_DRILL.md` for the checks, exit codes and limits.
 
+## Run the disposable synthetic retrieval drill
+
+```powershell
+npm.cmd run test:retrieval
+```
+
+This runs 18 checks covering Arabic normalization, source isolation, precision
+targets, matching saved-run comparisons, replay/recovery and revoked/deleted
+sources. It creates a temporary workspace and preserves your existing accounts,
+documents and settings. Keep your app open. No password, report path or customer
+connection is required. The command prints the saved report path in the ignored
+`backend/data/drills` folder. See [the retrieval drill guide](docs/SYNTHETIC_RETRIEVAL_DRILL.md)
+for exit codes and scope limits. Passing this synthetic exercise does not establish
+generated-answer quality or production readiness.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:
