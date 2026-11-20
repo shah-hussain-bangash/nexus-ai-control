@@ -1,9 +1,9 @@
 # Run NEXUS AI Control in Cursor on Windows
 
-The 0.16.2 candidate uses schema 9. Updating 0.16.1 requires a code update and restart;
-read `docs/PHASE_1_RUNTIME_ACCESS.md`. Before upgrading a schema-8 installation,
-follow `docs/PHASE_1_ENVIRONMENT_FOUNDATION.md`: stop all API/workers, make and inspect
-a private backup, then migrate. Fresh setup uses the current schema automatically.
+The current source uses schema 11. Before upgrading an older installation, stop all
+API/workers, make and inspect a private backup, then follow the environment and session
+upgrade notes in `docs/PHASE_1_ENVIRONMENT_FOUNDATION.md` and
+`docs/PHASE_1_SESSION_CONTEXT.md`. Fresh setup uses the current schema automatically.
 
 This package includes the original full source plus Windows setup/run commands,
 Cursor tasks, and a Python debug configuration. No paid API key is needed for
@@ -85,6 +85,21 @@ Set-Location backend
 ```
 
 Follow the password prompts. Existing records are preserved.
+
+## Verify a downloaded supplier evidence report
+
+From the project root in Cursor's PowerShell terminal:
+
+```powershell
+npm.cmd run evidence:verify -- 'C:\path\to\supplier-evidence.json'
+```
+
+Replace the example path with the downloaded report. This command checks the saved
+format and checksum offline. It does not open the application database, upload the
+file or contact a supplier. A valid file can still describe a pending/uncertain check;
+`lookup_verified` reports that distinction. An unsigned checksum does not prove who
+created the report or establish customer acceptance. See
+`docs/GOVERNED_SUPPLIER_CHECKS.md` for expected-scope options and exit codes.
 
 ## Included source and limits
 

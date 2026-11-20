@@ -25,7 +25,7 @@ GATES = [
  ('workspace_lifecycle','Workspace & environment lifecycle','Governance','partial','Local lifecycle, membership isolation and reviewed prompt/guardrail/workflow draft copying with pinned reference remapping and receipt recovery are implemented. Pilot lifecycle, general configuration promotion and deployment acceptance remain.','settings'),
  ('secrets_network','Secrets & network isolation','Governance','partial','Managed-secret injection, rotation and deployment-enforced egress isolation.','connectors'),
  ('telemetry_alerts','Telemetry, alerts & SLOs','Operations','partial','External logs/metrics/traces, service objectives and operator notification drills.','observability'),
- ('audit_retention','Audit integrity & retention','Governance','partial','Immutable off-host archive, retention rules and evidence export verification.','audit'),
+ ('audit_retention','Audit integrity & retention','Governance','partial','Unsigned supplier-check exports and offline format/checksum verification are implemented. Immutable off-host archive, authenticated evidence, retention rules and deployment acceptance remain.','audit'),
  ('recovery','Encrypted backup & recovery','Operations','partial','Scheduled encrypted backups, PostgreSQL restore and measured RPO/RTO.','operations'),
  ('cloud_delivery','Cloud deployment & rollback','Operations','partial','Reviewed images, TLS/private networking, staged rollout and recovery evidence.','operations'),
  ('security_load','Security & load acceptance','Validation','partial','Independent review, dependency/image scans, penetration and load/soak tests.','operations'),
