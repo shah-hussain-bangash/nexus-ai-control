@@ -28,3 +28,19 @@ Only the local owner who submitted the check can read its report in the original
 The report includes the recorded destination binding, agent generation, policy version, supplier, outcome and audit event metadata. It excludes idempotency keys, review notes, audit detail, credentials and raw connector responses. It derives synthetic/HTTP mode from the recorded destination, not current server settings. Stored envelope/hash mismatches and inconsistent verified results are rejected. Pending or unknown outcomes remain unverified.
 
 Format `nexus-supplier-check-evidence`, version 1, wraps `payload` and `integrity`. The checksum is SHA-256 of Python-compatible sorted ASCII JSON: sorted ASCII object keys, compact separators, `ensure_ascii=True`, integer numbers only. Timestamps are UTC strings. Hash only `payload`, excluding the integrity wrapper. `authenticated_signature` is false: this is an unsigned local snapshot, not a signed certificate, proof against intentional editing, or customer acceptance. Synthetic evidence never establishes real customer integration.
+
+## Verify a saved report offline in Cursor
+
+Run from the project root, replacing the example path with your downloaded JSON:
+
+```powershell
+npm.cmd run evidence:verify -- 'C:\path\to\supplier-evidence.json'
+```
+
+To require an expected scope, add `-Workspace 'workspace-id' -Account 'submitting-user-id' -Environment 'staging'`. These values must exactly match the report; they are checked locally and never sent to a server. Without those options, the command validates the scope's format, without claiming that the file belongs to a particular signed-in account. The command does not sign in or read the running app's session.
+
+The portable Python entry point is `python scripts/verify_supplier_evidence.py <report.json>`, with optional `--workspace`, `--account` and `--environment` flags. It uses only Python's standard library, does not load `.env`, and requires no running API, database, connector, credentials or network access. The Windows npm wrapper uses the project's existing `.venv`.
+
+Success prints one JSON summary with `file_integrity: valid` and exits **0**. An unreadable, unsupported, inconsistent or changed file prints a bounded error summary and exits **2**. An invalid command invocation also exits 2. Verification rejects duplicate keys, unknown fields/versions, signed-format claims, non-integer or unsafe numbers, invalid UTC timestamps, inconsistent verified outcomes, duplicate audit identifiers, more than 200 audit events, nesting over 32 levels and files over 512 KiB. The input is read without modification. UTF-8 JSON with or without a BOM is supported.
+
+`lookup_verified` describes the lookup recorded in the file, independently of file integrity: a correctly checksummed queued or uncertain report remains unverified. Checksums are **unsigned**. Anyone who edits a file can recompute its checksum. This command does not authenticate the author, compare against current server state, prove completeness of an off-host archive, grant release acceptance or certify a customer integration. The verifier reports its own fixed boundary instead of treating text inside an imported report as an instruction or assurance.
