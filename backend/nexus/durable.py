@@ -82,6 +82,11 @@ def event(db,run,actor,name,detail=None):
 def touch(run,status):
     run.status=status;run.version+=1;run.updated=now();run.lease_token='';run.lease_until=0;run.next_poll=now()+1
 
+
+def recover_expired_claim(db,run):
+    run.recoveries+=1;touch(run,'queued' if run.recoveries<=3 else 'failed')
+    run.error='WORKER_LEASE_EXPIRED';event(db,run,'worker','lease_recovered')
+
 def serialize(db,run):
     runtime_environment(db,run.org_id,run.env)
     data=public(run);data.pop('lease_token',None)
@@ -204,8 +209,8 @@ def register_durable(app,factory,settings,human):
 
 def run_flow_once(factory,settings):
     with factory.begin() as db:
-        for run in db.scalars(select(DurableRun).where(DurableRun.status=='processing',DurableRun.lease_until<now()).with_for_update()).all():
-            run.recoveries+=1;touch(run,'queued' if run.recoveries<=3 else 'failed');run.error='WORKER_LEASE_EXPIRED';event(db,run,'worker','lease_recovered')
+        for run in db.scalars(select(DurableRun).where(DurableRun.status=='processing',DurableRun.lease_until<=now()).with_for_update()).all():
+            recover_expired_claim(db,run)
         pending_review=or_(DurableRun.status=='waiting_review',and_(DurableRun.status=='paused',DurableRun.resume_state=='waiting_review'))
         for run in db.scalars(select(DurableRun).where(pending_review,DurableRun.review_until<=now()).with_for_update()).all():
             step=step_for(db,run)
@@ -221,6 +226,9 @@ def run_flow_once(factory,settings):
         with factory.begin() as db:
             run=db.scalar(select(DurableRun).where(DurableRun.id==run_id,DurableRun.org_id==org,DurableRun.env==environment,DurableRun.status=='processing',DurableRun.lease_token==token).with_for_update())
             if not run:return True
+            # A matching token is insufficient if this worker started its step
+            # after the claim deadline, even when no other worker swept it yet.
+            if run.lease_until<=now():recover_expired_claim(db,run);return True
             if digest(canonical(run.definition))!=run.payload_hash:fail(409,'PAYLOAD_CHANGED','Workflow fingerprint changed.')
             if run.cursor>=len(run.definition['steps']):touch(run,'succeeded');event(db,run,'worker','succeeded');return True
             step=step_for(db,run);definition=run.definition['steps'][run.cursor]
