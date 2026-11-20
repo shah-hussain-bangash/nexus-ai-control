@@ -29,6 +29,7 @@ upgrade reports describe their original releases, not the current schema.
 - [File-worker completion deadlines](docs/INGESTION_COMPLETION_DEADLINES.md)
 - [Extraction response validation](docs/EXTRACTION_RESPONSE_VALIDATION.md)
 - [Members, roles and sessions](docs/IDENTITY_LIFECYCLE_0_16_0.md)
+- [Paused agent-review expiry](docs/PAUSED_REVIEW_EXPIRY.md)
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
 
