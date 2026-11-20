@@ -14,7 +14,7 @@ from .service import audit, canonical
 from .security import fail, digest, PERMISSIONS
 from .runtime_context import runtime_environment
 from .search_text import NORMALIZATION_VERSION
-from .retrieval_metrics import language_metrics, result_with_precision
+from .retrieval_metrics import language_metrics, result_with_precision, measure_case
 
 
 class CheckCase(Strict):
@@ -22,6 +22,7 @@ class CheckCase(Strict):
     expected_document_ids: list[str] = Field(default_factory=list,max_length=5)
     expectation: Literal['retrieve','no_results'] = 'retrieve'
     query_language: Literal['English','Arabic','Bilingual'] | None = None
+    minimum_precision_percent: int | None = Field(default=None,ge=0,le=100,strict=True)
 
     @field_validator('query')
     @classmethod
@@ -34,6 +35,7 @@ class CheckCase(Strict):
         if len(set(self.expected_document_ids))!=len(self.expected_document_ids):raise ValueError('Expected documents must be distinct.')
         if self.expectation=='retrieve' and not self.expected_document_ids:raise ValueError('Positive cases require at least one expected document.')
         if self.expectation=='no_results' and self.expected_document_ids:raise ValueError('Negative cases cannot declare expected documents.')
+        if self.expectation=='no_results' and self.minimum_precision_percent is not None:raise ValueError('Precision targets apply only to expected-source retrieval cases.')
         return self
 
 
@@ -72,7 +74,7 @@ def summary(record):
 
 
 def check_config(body):
-    # Omitting an unset label preserves the exact pre-label request fingerprint.
+    # Omitting unset optional controls preserves exact legacy request fingerprints.
     return body.model_dump(exclude_none=True)
 
 
@@ -115,6 +117,11 @@ def execute(db,user,body):
         passed=bool(not ids) if case.expectation=='no_results' else found==expected
         results.append({'query':case.query,'expectation':case.expectation,'expected_document_ids':case.expected_document_ids,'retrieved_document_ids':ids,'citations':[hit['citation'] for hit in hits],'passed':passed,'document_recall_at_k':len(found)/len(expected) if expected else None,'reciprocal_rank':1/min(ranks) if ranks else 0})
         if case.query_language is not None:results[-1]['query_language']=case.query_language
+        if case.minimum_precision_percent is not None:
+            results[-1]['minimum_precision_percent']=case.minimum_precision_percent
+            measured=measure_case(results[-1])
+            results[-1]['precision_threshold_passed']=measured['precision_threshold_passed']
+            results[-1]['passed']=results[-1]['passed'] and measured['precision_threshold_passed']
     positives=[r for r in results if r['expectation']=='retrieve'];passed=sum(r['passed'] for r in results)
     # Fingerprint all currently readable source versions, including sources that
     # did not match; later evidence can distinguish a changed corpus.

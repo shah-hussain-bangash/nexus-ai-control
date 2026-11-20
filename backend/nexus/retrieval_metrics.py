@@ -1,4 +1,4 @@
-"""Descriptive metrics for explicitly labelled retrieval cases; no language inference."""
+"""Retrieval metrics and explicit precision targets; no language inference."""
 LANGUAGES = ('English', 'Arabic', 'Bilingual', 'Unlabelled')
 
 
@@ -7,9 +7,17 @@ def measure_case(case):
     retrieved = list(dict.fromkeys(case['retrieved_document_ids']))
     matched = len(expected.intersection(retrieved))
     precision = (matched/len(retrieved) if retrieved else 0) if case['expectation']=='retrieve' else None
-    return {**case, 'document_precision_at_k': precision,
+    measured = {**case, 'document_precision_at_k': precision,
             'retrieved_document_count': len(retrieved), 'matched_expected_document_count': matched,
             'unexpected_document_ids': [identifier for identifier in retrieved if identifier not in expected]}
+    measured.pop('precision_threshold_passed', None)
+    minimum = case.get('minimum_precision_percent')
+    if minimum is not None:
+        if type(minimum) is not int or not 0 <= minimum <= 100 or case['expectation'] != 'retrieve':
+            raise ValueError('Unsupported saved precision target.')
+        # Integer comparison avoids deciding a target from rounded display scores.
+        measured['precision_threshold_passed'] = matched*100 >= minimum*len(retrieved) if retrieved else minimum==0
+    return measured
 
 
 def result_with_precision(result):

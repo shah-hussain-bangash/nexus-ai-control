@@ -10,7 +10,7 @@ Run and save the check to see **Results by query language**. Only groups represe
 - Mean reciprocal rank of the first expected chunk, also over positive retrieval cases only.
 - The fraction of no-result cases that returned no authorized matches, averaged over negative cases only.
 
-Counts beside the metrics show the relevant denominators. If a group has no positive or no negative cases, its corresponding metric is **Not applicable**, not zero or a perfect score. Negative successes do not inflate recall or reciprocal rank. The existing overall suite status still requires every case to pass; language grouping cannot turn a failed case into a pass or grant deployment acceptance.
+Counts beside the metrics show the relevant denominators. If a group has no positive or no negative cases, its corresponding metric is **Not applicable**, not zero or a perfect score. Negative successes do not inflate recall or reciprocal rank. The overall suite status still requires every case to pass, including any explicitly configured [precision target](PRECISION_TARGETS.md); language grouping cannot turn a failed case into a pass or grant deployment acceptance.
 
 These are measured results from current-ACL document keyword retrieval with the current Arabic search normalization. They do not evaluate the local hybrid/LSA ranker, translation, semantic relevance, generated answers or grounding. Use representative approved test data and inspect citations. A small passing suite is not bilingual quality certification.
 

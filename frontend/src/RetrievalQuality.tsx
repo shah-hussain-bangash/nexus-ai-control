@@ -4,12 +4,14 @@ import { Modal } from "./RuntimeDialog";
 import { sendLiveIntent, liveIntentScope } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { registerNavigationGuard } from "./navigationGuard";
+import { assertPrecisionTargets } from "./precisionTargets";
 type Row = Record<string, any>;
 type Case = {
   query: string;
   expectation: "retrieve" | "no_results";
   expected_document_ids: string[];
   query_language?: "English" | "Arabic" | "Bilingual";
+  minimum_precision_percent?: number;
 };
 const emptyCase = (): Case => ({
   query: "",
@@ -107,6 +109,7 @@ export function RetrievalQuality({
     setBusy(true);
     setError("");
     try {
+      assertPrecisionTargets(cases);
       const body = { name, top_k: topK, cases };
       const r = await sendLiveIntent<Row & { id: string; status: string }>(
         sessionStorage,
@@ -292,8 +295,8 @@ export function RetrievalQuality({
               <p>
                 Precision measures how many returned sources are in your
                 expected list. Review unlisted sources; they may still be
-                relevant. Precision does not change this check's pass/fail
-                rules.
+                relevant. A configured minimum precision target is enforced for
+                that case.
               </p>
               {selected.language_metrics?.length > 0 && (
                 <section aria-label="Retrieval results by query language">
@@ -392,6 +395,14 @@ export function RetrievalQuality({
                         {c.retrieved_document_count
                           ? `${c.matched_expected_document_count}/${c.retrieved_document_count} returned sources are expected`
                           : "No sources returned"}
+                      </p>
+                    )}
+                    {c.minimum_precision_percent !== undefined && (
+                      <p>
+                        Minimum precision: {c.minimum_precision_percent}% ·{" "}
+                        {c.precision_threshold_passed
+                          ? "Target met"
+                          : "Below target"}
                       </p>
                     )}
                     {c.unexpected_document_ids?.length > 0 && (
@@ -548,6 +559,7 @@ export function RetrievalQuality({
                       change(i, {
                         expectation: e.target.value as Case["expectation"],
                         expected_document_ids: [],
+                        minimum_precision_percent: undefined,
                       })
                     }
                   >
@@ -555,6 +567,51 @@ export function RetrievalQuality({
                     <option value="no_results">Return no results</option>
                   </select>
                 </label>
+                {c.expectation === "retrieve" && (
+                  <>
+                    <label className="live-check-precision-toggle">
+                      <input
+                        type="checkbox"
+                        checked={c.minimum_precision_percent !== undefined}
+                        onChange={(e) =>
+                          change(i, {
+                            minimum_precision_percent: e.target.checked
+                              ? 100
+                              : undefined,
+                          })
+                        }
+                      />
+                      Require a minimum document precision
+                    </label>
+                    {c.minimum_precision_percent !== undefined && (
+                      <label>
+                        Minimum document precision (%)
+                        <input
+                          type="number"
+                          required
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={
+                            Number.isFinite(c.minimum_precision_percent)
+                              ? c.minimum_precision_percent
+                              : ""
+                          }
+                          onChange={(e) =>
+                            change(i, {
+                              minimum_precision_percent: e.target.valueAsNumber,
+                            })
+                          }
+                        />
+                      </label>
+                    )}
+                    <p>
+                      Only returned sources in your expected list count toward
+                      the target. Check that your expected-source list is
+                      complete.
+                    </p>
+                  </>
+                )}
                 {c.expectation === "retrieve" && (
                   <label>
                     Expected document sources

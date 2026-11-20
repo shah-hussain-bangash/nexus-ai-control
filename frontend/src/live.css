@@ -385,6 +385,19 @@
 .live-check-case select[multiple] {
   min-height: 100px;
 }
+.live-check-case .live-check-precision-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-check-precision-toggle input[type="checkbox"] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  min-height: 20px;
+  padding: 0;
+  margin: 0;
+}
 @media (max-width: 750px) {
   .live-quality-header {
     flex-direction: column;
