@@ -14,12 +14,14 @@ from .service import audit, canonical
 from .security import fail, digest, PERMISSIONS
 from .runtime_context import runtime_environment
 from .search_text import NORMALIZATION_VERSION
+from .retrieval_metrics import language_metrics
 
 
 class CheckCase(Strict):
     query: str = Field(min_length=2,max_length=300)
     expected_document_ids: list[str] = Field(default_factory=list,max_length=5)
     expectation: Literal['retrieve','no_results'] = 'retrieve'
+    query_language: Literal['English','Arabic','Bilingual'] | None = None
 
     @field_validator('query')
     @classmethod
@@ -69,6 +71,11 @@ def summary(record):
     return {'id':record.id,'name':record.name,'author_id':record.author_id,'created':record.created,'status':'passed' if record.result['all_cases_passed'] else 'failed','case_count':len(record.config['cases']),'passed_cases':record.result['passed_cases'],'top_k':record.config['top_k']}
 
 
+def check_config(body):
+    # Omitting an unset label preserves the exact pre-label request fingerprint.
+    return body.model_dump(exclude_none=True)
+
+
 def checked_detail(db,record,user):
     environment=runtime_environment(db,user.org_id)
     if not accessible(record,user,environment):fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Retrieval evidence is not visible to this account.')
@@ -83,7 +90,9 @@ def checked_detail(db,record,user):
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
     fingerprint=digest(canonical(sorted(corpus,key=lambda r:r['id'])))
     method_changed=record.result.get('normalization_version')!=NORMALIZATION_VERSION
-    return {**summary(record),'config':record.config,'result':record.result,'stale':method_changed or fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'normalization_current':not method_changed,'boundary':'Measured document retrieval for the recorded actor and corpus at one time. No generated-answer grading or production acceptance.'}
+    try:grouped=language_metrics(record.result['cases'])
+    except (ValueError,TypeError):fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved query language labels are unsupported by this release.')
+    return {**summary(record),'config':record.config,'result':record.result,'language_metrics':grouped,'stale':method_changed or fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'normalization_current':not method_changed,'boundary':'Measured document retrieval for the recorded actor and corpus at one time. Language labels are supplied by the reviewer, not inferred. No generated-answer grading or production acceptance.'}
 
 
 def record_for(db,id,user):
@@ -104,6 +113,7 @@ def execute(db,user,body):
         ranks=[i+1 for i,hit in enumerate(hits) if hit['document_id'] in expected]
         passed=bool(not ids) if case.expectation=='no_results' else found==expected
         results.append({'query':case.query,'expectation':case.expectation,'expected_document_ids':case.expected_document_ids,'retrieved_document_ids':ids,'citations':[hit['citation'] for hit in hits],'passed':passed,'document_recall_at_k':len(found)/len(expected) if expected else None,'reciprocal_rank':1/min(ranks) if ranks else 0})
+        if case.query_language is not None:results[-1]['query_language']=case.query_language
     positives=[r for r in results if r['expectation']=='retrieve'];passed=sum(r['passed'] for r in results)
     # Fingerprint all currently readable source versions, including sources that
     # did not match; later evidence can distinguish a changed corpus.
@@ -128,14 +138,14 @@ def register_retrieval_checks(app,factory,settings,human):
             user=human(request,db,True,'operate')
             if not 8<=len(idempotency_key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character check key.')
             db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-            hashed=digest(canonical(body.model_dump()));previous=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id),RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==idempotency_key))
+            config=check_config(body);hashed=digest(canonical(config));previous=db.scalar(select(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id),RetrievalCheck.author_id==user.id,RetrievalCheck.idem_key==idempotency_key))
             if previous:
                 if previous.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to another retrieval check.')
                 return checked_detail(db,previous,user)
             count=db.scalar(select(func.count()).select_from(RetrievalCheck).where(RetrievalCheck.org_id==user.org_id,RetrievalCheck.env==runtime_environment(db,user.org_id)))
             if count>=100:fail(429,'CHECK_CAPACITY','Retain at most 100 check records per workspace; remove obsolete evidence before creating more.')
             result=execute(db,user,body)
-            record=RetrievalCheck(org_id=user.org_id,env=runtime_environment(db,user.org_id),author_id=user.id,name=body.name,config=body.model_dump(),result=result,idem_key=idempotency_key,request_digest=hashed)
+            record=RetrievalCheck(org_id=user.org_id,env=runtime_environment(db,user.org_id),author_id=user.id,name=body.name,config=config,result=result,idem_key=idempotency_key,request_digest=hashed)
             db.add(record);db.flush()
             audit(db,user.org_id,user.id,'retrieval.checked',detail={'check_id':record.id,'cases':len(body.cases),'passed':result['passed_cases'],'corpus_fingerprint':result['corpus_fingerprint']})
             return checked_detail(db,record,user)

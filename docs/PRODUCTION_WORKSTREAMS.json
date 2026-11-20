@@ -52,7 +52,7 @@
       "title": "Bilingual answer evaluation",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Answer-quality, grounding, refusal and poisoning regression datasets.",
+      "required_evidence": "Reviewer-labelled English/Arabic/bilingual retrieval breakdowns are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.",
       "workspace": "evaluationlab"
     },
     {

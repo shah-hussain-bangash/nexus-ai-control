@@ -9,6 +9,7 @@ type Case = {
   query: string;
   expectation: "retrieve" | "no_results";
   expected_document_ids: string[];
+  query_language?: "English" | "Arabic" | "Bilingual";
 };
 const emptyCase = (): Case => ({
   query: "",
@@ -158,7 +159,8 @@ export function RetrievalQuality({
           <p>
             Save up to 20 positive or no-result queries. Measure document recall
             and first relevant chunk rank against the current authorized corpus.
-            No model calls or answer grading.
+            These checks measure document keyword retrieval. No model calls or
+            answer grading.
           </p>
         </div>
         <button
@@ -275,6 +277,68 @@ export function RetrievalQuality({
                   </strong>
                 </div>
               </div>
+              {selected.language_metrics?.length > 0 && (
+                <section aria-label="Retrieval results by query language">
+                  <h4>Results by query language</h4>
+                  <p>
+                    Labels are chosen by the reviewer. Unlabelled queries are
+                    not classified automatically.
+                  </p>
+                  <div
+                    className="live-quality-language-table"
+                    role="region"
+                    aria-label="Query-language comparison table"
+                    tabIndex={0}
+                  >
+                    <table aria-label="Retrieval metrics by query language">
+                      <thead>
+                        <tr>
+                          <th>Query language</th>
+                          <th>Cases passed</th>
+                          <th>Document recall</th>
+                          <th>Reciprocal rank</th>
+                          <th>No-result checks passed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.language_metrics.map((group: Row) => (
+                          <tr key={group.language}>
+                            <th scope="row">{group.language}</th>
+                            <td>
+                              {group.passed_cases}/{group.case_count}
+                            </td>
+                            <td>
+                              {group.mean_document_recall_at_k === null
+                                ? "Not applicable"
+                                : (
+                                    group.mean_document_recall_at_k * 100
+                                  ).toFixed(1) + "%"}{" "}
+                              <small>
+                                ({group.retrieve_cases} retrieval cases)
+                              </small>
+                            </td>
+                            <td>
+                              {group.mean_reciprocal_rank === null
+                                ? "Not applicable"
+                                : group.mean_reciprocal_rank.toFixed(3)}
+                            </td>
+                            <td>
+                              {group.no_results_pass_rate === null
+                                ? "Not applicable"
+                                : (group.no_results_pass_rate * 100).toFixed(
+                                    1,
+                                  ) + "%"}{" "}
+                              <small>
+                                ({group.no_results_cases} no-result cases)
+                              </small>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
               <div className="live-quality-cases">
                 {selected.result.cases.map((c: Row, i: number) => (
                   <article key={i}>
@@ -290,6 +354,7 @@ export function RetrievalQuality({
                         {c.passed ? "passed" : "failed"}
                       </span>
                     </header>
+                    <p>Query language: {c.query_language || "Unlabelled"}</p>
                     <p>
                       {c.expectation === "no_results"
                         ? "Expected no authorized matches"
@@ -408,6 +473,23 @@ export function RetrievalQuality({
                     value={c.query}
                     onChange={(e) => change(i, { query: e.target.value })}
                   />
+                </label>
+                <label>
+                  Query language (optional)
+                  <select
+                    value={c.query_language || ""}
+                    onChange={(e) =>
+                      change(i, {
+                        query_language: (e.target.value ||
+                          undefined) as Case["query_language"],
+                      })
+                    }
+                  >
+                    <option value="">Unlabelled</option>
+                    <option value="English">English</option>
+                    <option value="Arabic">Arabic</option>
+                    <option value="Bilingual">Bilingual</option>
+                  </select>
                 </label>
                 <label>
                   Expectation
