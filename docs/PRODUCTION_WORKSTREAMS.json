@@ -52,7 +52,7 @@
       "title": "Bilingual answer evaluation",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Reviewer-labelled retrieval recall/precision breakdowns, unlisted-source inspection and optional per-case precision targets are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.",
+      "required_evidence": "Reviewer-labelled retrieval recall/precision breakdowns, optional precision targets and matching saved-run comparisons are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.",
       "workspace": "evaluationlab"
     },
     {

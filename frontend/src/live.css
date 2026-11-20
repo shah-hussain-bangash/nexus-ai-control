@@ -407,3 +407,6 @@
     grid-template-columns: 1fr;
   }
 }
+
+.live-retrieval-comparison { margin: 1.5rem 0; padding: 1rem 0; border-top: 1px solid #294454; border-bottom: 1px solid #294454; }
+.live-retrieval-comparison select { width: 100%; margin: .5rem 0 1rem; }

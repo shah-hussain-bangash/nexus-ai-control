@@ -17,7 +17,7 @@ GATES = [
  ('document_ingestion','Document ingestion & OCR','Knowledge','partial','Authorized ingestion jobs, parsing, OCR and deletion propagation.','documents'),
  ('semantic_retrieval','Semantic retrieval & reranking','Knowledge','partial','Local ACL-first LSA/BM25 retrieval and versioned Arabic search normalization are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.','knowledge'),
  ('document_permissions','Document-level permissions','Knowledge','partial','Source ACL enforcement across retrieval, indexing and deletion.','documents'),
- ('answer_evaluation','Bilingual answer evaluation','Knowledge','partial','Reviewer-labelled retrieval recall/precision breakdowns, unlisted-source inspection and optional per-case precision targets are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.','evaluationlab'),
+ ('answer_evaluation','Bilingual answer evaluation','Knowledge','partial','Reviewer-labelled retrieval recall/precision breakdowns, optional precision targets and matching saved-run comparisons are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.','evaluationlab'),
  ('provider_resilience','Provider resilience','Runtime','partial','Model-specific failure behavior, streaming/fallback if required, and live provider acceptance.','models'),
  ('traffic_controls','Inference traffic controls','Runtime','implemented','Shared-database admission limits, concurrency reservations and saturation behavior.','models'),
  ('usage_governance','Usage & cost governance','Runtime','partial','Invoice reconciliation, evidence retention and account-level cost controls.','usage'),

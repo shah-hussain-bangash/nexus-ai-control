@@ -5,6 +5,7 @@ import { sendLiveIntent, liveIntentScope } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { registerNavigationGuard } from "./navigationGuard";
 import { assertPrecisionTargets } from "./precisionTargets";
+import { RetrievalComparison } from "./RetrievalComparison";
 type Row = Record<string, any>;
 type Case = {
   query: string;
@@ -55,6 +56,13 @@ export function RetrievalQuality({
     [intent, setIntent] = useState(() => pending(scope));
   const afterLeave = useRef<() => void>(() => {}),
     canRun = me.permissions?.includes("operate");
+  const inspection = useRef(0);
+  useEffect(
+    () => () => {
+      inspection.current++;
+    },
+    [],
+  );
   const dirty =
     editing &&
     cases.some((c) => c.query.trim() || c.expected_document_ids.length);
@@ -89,10 +97,15 @@ export function RetrievalQuality({
     load();
   }, [offset]);
   async function inspect(id: string) {
+    const request = ++inspection.current;
+    setSelected(null);
     try {
-      setSelected(await api("/v1/retrieval-checks/" + id));
+      const detail = await api("/v1/retrieval-checks/" + id);
+      if (request !== inspection.current) return;
+      setSelected(detail);
       setError("");
     } catch (e) {
+      if (request !== inspection.current) return;
       setSelected(null);
       setError((e as Error).message);
     }
@@ -367,6 +380,18 @@ export function RetrievalQuality({
                   </div>
                 </section>
               )}
+              <RetrievalComparison
+                key={
+                  selected.id +
+                  ":" +
+                  offset +
+                  ":" +
+                  records.map((row) => row.id).join(",")
+                }
+                selected={selected}
+                records={records}
+                userId={me.user.id}
+              />
               <div className="live-quality-cases">
                 {selected.result.cases.map((c: Row, i: number) => (
                   <article key={i}>
