@@ -20,6 +20,7 @@ from .schemas import Strict
 from .security import fail,digest,PERMISSIONS
 from .service import audit,canonical
 from .runtime_context import environment_user_allowed,runtime_environment
+from .extraction_result import normalize_result
 
 ACTIVE=('queued','processing','awaiting_review')
 class Intake(Strict):
@@ -207,9 +208,10 @@ def run_ingestion_once(factory,settings,extractor=None):
             author=db.get(User,current.author_id)
             if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env,allow_non_staging=settings.mode=='local') or 'operate' not in PERMISSIONS.get(author.role,set()):
                 result={'error_code':'REQUESTER_REVOKED'}
+            result=normalize_result(result)
             text=result.get('text','');error=result.get('error_code','')
-            if not isinstance(text,str) or '\x00' in text or len(text.encode('utf-8'))>32768:error='EXTRACTOR_RESULT_INVALID'
-            if error or not text.strip():release(current,'failed',error or 'NO_EXTRACTABLE_TEXT')
+            if error or not text.strip():
+                current.extracted_text='';current.extraction={};release(current,'failed',error or 'NO_EXTRACTABLE_TEXT')
             else:current.extracted_text=text;current.extraction=result.get('info',{});release(current,'awaiting_review')
         audit(db,current.org_id,'worker','intake.'+current.status,detail={'job_id':id,'attempt':current.attempts,'error_code':current.error_code},env=current.env)
     return True
