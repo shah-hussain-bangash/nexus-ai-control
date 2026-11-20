@@ -1,26 +1,32 @@
 from concurrent.futures import ThreadPoolExecutor
 import pytest
-from sqlalchemy import update, text
+from sqlalchemy import select, update, delete, text
 from sqlalchemy.exc import OperationalError
 from conftest import auth
 from test_hybrid import upload
 from nexus import hybrid
-from nexus.db import KnowledgeDocument, Organization, WorkbenchRun
+from nexus.db import KnowledgeDocument, DocumentChunk, Organization, WorkbenchRun, User
 from nexus.hybrid_worker import rank
 
 
 def ordered_source_change(ctx, identifier, command, short_deadline=False):
-    """Use the same workspace-first ordering as a source-management request."""
+    """Use workspace-first ordering and the source route's chunk/version updates."""
     try:
         with ctx['db'].begin() as db:
             if short_deadline:
                 if db.bind.dialect.name=='postgresql':db.execute(text("SET LOCAL lock_timeout = '200ms'"))
                 else:db.execute(text('PRAGMA busy_timeout=200'))
             db.execute(update(Organization).where(Organization.id=='northstar').values(name=Organization.name))
-            source=db.get(KnowledgeDocument,identifier)
-            if command=='revoke':source.allowed_roles=[]
-            else:source.status='deleted';source.content=''
-            source.version+=1
+            if command=='disable':
+                user=db.scalar(select(User).where(User.org_id=='northstar',User.role=='auditor'));user.active=0
+            else:
+                source=db.get(KnowledgeDocument,identifier);source.version+=1
+                if command=='revoke':
+                    source.allowed_roles=[]
+                    db.execute(update(DocumentChunk).where(DocumentChunk.document_id==identifier).values(document_version=source.version))
+                else:
+                    source.status='deleted';source.content=''
+                    db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==identifier))
         return 'committed'
     except OperationalError as error:
         original=error.orig
@@ -28,7 +34,7 @@ def ordered_source_change(ctx, identifier, command, short_deadline=False):
         raise
 
 
-@pytest.mark.parametrize('command',['revoke','delete'])
+@pytest.mark.parametrize('command',['disable','revoke','delete'])
 def test_source_write_cannot_cross_completion_check_and_saved_response(ctx,monkeypatch,command):
     source=upload(ctx,'car vehicle engine road',['auditor'])
     monkeypatch.setattr(hybrid,'compute',rank)
@@ -45,15 +51,18 @@ def test_source_write_cannot_cross_completion_check_and_saved_response(ctx,monke
         monkeypatch.setattr(hybrid,'can_read',during_check)
         h,_=auth(ctx,'auditor');h['Idempotency-Key']='completion-race-search-001'
         response=ctx['client'].post('/v1/hybrid-search',headers=h,json={'query':'car','dimensions':2})
+    assert attempts==['blocked'],'A source write committed between authorization and search completion'
     assert response.status_code==201,response.text
     result=response.json()
-    assert not (attempts==['committed'] and result['items']), 'A revoked or deleted source excerpt escaped after its access change committed'
-    assert attempts==['blocked'],'A source write committed between authorization and search completion'
     assert result['status']=='completed' and len(result['items'])==1
     # Once completion commits, the source operation can commit and saved history
     # must apply that newer access/version state instead of replaying old excerpts.
     assert ordered_source_change(ctx,source['id'],command)=='committed'
     history=ctx['client'].get('/v1/hybrid-search/history/'+result['id'])
+    if command=='disable':
+        assert history.status_code==401
+        assert ctx['client'].post('/v1/hybrid-search',headers=h,json={'query':'car','dimensions':2}).status_code==401
+        return
     assert history.status_code==200 and history.json()['items']==[]
     assert history.json()['withheld_stale_or_inaccessible']==1
     replay=ctx['client'].post('/v1/hybrid-search',headers=h,json={'query':'car','dimensions':2})
