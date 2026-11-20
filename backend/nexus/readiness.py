@@ -12,7 +12,7 @@ from .runtime_context import runtime_environment
 
 # These are this project's workstreams, not a universal production checklist.
 GATES = [
- ('customer_connectors','Customer business connectors','Engineering','partial','HTTP contract adapter, owner-reviewed governed supplier checks, receipt recovery, approval-bound dispatch and unsigned evidence downloads are implemented. Customer sandbox acceptance, purchase/idempotency/isolation drills and deployment evidence remain.','connectors'),
+ ('customer_connectors','Customer business connectors','Engineering','partial','HTTP adapter, governed supplier checks, receipt recovery, approval-bound dispatch, unsigned evidence downloads and a disposable synthetic approval/idempotency/recovery/isolation drill are implemented. Real customer sandbox, purchase/idempotency/isolation acceptance and deployment evidence remain.','connectors'),
  ('durable_agents','Durable agent execution','Engineering','partial','Pause/resume, cancellation and worker crash recovery for multi-step agents.','agentRuns'),
  ('document_ingestion','Document ingestion & OCR','Knowledge','partial','Authorized ingestion jobs, parsing, OCR and deletion propagation.','documents'),
  ('semantic_retrieval','Semantic retrieval & reranking','Knowledge','partial','Local ACL-first LSA/BM25 retrieval is implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain.','knowledge'),

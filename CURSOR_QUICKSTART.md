@@ -86,6 +86,19 @@ Set-Location backend
 
 Follow the password prompts. Existing records are preserved.
 
+## Run the disposable synthetic connector drill
+
+```powershell
+npm.cmd run test:connector
+```
+
+This runs 15 checks covering supplier lookup, independent purchase approval,
+duplicate-request protection, timeout reconciliation and workspace isolation in a
+temporary synthetic workspace. It preserves your existing accounts, records and
+connector settings. No customer credentials or running server are required. The
+command prints a report path in the ignored `backend/data/drills` folder. See
+`docs/SYNTHETIC_CONNECTOR_DRILL.md` for the checks, exit codes and limits.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:
