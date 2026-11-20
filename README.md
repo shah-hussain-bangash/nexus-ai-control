@@ -22,6 +22,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Hybrid completion and concurrent source changes](docs/HYBRID_COMPLETION_ORDERING.md)
+- [Local ranking response validation](docs/RANKING_RESPONSE_VALIDATION.md)
 - [Disposable synthetic retrieval test](docs/SYNTHETIC_RETRIEVAL_DRILL.md) — `npm run test:retrieval`
 - [Combined synthetic knowledge test](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) — `npm run test:knowledge`
 - [Synthetic file-ingestion test](docs/SYNTHETIC_INGESTION_DRILL.md) — `npm run test:ingestion`

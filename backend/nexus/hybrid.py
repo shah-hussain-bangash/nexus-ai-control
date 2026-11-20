@@ -1,6 +1,6 @@
 """ACL-first local hybrid retrieval. No provider calls, generated answers or business effects."""
 from .search_text import NORMALIZATION_VERSION
-import hashlib,json,math,os,re,signal,subprocess,sys,tempfile,time
+import hashlib,json,os,re,signal,subprocess,sys,tempfile,time
 from pathlib import Path
 from typing import Literal
 from fastapi import Request,Header,Query
@@ -12,6 +12,7 @@ from .schemas import Strict
 from .security import fail,PERMISSIONS
 from .service import audit,canonical
 from .runtime_context import runtime_environment
+from .ranking_result import normalize_result
 KIND='hybrid_search'
 METHOD='Local TF-IDF / corpus-fitted LSA + normalized BM25; no neural model'
 
@@ -144,17 +145,12 @@ def register_hybrid(app,factory,settings,human):
     doc=db.get(KnowledgeDocument,source['id'])
     if not doc or not can_read(doc,user,environment) or doc.version!=source['version'] or doc.content_hash!=source['hash']:valid=False
    row.duration_ms=round((time.perf_counter()-start)*1000,3)
+   result=normalize_result(result,len(metadata),body.top_k)
    error=result.get('error_code','')
    if not valid:error='SOURCE_SCOPE_CHANGED'
-   hits=[];seen=set()
+   hits=[]
    if not error:
-    try:
-     if type(result['rank']) is not int or not 0<=result['rank']<=32 or type(result['vocabulary']) is not int or not 0<=result['vocabulary']<=1024 or len(result['scores'])>body.top_k:raise ValueError()
-     for score in result['scores']:
-      pos=score['position']
-      if type(pos) is not int or not 0<=pos<len(metadata) or pos in seen or not all(type(score[k]) in (int,float) and math.isfinite(score[k]) and 0<=score[k]<=1 for k in ('score','semantic_score','lexical_score')):raise ValueError()
-      seen.add(pos);hits.append({**metadata[pos],**{k:score[k] for k in ('score','semantic_score','lexical_score')}})
-    except (KeyError,TypeError,ValueError):error='RANKING_FAILED';hits=[]
+    hits=[{**metadata[score['position']],**{key:score[key] for key in ('score','semantic_score','lexical_score')}} for score in result['scores']]
    row.status='failed' if error else 'completed';row.result={**row.result,'error_code':error,'rank':result.get('rank',0) if not error else 0,'vocabulary':result.get('vocabulary',0) if not error else 0,'hits':hits if not error else []}
    audit(db,org,author,'retrieval.hybrid.'+row.status,detail={'run_id':id,'hits':len(hits),'error_code':error})
    return visible_run(db,row,user)
