@@ -6,6 +6,7 @@ Run and save the check to see **Results by query language**. Only groups represe
 
 - Cases passed out of all cases in that group.
 - Mean document recall at the selected top-k, averaged over that group's positive retrieval cases only.
+- Mean document precision, using distinct returned documents and averaged over positive retrieval cases only. See [Document precision](RETRIEVAL_PRECISION.md) for the denominator and interpretation.
 - Mean reciprocal rank of the first expected chunk, also over positive retrieval cases only.
 - The fraction of no-result cases that returned no authorized matches, averaged over negative cases only.
 
@@ -19,6 +20,6 @@ Language labels are stored with new labelled case configuration/results. Query t
 
 Old cases stay Unlabelled. Detail reads derive grouped statistics without rewriting historical results, changing their labels or rerunning retrieval. Requests that omit the optional label, or explicitly send null, keep the exact previous request fingerprint and replay/recovery behavior. Changing a label is a changed intent and requires a new key. Rerunning from the editor preserves any existing labels.
 
-The API field is `cases[].query_language`, with values `English`, `Arabic`, `Bilingual` or null/omitted. The UI's Unlabelled option omits it; the string `Unlabelled` is not an input enum. Detail/create responses add top-level `language_metrics`, with groups containing `language`, `case_count`, `passed_cases`, `retrieve_cases`, `no_results_cases`, `mean_document_recall_at_k`, `mean_reciprocal_rank` and `no_results_pass_rate`. Listing and recovery summaries retain their established shape.
+The API field is `cases[].query_language`, with values `English`, `Arabic`, `Bilingual` or null/omitted. The UI's Unlabelled option omits it; the string `Unlabelled` is not an input enum. Detail/create responses add top-level `language_metrics`, with groups containing `language`, `case_count`, `passed_cases`, `retrieve_cases`, `no_results_cases`, `mean_document_recall_at_k`, `mean_document_precision_at_k`, `mean_reciprocal_rank` and `no_results_pass_rate`. Listing and recovery summaries retain their established shape.
 
 No database migration, new dependency, provider call, customer connection, automatic relabelling or automatic test run is introduced.

@@ -263,6 +263,18 @@ export function RetrievalQuality({
                   </strong>
                 </div>
                 <div>
+                  <small>
+                    Mean document precision @ {selected.config.top_k}
+                  </small>
+                  <strong>
+                    {selected.result.mean_document_precision_at_k === null
+                      ? "Not applicable"
+                      : (
+                          selected.result.mean_document_precision_at_k * 100
+                        ).toFixed(1) + "%"}
+                  </strong>
+                </div>
+                <div>
                   <small>Mean reciprocal rank</small>
                   <strong>
                     {selected.result.mean_reciprocal_rank === null
@@ -277,6 +289,12 @@ export function RetrievalQuality({
                   </strong>
                 </div>
               </div>
+              <p>
+                Precision measures how many returned sources are in your
+                expected list. Review unlisted sources; they may still be
+                relevant. Precision does not change this check's pass/fail
+                rules.
+              </p>
               {selected.language_metrics?.length > 0 && (
                 <section aria-label="Retrieval results by query language">
                   <h4>Results by query language</h4>
@@ -295,7 +313,7 @@ export function RetrievalQuality({
                         <tr>
                           <th>Query language</th>
                           <th>Cases passed</th>
-                          <th>Document recall</th>
+                          <th>Recall / precision</th>
                           <th>Reciprocal rank</th>
                           <th>No-result checks passed</th>
                         </tr>
@@ -308,11 +326,18 @@ export function RetrievalQuality({
                               {group.passed_cases}/{group.case_count}
                             </td>
                             <td>
+                              <small>Recall</small>
                               {group.mean_document_recall_at_k === null
                                 ? "Not applicable"
                                 : (
                                     group.mean_document_recall_at_k * 100
                                   ).toFixed(1) + "%"}{" "}
+                              <small>Precision</small>
+                              {group.mean_document_precision_at_k === null
+                                ? "Not applicable"
+                                : (
+                                    group.mean_document_precision_at_k * 100
+                                  ).toFixed(1) + "%"}
                               <small>
                                 ({group.retrieve_cases} retrieval cases)
                               </small>
@@ -360,6 +385,30 @@ export function RetrievalQuality({
                         ? "Expected no authorized matches"
                         : `Expected ${c.expected_document_ids.length} source(s); document recall ${(c.document_recall_at_k * 100).toFixed(1)}%`}
                     </p>
+                    {c.expectation === "retrieve" && (
+                      <p>
+                        Document precision:{" "}
+                        {(c.document_precision_at_k * 100).toFixed(1)}% ·{" "}
+                        {c.retrieved_document_count
+                          ? `${c.matched_expected_document_count}/${c.retrieved_document_count} returned sources are expected`
+                          : "No sources returned"}
+                      </p>
+                    )}
+                    {c.unexpected_document_ids?.length > 0 && (
+                      <details>
+                        <summary>
+                          Unlisted returned sources (
+                          {c.unexpected_document_ids.length})
+                        </summary>
+                        <p>
+                          These sources were not in the expected list. Review
+                          their relevance and your test expectations.
+                        </p>
+                        {c.unexpected_document_ids.map((identifier: string) => (
+                          <code key={identifier}>{identifier}</code>
+                        ))}
+                      </details>
+                    )}
                     <p>
                       {c.citations.length
                         ? c.citations.map((x: string) => (
