@@ -1,4 +1,5 @@
 """ACL-first local hybrid retrieval. No provider calls, generated answers or business effects."""
+from .search_text import NORMALIZATION_VERSION
 import hashlib,json,math,os,re,signal,subprocess,sys,tempfile,time
 from pathlib import Path
 from typing import Literal
@@ -65,7 +66,7 @@ def visible_run(db,row,user):
   chunk=db.scalar(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id),DocumentChunk.document_id==doc.id,DocumentChunk.document_version==doc.version,DocumentChunk.position==hit['position'],DocumentChunk.content_hash==hit['sha256']))
   if not chunk:hidden+=1;continue
   items.append({'document_id':doc.id,'document_version':doc.version,'title':doc.title,'filename':doc.filename,'chunk':chunk.position+1,'excerpt':chunk.text,'sha256':chunk.content_hash,'citation':f'{doc.id}:v{doc.version}:chunk{chunk.position+1}',**{k:hit[k] for k in ('score','semantic_score','lexical_score')}})
- return {'id':row.id,'status':row.status,'created':row.created,'duration_ms':row.duration_ms,'method':METHOD,'items':items,'withheld_stale_or_inaccessible':hidden,'rank':result.get('rank',0),'vocabulary':result.get('vocabulary',0),'corpus_chunks':result.get('corpus_chunks',0),'source_count':result.get('source_count',0),'error_code':result.get('error_code',''),'parameters':result.get('parameters',{}),'provider_calls':0,'query_text_stored':False,'boundary':'Ranked source excerpts only. Scores are not calibrated confidence. Current ACL/version checks apply again to saved history.'}
+ return {'id':row.id,'status':row.status,'created':row.created,'duration_ms':row.duration_ms,'method':METHOD,'items':items,'withheld_stale_or_inaccessible':hidden,'rank':result.get('rank',0),'vocabulary':result.get('vocabulary',0),'corpus_chunks':result.get('corpus_chunks',0),'source_count':result.get('source_count',0),'error_code':result.get('error_code',''),'parameters':result.get('parameters',{}),'provider_calls':0,'query_text_stored':False,'normalization_version':result.get('normalization_version','legacy-unversioned'),'normalization_current':result.get('normalization_version')==NORMALIZATION_VERSION,'boundary':'Ranked source excerpts only. Scores are not calibrated confidence. Current ACL/version checks apply again to saved history.'}
 
 def owned_run(db,id,user):
  row=db.scalar(select(WorkbenchRun).where(WorkbenchRun.id==id,WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND))
@@ -126,7 +127,7 @@ def register_hybrid(app,factory,settings,human):
    if len(chunks)>128:fail(422,'CORPUS_LIMIT','Select a smaller corpus of at most 128 chunks. No sources were silently omitted.')
    snapshots=[{'id':d.id,'version':d.version,'hash':d.content_hash} for d in docs];metadata=[{'document_id':c.document_id,'document_version':c.document_version,'position':c.position,'sha256':c.content_hash} for c in chunks]
    payload={'texts':[c.text for c in chunks],**body.model_dump(exclude={'sources'})};author=user.id;org=user.org_id;environment=runtime_environment(db,org)
-   parameters=body.model_dump(exclude={'query','sources'});row=WorkbenchRun(org_id=org,env=environment,kind=KIND,status='processing',duration_ms=0,author_id=author,result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(docs),'corpus_chunks':len(chunks)})
+   parameters=body.model_dump(exclude={'query','sources'});row=WorkbenchRun(org_id=org,env=environment,kind=KIND,status='processing',duration_ms=0,author_id=author,result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'normalization_version':NORMALIZATION_VERSION,'source_count':len(docs),'corpus_chunks':len(chunks)})
    db.add(row);db.flush();id=row.id;audit(db,org,author,'retrieval.hybrid.started',detail={'run_id':id,'source_count':len(docs),'corpus_chunks':len(chunks)})
   start=time.perf_counter()
   try:result=compute(payload) if chunks else {'scores':[],'rank':0,'vocabulary':0}

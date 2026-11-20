@@ -43,7 +43,12 @@ export function RetrievalQuality({
     [removing, setRemoving] = useState<Row | null>(null),
     [note, setNote] = useState(""),
     [discard, setDiscard] = useState(false);
-  const scope = liveIntentScope("retrieval-check", me.user.org_id, me.user.id, me.environment),
+  const scope = liveIntentScope(
+      "retrieval-check",
+      me.user.org_id,
+      me.user.id,
+      me.environment,
+    ),
     [intent, setIntent] = useState(() => pending(scope));
   const afterLeave = useRef<() => void>(() => {}),
     canRun = me.permissions?.includes("operate");
@@ -234,7 +239,9 @@ export function RetrievalQuality({
                         : "failed")
                   }
                 >
-                  {selected.stale ? "Corpus changed — rerun" : selected.status}
+                  {selected.stale
+                    ? "Rerun to refresh evidence"
+                    : selected.status}
                 </span>
               </header>
               <p>

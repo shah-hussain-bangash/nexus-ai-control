@@ -2,10 +2,11 @@
 from collections import Counter
 import json,math,os,re,sys
 from pathlib import Path
+from .search_text import search_tokens
 
 def rank(payload):
  import numpy as np
- texts=payload['texts'];query=payload['query'];counts=[Counter(re.findall(r'\w+',t.casefold())) for t in texts]
+ texts=payload['texts'];query=payload['query'];counts=[Counter(search_tokens(t)) for t in texts]
  if not 1<=len(texts)<=128 or any(len(t)>700 for t in texts):raise ValueError('CORPUS_LIMIT')
  vocab=sorted(set().union(*(c.keys() for c in counts)))
  if len(vocab)>1024:raise ValueError('VOCABULARY_LIMIT')
@@ -13,7 +14,7 @@ def rank(payload):
  n=len(texts);df={t:sum(t in c for c in counts) for t in vocab};idf={t:math.log((1+n)/(1+df[t]))+1 for t in vocab}
  matrix=np.array([[(1+math.log(c[t]))*idf[t] if c[t] else 0 for t in vocab] for c in counts],dtype=np.float64)
  norms=np.linalg.norm(matrix,axis=1);matrix/=np.where(norms==0,1,norms)[:,None]
- terms=Counter(re.findall(r'\w+',query.casefold()));q=np.array([(1+math.log(terms[t]))*idf[t] if terms[t] else 0 for t in vocab]);qn=float(np.linalg.norm(q))
+ terms=Counter(search_tokens(query));q=np.array([(1+math.log(terms[t]))*idf[t] if terms[t] else 0 for t in vocab]);qn=float(np.linalg.norm(q))
  if not qn:return {'scores':[],'rank':0,'vocabulary':len(vocab)}
  q/=qn
  # A low-rank, corpus-fitted space: no pretrained embeddings or language model.

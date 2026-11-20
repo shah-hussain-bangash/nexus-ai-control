@@ -6,6 +6,7 @@ the sole dispatch path for the synthetic business connector.
 """
 import math
 import hashlib
+from .search_text import search_tokens
 import re
 import time
 from collections import Counter
@@ -209,9 +210,9 @@ def chunks(db,org,environment=None):
 
 def retrieve(db,org,query,top_k=5,only=None,environment=None):
     corpus=[x for x in chunks(db,org,environment) if not only or x['asset_id']==only]
-    terms=list(dict.fromkeys(re.findall(r'\w+',query.casefold())))[:64]
+    terms=list(dict.fromkeys(search_tokens(query)))[:64]
     if not terms or not corpus:return []
-    tokens=[Counter(re.findall(r'\w+',c['text'].casefold())) for c in corpus]
+    tokens=[Counter(search_tokens(c['text'])) for c in corpus]
     avg=sum(sum(t.values()) for t in tokens)/len(tokens) or 1
     df={q:sum(q in t for t in tokens) for q in terms}
     ranked=[]

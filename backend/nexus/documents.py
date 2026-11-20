@@ -1,4 +1,5 @@
 """Bounded UTF-8 document ingestion, persisted chunks and ACL-filtered lexical retrieval."""
+from .search_text import search_tokens, NORMALIZATION_VERSION
 import base64
 import binascii
 import csv
@@ -123,11 +124,11 @@ def allowed_docs(db,user,environment=None):
 def search_documents(db,user,query,top_k,environment=None):
     environment=runtime_environment(db,user.org_id,environment)
     docs=allowed_docs(db,user,environment);by_id={d.id:d for d in docs}
-    terms=list(dict.fromkeys(re.findall(r'\w+',query.casefold())))[:64]
+    terms=list(dict.fromkeys(search_tokens(query)))[:64]
     if not docs or not terms:return []
     corpus=db.scalars(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==environment,DocumentChunk.document_id.in_(by_id)).order_by(DocumentChunk.document_id,DocumentChunk.position)).all()
     corpus=[chunk for chunk in corpus if chunk.document_version==by_id[chunk.document_id].version]
-    tokens=[Counter(re.findall(r'\w+',c.text.casefold())) for c in corpus];average=sum(sum(t.values()) for t in tokens)/max(1,len(tokens)) or 1
+    tokens=[Counter(search_tokens(c.text)) for c in corpus];average=sum(sum(t.values()) for t in tokens)/max(1,len(tokens)) or 1
     df={term:sum(term in t for t in tokens) for term in terms};ranked=[]
     for chunk,token in zip(corpus,tokens):
         score=0
@@ -168,7 +169,7 @@ def register_documents(app,factory,settings,human):
     @app.get('/v1/documents/search')
     def search(request:Request,q:str=Query(min_length=2,max_length=1000),top_k:int=Query(5,ge=1,le=10)):
         with factory() as db:
-            user=human(request,db);return {'items':search_documents(db,user,q,top_k),'method':'ACL-filtered BM25-style lexical ranking','provider_calls':0}
+            user=human(request,db);return {'items':search_documents(db,user,q,top_k),'method':'ACL-filtered BM25-style lexical ranking','normalization_version':NORMALIZATION_VERSION,'provider_calls':0}
 
     @app.post('/v1/documents/recover')
     def recover(body:Recover,request:Request):
