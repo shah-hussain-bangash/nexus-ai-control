@@ -117,6 +117,10 @@ export function HybridRetrieval({ me }: { me: Row }) {
             keyword ranking. Results are source excerpts with versioned
             citations.
           </p>
+          <p>
+            Arabic search ignores common vowel marks and spelling variants. Read
+            the source excerpt for the exact original wording.
+          </p>
         </div>
       </div>
       <div className="ops-alert">
@@ -299,6 +303,12 @@ export function HybridRetrieval({ me }: { me: Row }) {
                 rank {result.rank}
               </p>
               {result.error_code && <p role="alert">{result.error_code}</p>}
+              {result.normalization_current === false && (
+                <p role="status">
+                  This saved search used an earlier text-matching method. Run a
+                  new search to use the current Arabic matching rules.
+                </p>
+              )}
               {result.items?.map((hit: Row) => (
                 <article className="runtime-hit" key={hit.citation}>
                   <h4>{hit.title}</h4>
@@ -354,7 +364,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
               }
             >
               {h.status} · {new Date(h.created * 1000).toLocaleString()} ·{" "}
-              {h.items.length} current hits
+              {h.items.length} visible hits
             </button>
           ))}
         </div>

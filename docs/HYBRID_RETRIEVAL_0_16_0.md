@@ -25,3 +25,8 @@ Ranking runs in a child process with a sanitized environment and one BLAS thread
 Twelve new backend tests cover real LSA, idempotency/recovery, ACL filtering, source changes during computation, malformed worker output, corpus/rate/concurrency limits, interruption, query privacy, cross-account access and Unicode matching. Before a production search release, implement/accept the chosen persistent index and embedding/reranking architecture, relevance datasets, per-source ingestion/ACL synchronization, scalable quotas and retention. The semantic-retrieval workstream is partial.
 
 Algorithm references: https://numpy.org/doc/2.3/reference/generated/numpy.linalg.svd.html and https://scikit-learn.org/stable/modules/decomposition.html#lsa . This source uses NumPy directly; scikit-learn is not a runtime dependency.
+
+
+## Arabic search normalization
+
+Current search tokenization supports common Arabic vowel-mark, tatweel, presentation-form and letter variants. Original excerpts and citation hashes remain unchanged. Saved searches expose their tokenizer version; older receipts retain their original scores and are labelled as an earlier method. See [Arabic search](ARABIC_SEARCH.md) for matching rules, examples and limits.

@@ -13,6 +13,7 @@ from .documents import document_for, search_documents, can_read
 from .service import audit, canonical
 from .security import fail, digest, PERMISSIONS
 from .runtime_context import runtime_environment
+from .search_text import NORMALIZATION_VERSION
 
 
 class CheckCase(Strict):
@@ -81,7 +82,8 @@ def checked_detail(db,record,user):
     from .documents import allowed_docs
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
     fingerprint=digest(canonical(sorted(corpus,key=lambda r:r['id'])))
-    return {**summary(record),'config':record.config,'result':record.result,'stale':fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'boundary':'Measured document retrieval for the recorded actor and corpus at one time. No generated-answer grading or production acceptance.'}
+    method_changed=record.result.get('normalization_version')!=NORMALIZATION_VERSION
+    return {**summary(record),'config':record.config,'result':record.result,'stale':method_changed or fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'normalization_current':not method_changed,'boundary':'Measured document retrieval for the recorded actor and corpus at one time. No generated-answer grading or production acceptance.'}
 
 
 def record_for(db,id,user):
@@ -107,7 +109,7 @@ def execute(db,user,body):
     # did not match; later evidence can distinguish a changed corpus.
     from .documents import allowed_docs
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
-    return {'all_cases_passed':passed==len(results),'passed_cases':passed,'total_cases':len(results),'mean_document_recall_at_k':sum(r['document_recall_at_k'] for r in positives)/len(positives) if positives else None,'mean_reciprocal_rank':sum(r['reciprocal_rank'] for r in positives)/len(positives) if positives else None,'cases':results,'source_versions':source_versions,'corpus_fingerprint':digest(canonical(sorted(corpus,key=lambda r:r['id']))),'authorized_corpus_count':len(corpus),'actor_id':user.id,'actor_role':user.role,'checked_at':now(),'provider_calls':0,'method':'Current-ACL BM25-style lexical retrieval; document recall and first expected chunk rank'}
+    return {'all_cases_passed':passed==len(results),'passed_cases':passed,'total_cases':len(results),'mean_document_recall_at_k':sum(r['document_recall_at_k'] for r in positives)/len(positives) if positives else None,'mean_reciprocal_rank':sum(r['reciprocal_rank'] for r in positives)/len(positives) if positives else None,'cases':results,'source_versions':source_versions,'corpus_fingerprint':digest(canonical(sorted(corpus,key=lambda r:r['id']))),'authorized_corpus_count':len(corpus),'actor_id':user.id,'actor_role':user.role,'checked_at':now(),'provider_calls':0,'normalization_version':NORMALIZATION_VERSION,'method':'Current-ACL BM25-style lexical retrieval with Arabic normalization; document recall and first expected chunk rank'}
 
 
 def register_retrieval_checks(app,factory,settings,human):
