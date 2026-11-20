@@ -23,13 +23,15 @@ from .service import canonical
 
 BOUNDARY = ('Disposable synthetic keyword-retrieval exercise only. No customer system or model provider was contacted. '
             'This is not generated-answer evaluation, authenticated evidence or production readiness.')
+KNOWLEDGE_BOUNDARY = ('Disposable synthetic keyword and local LSA/BM25 exercise only. No customer system or model provider was contacted. '
+                      'This is not neural retrieval, generated-answer evaluation, authenticated evidence or production readiness.')
 
 
 class DrillFailure(RuntimeError):
     pass
 
 
-def run_drill(directory):
+def run_drill(directory, include_hybrid=False):
     """Require a fresh directory; all identities and databases stay under it."""
     root = Path(directory).resolve()
     root.mkdir(exist_ok=False)
@@ -37,11 +39,11 @@ def run_drill(directory):
         mock_database=str(root/'business.db'), secret=secrets.token_urlsafe(48),
         agent_secret=secrets.token_urlsafe(48), frontend_dir=str(root/'no-frontend'),
         mode='local', policy_mode='reference', business_connector='synthetic', live_inference=0)
-    result = {'format':'nexus-synthetic-retrieval-drill', 'format_version':1,
+    result = {'format':'nexus-synthetic-knowledge-drill' if include_hybrid else 'nexus-synthetic-retrieval-drill', 'format_version':1,
         'release':__version__, 'schema_version':CURRENT_SCHEMA,
         'created_at_utc':datetime.now(timezone.utc).isoformat(), 'connector_mode':'synthetic',
         'passed':False, 'customer_acceptance':False, 'production_ready':False,
-        'steps':[], 'boundary':BOUNDARY}
+        'steps':[], 'boundary':KNOWLEDGE_BOUNDARY if include_hybrid else BOUNDARY}
     app = None
     logger = logging.getLogger('nexus.http'); previously_disabled = logger.disabled
     logger.disabled = True
@@ -160,6 +162,9 @@ def run_drill(directory):
             with app.state.factory() as db:
                 saved=db.scalars(select(RetrievalCheck)).all()
                 check('no_model_calls_or_business_effects',len(saved)==3 and all(row.result['provider_calls']==0 for row in saved) and app.state.connector.count()==0)
+            if include_hybrid:
+                from .hybrid_drill import exercise
+                exercise(app,client,password,check,expect)
             result['passed']=True
     except DrillFailure as exc:
         result['failure']=str(exc)
@@ -175,19 +180,21 @@ def run_drill(directory):
 def main(argv=None):
     parser=argparse.ArgumentParser(description='Run disposable synthetic retrieval checks; never loads operator settings.')
     parser.add_argument('--output-dir',type=Path,default=Path(__file__).resolve().parents[1]/'data/drills')
+    parser.add_argument('--include-hybrid',action='store_true',help='Also exercise bounded local LSA/BM25 search in a separate disposable workspace.')
     args=parser.parse_args(argv)
+    boundary=KNOWLEDGE_BOUNDARY if args.include_hybrid else BOUNDARY
     try:
         destination=args.output_dir.resolve();destination.mkdir(parents=True,exist_ok=True)
         with TemporaryDirectory(prefix='.retrieval-',dir=destination) as scratch:
             if Path(scratch).resolve().parent!=destination:raise ValueError('Invalid temporary directory')
-            result=run_drill(Path(scratch)/'workspace')
-        report=destination/('synthetic-retrieval-'+uuid.uuid4().hex+'.json')
+            result=run_drill(Path(scratch)/'workspace',include_hybrid=args.include_hybrid)
+        report=destination/(('synthetic-knowledge-' if args.include_hybrid else 'synthetic-retrieval-')+uuid.uuid4().hex+'.json')
         with report.open('x',encoding='utf-8') as target:json.dump(result,target,indent=2)
         print(json.dumps({'passed':result['passed'],'steps_passed':sum(step['passed'] for step in result['steps']),
-            'report':str(report),'boundary':BOUNDARY}))
+            'report':str(report),'boundary':boundary}))
         return 0 if result['passed'] else 1
     except (OSError,ValueError):
-        print(json.dumps({'passed':False,'failure':'Could not create or clean up the disposable drill report.','boundary':BOUNDARY}))
+        print(json.dumps({'passed':False,'failure':'Could not create or clean up the disposable drill report.','boundary':boundary}))
         return 1
 
 

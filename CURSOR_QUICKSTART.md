@@ -114,6 +114,19 @@ connection is required. The command prints the saved report path in the ignored
 for exit codes and scope limits. Passing this synthetic exercise does not establish
 generated-answer quality or production readiness.
 
+## Run the combined knowledge drill
+
+```powershell
+npm.cmd run test:knowledge
+```
+
+This runs all 18 keyword checks plus 18 local hybrid-search checks, using the real
+isolated ranking worker in a separate disposable workspace. It covers related-word
+retrieval, Arabic text, saved search recovery, source access changes, stale citations
+and explicit vocabulary limits. Existing data and settings are preserved. See
+[the knowledge drill guide](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) for the 36 checks and
+the limits of this synthetic exercise.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:
