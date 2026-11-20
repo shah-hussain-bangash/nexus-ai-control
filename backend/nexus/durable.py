@@ -2,7 +2,7 @@
 from typing import Literal
 from fastapi import Request,Header,HTTPException,Query
 from pydantic import Field,model_validator,field_validator
-from sqlalchemy import select,update,func
+from sqlalchemy import select,update,func,and_,or_
 from .schemas import Strict,ActionInput
 from .db import DurableRun,DurableStep,Organization,Agent,Tool,Action,Approval,User,now,uid,public
 from .security import fail,digest,PERMISSIONS
@@ -206,7 +206,10 @@ def run_flow_once(factory,settings):
     with factory.begin() as db:
         for run in db.scalars(select(DurableRun).where(DurableRun.status=='processing',DurableRun.lease_until<now()).with_for_update()).all():
             run.recoveries+=1;touch(run,'queued' if run.recoveries<=3 else 'failed');run.error='WORKER_LEASE_EXPIRED';event(db,run,'worker','lease_recovered')
-        for run in db.scalars(select(DurableRun).where(DurableRun.status=='waiting_review',DurableRun.review_until<=now()).with_for_update()).all():
+        pending_review=or_(DurableRun.status=='waiting_review',and_(DurableRun.status=='paused',DurableRun.resume_state=='waiting_review'))
+        for run in db.scalars(select(DurableRun).where(pending_review,DurableRun.review_until<=now()).with_for_update()).all():
+            step=step_for(db,run)
+            if step and step.kind=='approval' and step.status=='waiting_review':step.status='expired';step.updated=now()
             touch(run,'expired');event(db,run,'worker','review_expired')
         candidate=db.scalar(select(DurableRun).where(DurableRun.status.in_(POLL),DurableRun.next_poll<=now()).order_by(DurableRun.next_poll,DurableRun.created).limit(1))
         if not candidate:return False
