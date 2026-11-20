@@ -14,7 +14,7 @@ from .service import audit, canonical
 from .security import fail, digest, PERMISSIONS
 from .runtime_context import runtime_environment
 from .search_text import NORMALIZATION_VERSION
-from .retrieval_metrics import language_metrics
+from .retrieval_metrics import language_metrics, result_with_precision
 
 
 class CheckCase(Strict):
@@ -90,9 +90,10 @@ def checked_detail(db,record,user):
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
     fingerprint=digest(canonical(sorted(corpus,key=lambda r:r['id'])))
     method_changed=record.result.get('normalization_version')!=NORMALIZATION_VERSION
-    try:grouped=language_metrics(record.result['cases'])
-    except (ValueError,TypeError):fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved query language labels are unsupported by this release.')
-    return {**summary(record),'config':record.config,'result':record.result,'language_metrics':grouped,'stale':method_changed or fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'normalization_current':not method_changed,'boundary':'Measured document retrieval for the recorded actor and corpus at one time. Language labels are supplied by the reviewer, not inferred. No generated-answer grading or production acceptance.'}
+    try:
+        measured=result_with_precision(record.result);grouped=language_metrics(measured['cases'])
+    except (ValueError,TypeError,KeyError):fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved retrieval evidence cannot be measured by this release.')
+    return {**summary(record),'config':record.config,'result':measured,'language_metrics':grouped,'stale':method_changed or fingerprint!=record.result['corpus_fingerprint'] or any(current[id]!=v for id,v in versions.items()),'normalization_current':not method_changed,'boundary':'Measured document retrieval for the recorded actor and corpus at one time. Language labels are supplied by the reviewer, not inferred. Precision treats the expected-source list as complete; unlisted sources need review. No generated-answer grading or production acceptance.'}
 
 
 def record_for(db,id,user):

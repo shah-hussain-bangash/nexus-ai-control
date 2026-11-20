@@ -32,7 +32,7 @@ def test_metrics_separate_languages_and_use_positive_and_negative_denominators(c
     groups={g['language']:g for g in value['language_metrics']}
     assert set(groups)=={'English','Arabic','Bilingual','Unlabelled'}
     assert groups['English']=={'language':'English','case_count':2,'passed_cases':1,'retrieve_cases':2,'no_results_cases':0,
-        'mean_document_recall_at_k':.5,'mean_reciprocal_rank':.5,'no_results_pass_rate':None}
+        'mean_document_recall_at_k':.5,'mean_document_precision_at_k':.5,'mean_reciprocal_rank':.5,'no_results_pass_rate':None}
     assert groups['Arabic']['mean_document_recall_at_k']==1 and groups['Arabic']['mean_reciprocal_rank']==1
     assert groups['Arabic']['no_results_pass_rate']==0 and groups['Arabic']['passed_cases']==1
     assert groups['Bilingual']['mean_document_recall_at_k']==1 and groups['Bilingual']['passed_cases']==1
@@ -110,7 +110,7 @@ def test_language_metrics_obey_account_workspace_environment_and_revoked_source_
 
 
 def test_group_math_does_not_average_no_result_cases_into_recall_or_rank():
-    rows=[{'query_language':'Arabic','expectation':'retrieve','passed':False,'document_recall_at_k':.5,'reciprocal_rank':.25},
+    rows=[{'query_language':'Arabic','expectation':'retrieve','passed':False,'document_recall_at_k':.5,'reciprocal_rank':.25,'expected_document_ids':['a','b'],'retrieved_document_ids':['a']},
           {'query_language':'Arabic','expectation':'no_results','passed':True,'document_recall_at_k':None,'reciprocal_rank':0}]
     group=language_metrics(rows)[0]
     assert group['mean_document_recall_at_k']==.5 and group['mean_reciprocal_rank']==.25 and group['no_results_pass_rate']==1
