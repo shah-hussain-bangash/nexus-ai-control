@@ -127,6 +127,19 @@ and explicit vocabulary limits. Existing data and settings are preserved. See
 [the knowledge drill guide](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) for the 36 checks and
 the limits of this synthetic exercise.
 
+## Run the disposable file-ingestion drill
+
+```powershell
+npm.cmd run test:ingestion
+```
+
+This runs 25 checks with synthetic DOCX/PDF files and the real local extraction
+worker. It covers review before publication, provenance, source access, replay,
+cancellation, parser limits and deletion without resurrection. Your existing
+data and settings are preserved. No files or passwords are required. See
+[the ingestion drill guide](docs/SYNTHETIC_INGESTION_DRILL.md) for the checks and
+the limits of this synthetic exercise; OCR quality is not tested.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:

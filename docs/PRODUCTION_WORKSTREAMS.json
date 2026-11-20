@@ -28,7 +28,7 @@
       "title": "Document ingestion & OCR",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Authorized ingestion jobs, parsing, OCR and deletion propagation.",
+      "required_evidence": "Authorized intake, local parsers, reviewed publication, OCR controls, deletion propagation and a disposable DOCX/PDF ingestion drill are implemented. OCR quality, broader file compatibility and deployment acceptance remain.",
       "workspace": "documents"
     },
     {

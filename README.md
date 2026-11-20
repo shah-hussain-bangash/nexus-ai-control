@@ -23,6 +23,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Disposable synthetic retrieval test](docs/SYNTHETIC_RETRIEVAL_DRILL.md) — `npm run test:retrieval`
 - [Combined synthetic knowledge test](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) — `npm run test:knowledge`
+- [Synthetic file-ingestion test](docs/SYNTHETIC_INGESTION_DRILL.md) — `npm run test:ingestion`
 - [Members, roles and sessions](docs/IDENTITY_LIFECYCLE_0_16_0.md)
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
