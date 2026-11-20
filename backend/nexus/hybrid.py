@@ -133,7 +133,10 @@ def register_hybrid(app,factory,settings,human):
   try:result=compute(payload) if chunks else {'scores':[],'rank':0,'vocabulary':0}
   except Exception:result={'error_code':'RANKING_FAILED'}
   with factory.begin() as db:
-   user=human(request,db);valid=True
+   # Completion is a write: order identity/source rechecks, receipt persistence
+   # and response construction with the same workspace lock as ACL changes.
+   # Ranking remains outside this transaction so it does not hold the lock.
+   user=human(request,db,True);valid=True
    if user.id!=author or user.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'SEARCH_SCOPE_CHANGED','Session scope changed while searching.')
    row=owned_run(db,id,user)
    if row.status!='processing':return visible_run(db,row,user)
