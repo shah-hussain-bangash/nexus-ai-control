@@ -11,7 +11,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Document ingestion & OCR | partial | Authorized ingestion jobs, parsing, OCR and deletion propagation. |
 | Semantic retrieval & reranking | partial | Local ACL-first LSA/BM25 retrieval and versioned Arabic search normalization are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain. |
 | Document-level permissions | partial | Source ACL enforcement across retrieval, indexing and deletion. |
-| Bilingual answer evaluation | partial | Reviewer-labelled English/Arabic/bilingual retrieval recall/precision breakdowns and unlisted-source inspection are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain. |
+| Bilingual answer evaluation | partial | Reviewer-labelled retrieval recall/precision breakdowns, unlisted-source inspection and optional per-case precision targets are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain. |
 | Provider resilience | partial | Model-specific failure behavior, streaming/fallback if required, and live provider acceptance. |
 | Inference traffic controls | implemented | Shared-database admission limits, concurrency reservations and saturation behavior. |
 | Usage & cost governance | partial | Invoice reconciliation, evidence retention and account-level cost controls. |
