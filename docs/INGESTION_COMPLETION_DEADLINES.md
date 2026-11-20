@@ -1,0 +1,11 @@
+# File-worker completion deadlines
+
+The intake worker now checks both its review expiry and processing lease again when extraction finishes. It checks after acquiring the current job row and confirming that its processing state and lease token still match. This does not depend on a later worker poll noticing the expired job.
+
+At the completion check, a review window ending at or before the current time makes the job **expired** with `REVIEW_WINDOW_EXPIRED`. The worker discards its original file bytes and review text from active storage and does not accept the late parser result. If only the processing lease has ended, the job becomes **failed** with `WORKER_INTERRUPTED`; its late review text is discarded while its original file remains available for an explicit retry, subject to the existing review window and attempt limit. Both paths release the lease, increment the job version and write the normal scoped audit event. Review expiry takes precedence when both deadlines have passed.
+
+Successful and failed parser responses follow the same deadline rules. A result checked strictly before both deadlines can still become ready for review. Explicit cancellation or a replaced lease token continues to fence off the old worker result before these deadline checks. No late result is automatically published, and retry still requires an operator action followed by review before publication.
+
+Publication already rejected an expired review; this change also keeps the worker's completion state and active retention behavior consistent with that deadline. It does not close or shorten the configured review window, extend leases, change parser timeouts, add automatic retries or alter source access controls. Normal extraction and publication behavior remain unchanged. Backup/WAL erasure and deployment acceptance remain separate responsibilities.
+
+Regression tests use a controlled clock, without long sleeps: exact deadline equality, just-before completion, late success/error results, simultaneous review/lease expiry, explicit retry and cancellation. The original implementation marks a successful result ready for review even when its window expires during extraction; the new test reproduces that behavior before the fix. No database migration, API field, dependency, frontend change or customer connection is introduced.

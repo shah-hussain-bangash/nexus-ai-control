@@ -196,12 +196,20 @@ def run_ingestion_once(factory,settings,extractor=None):
     with factory.begin() as db:
         current=db.scalar(select(IngestionJob).where(IngestionJob.id==id,IngestionJob.org_id==org,IngestionJob.env==environment,IngestionJob.status=='processing',IngestionJob.lease_token==token).with_for_update())
         if not current:return True  # cancellation/expiry fences off stale publication
-        author=db.get(User,current.author_id)
-        if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env,allow_non_staging=settings.mode=='local') or 'operate' not in PERMISSIONS.get(author.role,set()):
-            result={'error_code':'REQUESTER_REVOKED'}
-        text=result.get('text','');error=result.get('error_code','')
-        if not isinstance(text,str) or '\x00' in text or len(text.encode('utf-8'))>32768:error='EXTRACTOR_RESULT_INVALID'
-        if error or not text.strip():release(current,'failed',error or 'NO_EXTRACTABLE_TEXT')
-        else:current.extracted_text=text;current.extraction=result.get('info',{});release(current,'awaiting_review')
+        # A matching token cannot authorize a late result. Check the deadlines
+        # again under the completion row lock, even if no other worker swept it.
+        completed=now()
+        if current.expires<=completed:
+            release(current,'expired','REVIEW_WINDOW_EXPIRED');current.original_data=b'';current.extracted_text=''
+        elif current.lease_until<=completed:
+            release(current,'failed','WORKER_INTERRUPTED');current.extracted_text=''
+        else:
+            author=db.get(User,current.author_id)
+            if not author or not environment_user_allowed(db,current.author_id,current.org_id,current.env,allow_non_staging=settings.mode=='local') or 'operate' not in PERMISSIONS.get(author.role,set()):
+                result={'error_code':'REQUESTER_REVOKED'}
+            text=result.get('text','');error=result.get('error_code','')
+            if not isinstance(text,str) or '\x00' in text or len(text.encode('utf-8'))>32768:error='EXTRACTOR_RESULT_INVALID'
+            if error or not text.strip():release(current,'failed',error or 'NO_EXTRACTABLE_TEXT')
+            else:current.extracted_text=text;current.extraction=result.get('info',{});release(current,'awaiting_review')
         audit(db,current.org_id,'worker','intake.'+current.status,detail={'job_id':id,'attempt':current.attempts,'error_code':current.error_code},env=current.env)
     return True
