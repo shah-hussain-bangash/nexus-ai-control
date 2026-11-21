@@ -167,6 +167,19 @@ are preserved. See [the inference drill guide](docs/SYNTHETIC_INFERENCE_DRILL.md
 for simulated deadline/pending states, exit codes and limits. No provider or
 customer system is contacted.
 
+## Run the disposable backup-safeguard drill
+
+```powershell
+npm.cmd run test:backup
+```
+
+This runs 27 checks using temporary SQLite databases and a fresh, disposable
+encryption key. It checks snapshot records, authentication, wrong keys, tampering,
+malformed archives, overwrite prevention and cleanup. No existing backup or key
+is needed; your running app and settings are untouched. See
+[the backup drill guide](docs/SYNTHETIC_BACKUP_DRILL.md) for exit codes and limits.
+This inspects temporary backups; it does not restore the active application.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:
