@@ -17,8 +17,21 @@ from .backup import backup,inspect_backup
 
 MAGIC=b'NEXUSENC1'
 MAX_BYTES=512*1024*1024
+MAX_MEMBERS=4
 KEY_ENV='NEXUS_BACKUP_ENCRYPTION_KEY'
 MEMBERS={'manifest.json','control.sqlite3','control.dump','business.sqlite3'}
+
+
+def validated_members(tar):
+    members=[];names=set();total=0
+    # TarFile caches parsed members. Stop on the first invalid resolved member
+    # so a long malformed archive cannot populate an unbounded member list.
+    for member in tar:
+        if len(members)>=MAX_MEMBERS or member.name in names or not member.isfile() or member.name not in MEMBERS or member.size<0 or total+member.size>MAX_BYTES:
+            raise RuntimeError('Unsafe encrypted backup member layout.')
+        members.append(member);names.add(member.name);total+=member.size
+    if 'manifest.json' not in names:raise RuntimeError('Unsafe encrypted backup member layout.')
+    return members
 
 
 def encryption_key():
@@ -77,8 +90,7 @@ def inspect_encrypted_backup(source):
             target=root/'inspection';target.mkdir(mode=0o700)
             try:
                 with tarfile.open(archive,'r:') as tar:
-                    members=tar.getmembers();names=[m.name for m in members]
-                    if len(members)>4 or len(set(names))!=len(names) or 'manifest.json' not in names or not all(m.isfile() and m.name in MEMBERS and m.size>=0 for m in members) or sum(m.size for m in members)>MAX_BYTES:raise RuntimeError('Unsafe encrypted backup member layout.')
+                    members=validated_members(tar);names=[m.name for m in members]
                     for member in members:
                         file=tar.extractfile(member)
                         if file is None:raise RuntimeError('Missing encrypted backup member.')
