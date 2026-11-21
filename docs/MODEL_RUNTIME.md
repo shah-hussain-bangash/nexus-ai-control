@@ -24,6 +24,8 @@ Token rates and budget assets in the cost-planning workbench do not control this
 
 An HTTP 200 response is not sufficient to complete a call. The adapter checks the JSON object, usage object, nonempty choices list, first choice and message object before reading the answer. Invalid containers, noninteger or out-of-range usage, nontext answers and tool-call responses are treated as Unknown. The reservation stays held; same-key replay and recovery return the existing record without another provider request. An owner must reconcile verified usage before the reservation is released. These malformed-response cases are tested with synthetic HTTP transports; live provider acceptance remains open.
 
+The provider timeout is also an elapsed-time completion boundary. The adapter checks a monotonic deadline after headers arrive, during body reads and before returning the decoded, validated result after stream cleanup. A response finishing at or after that deadline becomes Unknown even if its HTTP status, answer and usage are otherwise valid. This does not cancel or undo provider work or prove that no charges occurred. The reservation stays held until owner reconciliation; replay and recovery do not resend the call. Boundary tests simulate time inside the adapter only and do not demonstrate real-network latency or live provider acceptance.
+
 ## API source references
 
 - OpenAI Chat Completions: https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create

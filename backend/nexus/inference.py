@@ -89,11 +89,12 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
     deadline = time.monotonic() + timeout
     with httpx.Client(transport=transport, timeout=httpx.Timeout(timeout, connect=min(10, timeout)), follow_redirects=False, trust_env=False) as client:
         with client.stream('POST', url, headers=headers, json=payload) as response:
+            if time.monotonic() >= deadline: raise ValueError('provider_deadline')
             if response.status_code != 200:
                 raise ValueError('provider_non_success')
             parts = []; length = 0
             for part in response.iter_bytes():
-                if time.monotonic() > deadline: raise ValueError('provider_deadline')
+                if time.monotonic() >= deadline: raise ValueError('provider_deadline')
                 length += len(part)
                 if length > max_bytes:
                     raise ValueError('provider_response_limit')
@@ -118,7 +119,11 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
     if message.get('tool_calls') or not isinstance(answer, str) or len(answer) > 100000:
         raise ValueError('provider_output_invalid')
     request_id = data.get('id', '')
-    return {'answer': answer, 'input_tokens': ins, 'output_tokens': outs, 'provider_request_id': str(request_id)[:200], 'finish_reason': str(choice.get('finish_reason', ''))[:60]}
+    result = {'answer': answer, 'input_tokens': ins, 'output_tokens': outs, 'provider_request_id': str(request_id)[:200], 'finish_reason': str(choice.get('finish_reason', ''))[:60]}
+    # Body reads alone do not cover JSON decoding, validation or stream cleanup.
+    # A late result is uncertain: provider usage may already have occurred.
+    if time.monotonic() >= deadline: raise ValueError('provider_deadline')
+    return result
 
 
 def settle(db, row, ins, outs, status, result):
