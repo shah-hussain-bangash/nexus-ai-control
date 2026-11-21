@@ -8,7 +8,7 @@
 
 | Project | At a glance |
 |---|---|
-| Project owner | Shah Hussain Bangash · [GitHub](https://github.com/zenithdevelopers7-source) |
+| Project owner | Shah Hussain Bangash · [GitHub](https://github.com/shah-hussain-bangash) |
 | Domain | Enterprise AI governance, security and operations |
 | Source baseline | [`6fd8dcb`, reviewed 21 November 2026][baseline] |
 | Current source | 0.16.2 candidate; database schema 11 |
@@ -287,26 +287,26 @@ A focused interview demonstration can follow one controlled decision:
 
 NEXUS supports a senior architecture discussion because its most useful decisions connect AI capability to identity, authority, cost and recoverability. The case study's evidence supports that engineering discussion while keeping customer deployment and production acceptance as explicit next gates.
 
-[baseline]: https://github.com/zenithdevelopers7-source/nexus-ai-control/commit/6fd8dcb6e84ce181db5b587426555facf9d34cd6
-[ci]: https://github.com/zenithdevelopers7-source/nexus-ai-control/actions/runs/44884584540
-[roadmap]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/PRODUCTION_ROADMAP.md
-[config]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/config.py
-[service]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/service.py
-[worker]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/worker.py
-[durable]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/durable.py
-[connector]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/business_connector.py
-[inference]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/inference.py
-[accounting]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/inference_accounting.py
-[intake]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/DOCUMENT_INTAKE_0_13_0.md
-[hybrid-doc]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/HYBRID_RETRIEVAL_0_16_0.md
-[arabic]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/ARABIC_SEARCH.md
-[security]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/security.py
-[membership]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/IDENTITY_LIFECYCLE_0_16_0.md
-[environments]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/LOCAL_ENVIRONMENT_SWITCHING.md
-[supplier-evidence]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/GOVERNED_SUPPLIER_CHECKS.md
-[backup]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/encrypted_backup.py
-[agent-drill]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_AGENT_DRILL.md
-[inference-drill]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_INFERENCE_DRILL.md
-[backup-drill]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_BACKUP_DRILL.md
-[retrieval-drill]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_RETRIEVAL_DRILL.md
-[compose]: https://github.com/zenithdevelopers7-source/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/compose.yaml
+[baseline]: https://github.com/shah-hussain-bangash/nexus-ai-control/commit/6fd8dcb6e84ce181db5b587426555facf9d34cd6
+[ci]: https://github.com/shah-hussain-bangash/nexus-ai-control/actions/runs/44884584540
+[roadmap]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/PRODUCTION_ROADMAP.md
+[config]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/config.py
+[service]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/service.py
+[worker]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/worker.py
+[durable]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/durable.py
+[connector]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/business_connector.py
+[inference]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/inference.py
+[accounting]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/inference_accounting.py
+[intake]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/DOCUMENT_INTAKE_0_13_0.md
+[hybrid-doc]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/HYBRID_RETRIEVAL_0_16_0.md
+[arabic]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/ARABIC_SEARCH.md
+[security]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/security.py
+[membership]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/IDENTITY_LIFECYCLE_0_16_0.md
+[environments]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/LOCAL_ENVIRONMENT_SWITCHING.md
+[supplier-evidence]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/GOVERNED_SUPPLIER_CHECKS.md
+[backup]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/backend/nexus/encrypted_backup.py
+[agent-drill]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_AGENT_DRILL.md
+[inference-drill]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_INFERENCE_DRILL.md
+[backup-drill]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_BACKUP_DRILL.md
+[retrieval-drill]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/docs/SYNTHETIC_RETRIEVAL_DRILL.md
+[compose]: https://github.com/shah-hussain-bangash/nexus-ai-control/blob/6fd8dcb6e84ce181db5b587426555facf9d34cd6/compose.yaml
