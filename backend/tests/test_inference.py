@@ -1,5 +1,6 @@
 import json
 import time
+from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
@@ -237,3 +238,50 @@ def test_malformed_provider_shapes_retain_budget_and_recover_without_retry(ctx,m
     assert settled.status_code==200 and settled.json()['status']=='reconciled'
     runtime=ctx['client'].get('/v1/runtime').json()
     assert runtime['held_micro_usd']==0 and runtime['spent_micro_usd']==16 and len(sent)==1
+
+
+@pytest.mark.parametrize('phase',['headers','body','close','decode'])
+@pytest.mark.parametrize('elapsed',[1.99,2.0,2.01])
+def test_provider_deadline_fences_completion_and_preserves_recovery(ctx,monkeypatch,phase,elapsed):
+    from nexus import inference
+    clock=[100.0];answer='Private synthetic late provider answer'
+    payload=json.dumps({'id':'deadline-synthetic','choices':[{'message':{'content':answer},'finish_reason':'stop'}],
+                        'usage':{'prompt_tokens':12,'completion_tokens':4}}).encode()
+    class TimedBody(httpx.SyncByteStream):
+        def __iter__(self):
+            if phase=='body':clock[0]=100.0+elapsed
+            yield payload
+        def close(self):
+            if phase=='close':clock[0]=100.0+elapsed
+    def handler(request):
+        if phase=='headers':clock[0]=100.0+elapsed
+        return httpx.Response(200,stream=TimedBody())
+    def decode(data):
+        result=json.loads(data)
+        if phase=='decode' and isinstance(data,bytes):clock[0]=100.0+elapsed
+        return result
+    # Patch only this module's references; neither the OS clock nor other modules change.
+    monkeypatch.setattr(inference,'time',SimpleNamespace(monotonic=lambda:clock[0],time=time.time,perf_counter=time.perf_counter))
+    monkeypatch.setattr(inference,'json',SimpleNamespace(loads=decode,dumps=json.dumps))
+    h,b,sent=setup(ctx,monkeypatch,handler)
+    response=ctx['client'].post('/v1/inference',headers=h,json=b)
+    assert response.status_code==200,response.text
+    row=response.json();runtime=ctx['client'].get('/v1/runtime').json()
+    if elapsed<2:
+        assert row['status']=='completed' and row['result']['answer']==answer and row['charged']==24
+        assert runtime['held_micro_usd']==0 and runtime['spent_micro_usd']==24
+    else:
+        assert row['status']=='unknown' and row['charged']==0 and answer not in response.text
+        assert runtime['held_micro_usd']==row['reserved']>0 and runtime['spent_micro_usd']==0
+    replay=ctx['client'].post('/v1/inference',headers=h,json=b)
+    recovered=ctx['client'].post('/v1/inference/recover',headers=h,json={'key':h['Idempotency-Key']})
+    assert replay.status_code==recovered.status_code==200
+    assert replay.json()['id']==recovered.json()['id']==row['id'] and len(sent)==1
+    assert recovered.json()['status']==row['status']
+    if elapsed>=2:
+        assert answer not in recovered.text
+        settled=ctx['client'].post('/v1/inference/'+row['id']+'/reconcile',headers=h,json={
+            'input_tokens':10,'output_tokens':2,'note':'Verified synthetic usage after simulated provider deadline.'})
+        assert settled.status_code==200 and settled.json()['status']=='reconciled'
+        runtime=ctx['client'].get('/v1/runtime').json()
+        assert runtime['held_micro_usd']==0 and runtime['spent_micro_usd']==16 and len(sent)==1
