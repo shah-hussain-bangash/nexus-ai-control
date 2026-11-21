@@ -3,6 +3,7 @@
   "version": "0.16.2",
   "private": true,
   "scripts": {
+    "test:inference": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-inference.ps1",
     "test:agents": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-agents.ps1",
     "test:ingestion": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-ingestion.ps1",
     "test:knowledge": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-knowledge.ps1",

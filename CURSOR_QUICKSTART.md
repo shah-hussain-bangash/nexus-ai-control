@@ -153,6 +153,20 @@ your existing app, records and settings remain separate. See
 [the agent drill guide](docs/SYNTHETIC_AGENT_DRILL.md) for exit codes, fault
 injection details and limits. No customer credentials or report path are needed.
 
+## Run the disposable inference-control drill
+
+```powershell
+npm.cmd run test:inference
+```
+
+This runs 27 checks for input guardrails, budget reservations, uncertain provider
+outcomes, replay/recovery, reconciliation and workspace isolation. It uses an
+in-process API, fresh accounts/databases and an HTTP mock transport. No provider
+key, report path or running server is required; your existing settings and data
+are preserved. See [the inference drill guide](docs/SYNTHETIC_INFERENCE_DRILL.md)
+for simulated deadline/pending states, exit codes and limits. No provider or
+customer system is contacted.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:

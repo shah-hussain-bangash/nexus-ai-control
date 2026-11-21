@@ -32,6 +32,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Paused agent-review expiry](docs/PAUSED_REVIEW_EXPIRY.md)
 - [Durable worker claim deadlines](docs/DURABLE_CLAIM_DEADLINES.md)
 - [Synthetic agent-workflow test](docs/SYNTHETIC_AGENT_DRILL.md) — `npm run test:agents`
+- [Synthetic inference-control test](docs/SYNTHETIC_INFERENCE_DRILL.md) — `npm run test:inference`
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
 
