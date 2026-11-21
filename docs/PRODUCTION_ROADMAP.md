@@ -12,7 +12,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Semantic retrieval & reranking | partial | Local ACL-first LSA/BM25 retrieval, Arabic normalization and a disposable combined knowledge drill are implemented. Neural embeddings/vector indexing, scalable retrieval, reranking and bilingual relevance acceptance remain. |
 | Document-level permissions | partial | Source ACL enforcement across retrieval, indexing and deletion. |
 | Bilingual answer evaluation | partial | Reviewer-labelled retrieval metrics, precision targets, saved-run comparisons and a disposable synthetic retrieval drill are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain. |
-| Provider resilience | partial | Model-specific failure behavior, streaming/fallback if required, and live provider acceptance. |
+| Provider resilience | partial | Bounded response validation, elapsed-time completion checks, uncertain-outcome accounting and a disposable synthetic inference-control drill are implemented. Model-specific failure behavior, streaming/fallback if required, and live provider acceptance remain. |
 | Inference traffic controls | implemented | Shared-database admission limits, concurrency reservations and saturation behavior. |
 | Usage & cost governance | partial | Invoice reconciliation, evidence retention and account-level cost controls. |
 | Identity & workload lifecycle | partial | IdP provisioning/offboarding, verified MFA and workload federation. |
