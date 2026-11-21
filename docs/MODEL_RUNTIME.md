@@ -22,6 +22,8 @@ Supported endpoint bases: https://api.openai.com/v1 for OpenAI; https://RESOURCE
 
 Token rates and budget assets in the cost-planning workbench do not control this runtime. Runtime prices and monthly cap come from operator configuration. Account-level spending limits remain separate. Output is plain text; no tool calls, automatic actions, streaming or fallback are implemented.
 
+An HTTP 200 response is not sufficient to complete a call. The adapter checks the JSON object, usage object, nonempty choices list, first choice and message object before reading the answer. Invalid containers, noninteger or out-of-range usage, nontext answers and tool-call responses are treated as Unknown. The reservation stays held; same-key replay and recovery return the existing record without another provider request. An owner must reconcile verified usage before the reservation is released. These malformed-response cases are tested with synthetic HTTP transports; live provider acceptance remains open.
+
 ## API source references
 
 - OpenAI Chat Completions: https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
