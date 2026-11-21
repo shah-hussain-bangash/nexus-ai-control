@@ -31,6 +31,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Members, roles and sessions](docs/IDENTITY_LIFECYCLE_0_16_0.md)
 - [Paused agent-review expiry](docs/PAUSED_REVIEW_EXPIRY.md)
 - [Durable worker claim deadlines](docs/DURABLE_CLAIM_DEADLINES.md)
+- [Synthetic agent-workflow test](docs/SYNTHETIC_AGENT_DRILL.md) — `npm run test:agents`
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
 
