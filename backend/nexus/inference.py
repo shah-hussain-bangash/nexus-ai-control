@@ -212,6 +212,12 @@ def register_inference(app, factory, settings, human):
                 rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(MAX_INPUT_GUARDRAILS+1)).all()
                 if len(rules) > MAX_INPUT_GUARDRAILS:
                     fail(422, 'GUARDRAIL_LIMIT_EXCEEDED', 'More than 100 input guardrails are configured for this environment. Review and archive surplus rules before sending inference.')
+                # Check every blocking rule against original query/evidence before
+                # redaction can hide its signal. Keep the subsequent transformed-
+                # input checks too, preserving blocks on redaction output.
+                for rule in rules:
+                    if rule.config['mode'] == 'block' and check_guardrail(content, rule.config)['verdict'] == 'blocked':
+                        fail(422, 'GUARDRAIL_BLOCKED', 'A saved input guardrail blocked this request. No provider call was made.')
                 for rule in rules:
                     checked = check_guardrail(content, rule.config)
                     if checked['verdict'] == 'blocked': fail(422, 'GUARDRAIL_BLOCKED', 'A saved input guardrail blocked this request. No provider call was made.')
