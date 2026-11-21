@@ -1,0 +1,91 @@
+{
+  "format": "nexus-case-study-evidence-review",
+  "version": 1,
+  "review_date": "2026-11-21",
+  "timezone": "Asia/Dubai",
+  "repository": "zenithdevelopers7-source/nexus-ai-control",
+  "source_commit": "6fd8dcb6e84ce181db5b587426555facf9d34cd6",
+  "release": "0.16.2 candidate",
+  "schema": 11,
+  "method": "Source and documentation review plus inspected hosted workflow job logs; no claim of local full-suite reproduction",
+  "hosted_run": {
+    "id": 44884584540,
+    "url": "https://github.com/zenithdevelopers7-source/nexus-ai-control/actions/runs/44884584540",
+    "head_sha": "6fd8dcb6e84ce181db5b587426555facf9d34cd6",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "name": "backend",
+        "id": 136786983181,
+        "conclusion": "success",
+        "passed": 954,
+        "skipped": 18,
+        "warning_count": 1
+      },
+      {
+        "name": "postgresql",
+        "id": 136786983468,
+        "conclusion": "success",
+        "passed": 958,
+        "skipped": 14,
+        "warning_count": 1,
+        "database": "PostgreSQL 16",
+        "overlaps_backend_suite": true
+      },
+      {
+        "name": "frontend",
+        "id": 136786983421,
+        "conclusion": "success",
+        "node_test_passed": 100,
+        "build": "passed",
+        "browser_journeys_claimed": false,
+        "bundle_size_advisory": true
+      },
+      {
+        "name": "opa",
+        "id": 136786983386,
+        "conclusion": "success",
+        "policy_tests_passed": 5,
+        "policy_tests_total": 5,
+        "live_opa_endpoint_acceptance_claimed": false
+      }
+    ],
+    "counts_are_not_additive": true
+  },
+  "source_review": {
+    "local_normalized_git_blob_matches": 61,
+    "local_normalization": "CRLF converted to LF before Git blob SHA-1 comparison",
+    "historical_verification_file": {
+      "path": "docs/VERIFICATION.json",
+      "release": "0.16.0",
+      "schema": 8,
+      "used_as_current_evidence": false
+    }
+  },
+  "local_drill_attempt": {
+    "independently_rerun": false,
+    "reason": "Existing virtual environment referred to an inaccessible Python interpreter; available system Python lacked SQLAlchemy. No provider or customer system was contacted."
+  },
+  "screenshot": {
+    "path": "assets/nexus-command-center-preview.png",
+    "captured_on": "2026-11-21",
+    "kind": "isolated synthetic UI harness",
+    "retained_interface_baseline": "0.16.0",
+    "data": "synthetic retained snapshot",
+    "runtime_mutations": false,
+    "authenticated_backend_rehearsal": false,
+    "latest_source_visual_acceptance_claimed": false
+  },
+  "roadmap": {
+    "implemented_awaiting_acceptance": 1,
+    "partial": 17,
+    "production_acceptance_granted": false
+  },
+  "limits": [
+    "No local full backend test pass claimed",
+    "No live customer connector or model provider acceptance",
+    "No generated-answer or representative bilingual quality claim",
+    "No full application or PostgreSQL restore performed",
+    "Unsigned case-study review record; not an authenticated certificate"
+  ]
+}

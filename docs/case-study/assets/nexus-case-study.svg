@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">NEXUS AI Control architecture and verification</title>
+<desc id="desc">Scoped identities and reviewed authority constrain durable execution and recorded outcomes. At source 6fd8dcb all four hosted CI jobs succeeded: backend 954 passed and 18 skipped, PostgreSQL 958 passed and 14 skipped, frontend 100 passed, and OPA five of five. These overlapping suites are not additive. The platform remains a development reference with production acceptance open.</desc>
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#0b1730"/><stop offset="1" stop-color="#172d4a"/></linearGradient><linearGradient id="accent"><stop stop-color="#64d7e2"/><stop offset="1" stop-color="#9d9bff"/></linearGradient><marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#87bfdc" stroke-width="1.4"/></marker><style>text{font-family:Segoe UI,Arial,sans-serif}.label{fill:#9cbbd6;font-size:16px;font-weight:600;letter-spacing:2px}.body{fill:#c1d2e3;font-size:18px}.node{fill:#1e3552;stroke:#4a6d91;stroke-width:1.5}.head{fill:#f1f7ff;font-weight:600;font-size:23px}.small{fill:#b5cbe0;font-size:16px}.line{fill:none;stroke:#87bfdc;stroke-width:2;marker-end:url(#arrow)}</style></defs>
+<rect width="1440" height="960" rx="24" fill="url(#bg)"/>
+<rect x="56" y="54" width="70" height="5" rx="2" fill="url(#accent)"/>
+<text x="56" y="94" class="label">ENTERPRISE AI GOVERNANCE / CASE STUDY</text>
+<text x="56" y="158" fill="#f3f8ff" font-size="56" font-weight="700">NEXUS AI Control</text>
+<text x="56" y="206" class="body" font-size="24">Govern authority. Preserve evidence. Resolve uncertainty.</text>
+<rect x="56" y="236" width="398" height="32" rx="16" fill="#273e5c"/><text x="75" y="258" fill="#bce8f2" font-size="14" font-weight="600">DEVELOPMENT SYSTEM / SYNTHETIC EVIDENCE</text>
+<text x="56" y="318" class="label">CONTROLLED DECISION AND EXECUTION PATH</text>
+<rect class="node" x="56" y="344" width="300" height="164" rx="15"/><text x="78" y="378" fill="#78d6e1" font-size="15" font-weight="600">01</text><text x="78" y="416" class="head">Scoped identity</text><text x="78" y="452" class="body">Workspace and environment</text><text x="78" y="480" class="body">Session / workload generation</text>
+<path class="line" d="M359 425H384"/>
+<rect class="node" x="394" y="344" width="300" height="164" rx="15"/><text x="416" y="378" fill="#78d6e1" font-size="15" font-weight="600">02</text><text x="416" y="416" class="head">Reviewed authority</text><text x="416" y="452" class="body">Grant, policy and exact payload</text><text x="416" y="480" class="body">Independent human decision</text>
+<path class="line" d="M697 425H722"/>
+<rect class="node" x="732" y="344" width="300" height="164" rx="15"/><text x="754" y="378" fill="#78d6e1" font-size="15" font-weight="600">03</text><text x="754" y="416" class="head">Bounded execution</text><text x="754" y="452" class="body">Durable intent and worker claim</text><text x="754" y="480" class="body">Revalidate before dispatch</text>
+<path class="line" d="M1035 425H1060"/>
+<rect class="node" x="1070" y="344" width="314" height="164" rx="15"/><text x="1092" y="378" fill="#78d6e1" font-size="15" font-weight="600">04</text><text x="1092" y="416" class="head">Recorded outcome</text><text x="1092" y="452" class="body">Verify or preserve uncertainty</text><text x="1092" y="480" class="body">Reconcile the existing effect</text>
+<rect x="56" y="534" width="1328" height="100" rx="14" fill="#12283f" stroke="#476987"/>
+<text x="80" y="568" class="label">SEPARATE CAPABILITY FROM AUTHORITY</text><text x="80" y="604" class="body">Model output ≠ tool authorization · Search score ≠ confidence · Backup inspection ≠ recovery acceptance</text>
+<text x="56" y="686" class="label">INSPECTED HOSTED CI / 21 NOVEMBER 2026 / 6fd8dcb</text>
+<text x="56" y="740" fill="#edf6ff" font-size="35" font-weight="700">4 jobs passed</text><text x="56" y="772" class="small">Backend · frontend · OPA · PostgreSQL</text>
+<text x="516" y="740" fill="#edf6ff" font-size="35" font-weight="700">954 / 958</text><text x="516" y="772" class="small">Backend / PostgreSQL passes; overlapping suites</text>
+<text x="1056" y="740" fill="#edf6ff" font-size="35" font-weight="700">100 + 5/5</text><text x="1056" y="772" class="small">Frontend checks + OPA policy tests</text>
+<path d="M56 811H1384" stroke="#405c78"/>
+<text x="56" y="846" class="small">Skipped: backend 18 / PostgreSQL 14 · Inference and customer integration still need live acceptance.</text>
+<text x="56" y="878" class="small">Current roadmap: 1 implemented awaiting acceptance / 17 partial · 216 function previews ≠ 216 live services.</text>
+<text x="56" y="923" fill="#8ba9c4" font-size="15">SOURCE-PINNED ENGINEERING EVIDENCE · Production readiness, cloud operation and measured recovery remain open.</text>
+</svg>

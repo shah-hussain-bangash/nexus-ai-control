@@ -11,6 +11,8 @@ Run `npm run setup`, then `npm start` from this folder.
 
 Enterprise Agentic AI Governance, Security & Operations Platform.
 
+**Featured case study:** [NEXUS AI Control Case Study — governed AI execution, evidence retrieval and operational accountability](docs/case-study/NEXUS_AI_CONTROL_CASE_STUDY.md). Explore architecture decisions, independent approval, uncertain-outcome recovery, AI FinOps, source-scoped retrieval, environment isolation and inspected current CI evidence.
+
 New working services: **local hybrid document retrieval** and **owner-controlled member/session administration**, connected to Knowledge & RAG and Workspace settings. Existing governance, approvals, execution, reviewed document intake, provider controls, business adapter and UI design workflows are retained.
 
 Windows: follow [the Cursor quickstart](CURSOR_QUICKSTART.md) and open the URL
