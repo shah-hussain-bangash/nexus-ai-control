@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import subprocess
 from sqlalchemy.engine import make_url
@@ -46,13 +47,40 @@ def backup(settings, destination, quiesced=False):
     return {'backup_created':True,'directory':str(target),'kind':kind,'files':len(files),'restore_verified':False}
 
 
+def inspection_manifest(root):
+    try:
+        source=root/'manifest.json'
+        if source.is_symlink() or not source.is_file():raise ValueError()
+        manifest=json.loads(source.read_text(encoding='utf-8'))
+        if not isinstance(manifest,dict) or manifest.get('kind') not in ('sqlite','postgresql') or type(manifest.get('schema')) is not int or manifest['schema']<1:raise ValueError()
+        files=manifest.get('files')
+        if not isinstance(files,list) or not files:raise ValueError()
+        names=set()
+        for item in files:
+            if not isinstance(item,dict):raise ValueError()
+            name=item.get('name');size=item.get('bytes');checksum=item.get('sha256')
+            if not isinstance(name,str) or not name or name.rstrip(' .')!=name or Path(name).name!=name or any(char in name for char in ('/','\\',':','\0')) or name.casefold() in names:raise ValueError()
+            if type(size) is not int or size<0 or not isinstance(checksum,str) or not re.fullmatch(r'[a-f0-9]{64}',checksum):raise ValueError()
+            names.add(name.casefold())
+        required='control.sqlite3' if manifest['kind']=='sqlite' else 'control.dump'
+        opposite='control.dump' if manifest['kind']=='sqlite' else 'control.sqlite3'
+        if opposite in names or not any(item['name']==required and item['bytes']>0 for item in files):raise ValueError()
+    except (OSError,ValueError,KeyError,TypeError):
+        raise RuntimeError('Invalid backup manifest or missing required database snapshot.') from None
+    return manifest
+
+
 def inspect_backup(directory):
-    root=Path(directory).resolve();manifest=json.loads((root/'manifest.json').read_text())
+    root=Path(directory).resolve();manifest=inspection_manifest(root)
     for item in manifest['files']:
-        if Path(item['name']).name!=item['name']:raise RuntimeError('Unsafe backup path.')
         path=root/item['name']
-        if hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('Backup checksum mismatch.')
-        if path.suffix=='.sqlite3':
-            with closing(sqlite3.connect('file:'+str(path)+'?mode=ro',uri=True)) as db:
-                if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise RuntimeError('Backup integrity check failed.')
+        try:
+            if path.is_symlink() or not path.is_file():raise RuntimeError('Missing or unsafe backup member.')
+            if path.stat().st_size!=item['bytes'] or hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('Backup checksum or size mismatch.')
+            if path.suffix=='.sqlite3':
+                with closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
+                    if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise RuntimeError('Backup integrity check failed.')
+                    if item['name']=='control.sqlite3' and db.execute('SELECT max(version) FROM schema_versions').fetchone()[0]!=manifest['schema']:raise RuntimeError('Backup schema metadata mismatch.')
+        except (OSError,sqlite3.Error):
+            raise RuntimeError('Backup member inspection failed; no application data was overwritten.') from None
     return {'checksums_valid':True,'sqlite_integrity_valid':True,'postgresql_restore_verified':False,'kind':manifest['kind']}
