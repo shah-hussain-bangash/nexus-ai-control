@@ -190,3 +190,50 @@ def test_concurrent_same_intent_dispatches_once(ctx,monkeypatch):
     with ThreadPoolExecutor(max_workers=2) as pool:responses=list(pool.map(run,[1,2]))
     assert all(r.status_code==200 for r in responses)
     assert responses[0].json()['id']==responses[1].json()['id'] and len(sent)==1
+
+
+@pytest.mark.parametrize('change',[
+    'root_null','root_list','root_string','usage_null','usage_list','choices_null',
+    'choices_object','choices_empty','choice_null','choice_list','message_missing',
+    'message_null','message_list','message_string','message_number','content_list',
+    'usage_boolean','tool_call',
+])
+def test_malformed_provider_shapes_retain_budget_and_recover_without_retry(ctx,monkeypatch,change):
+    private='private upstream shape sentinel'
+    data={'id':'synthetic-shape','choices':[{'message':{'content':private},'finish_reason':'stop'}],
+          'usage':{'prompt_tokens':12,'completion_tokens':4}}
+    if change=='root_null':data=None
+    elif change=='root_list':data=[private]
+    elif change=='root_string':data=private
+    elif change=='usage_null':data['usage']=None
+    elif change=='usage_list':data['usage']=[private]
+    elif change=='choices_null':data['choices']=None
+    elif change=='choices_object':data['choices']={'0':private}
+    elif change=='choices_empty':data['choices']=[]
+    elif change=='choice_null':data['choices']=[None]
+    elif change=='choice_list':data['choices']=[[private]]
+    elif change=='message_missing':del data['choices'][0]['message']
+    elif change=='message_null':data['choices'][0]['message']=None
+    elif change=='message_list':data['choices'][0]['message']=[private]
+    elif change=='message_string':data['choices'][0]['message']=private
+    elif change=='message_number':data['choices'][0]['message']=12
+    elif change=='content_list':data['choices'][0]['message']['content']=[private]
+    elif change=='usage_boolean':data['usage']['prompt_tokens']=True
+    elif change=='tool_call':data['choices'][0]['message']['tool_calls']=[{'id':private}]
+    h,b,sent=setup(ctx,monkeypatch,lambda req:httpx.Response(200,json=data))
+    response=ctx['client'].post('/v1/inference',headers=h,json=b)
+    assert response.status_code==200,response.text
+    row=response.json();assert row['status']=='unknown' and row['charged']==0
+    assert private not in response.text and len(sent)==1
+    runtime=ctx['client'].get('/v1/runtime').json()
+    assert runtime['held_micro_usd']==row['reserved']>0 and runtime['spent_micro_usd']==0
+    replay=ctx['client'].post('/v1/inference',headers=h,json=b)
+    recovered=ctx['client'].post('/v1/inference/recover',headers=h,json={'key':h['Idempotency-Key']})
+    assert replay.status_code==recovered.status_code==200
+    assert replay.json()['id']==recovered.json()['id']==row['id'] and len(sent)==1
+    assert recovered.json()['status']=='unknown' and private not in recovered.text
+    settled=ctx['client'].post('/v1/inference/'+row['id']+'/reconcile',headers=h,json={
+        'input_tokens':10,'output_tokens':2,'note':'Verified disposable synthetic provider usage only.'})
+    assert settled.status_code==200 and settled.json()['status']=='reconciled'
+    runtime=ctx['client'].get('/v1/runtime').json()
+    assert runtime['held_micro_usd']==0 and runtime['spent_micro_usd']==16 and len(sent)==1

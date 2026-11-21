@@ -99,11 +99,23 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
                     raise ValueError('provider_response_limit')
                 parts.append(part)
             data = json.loads(b''.join(parts))
-    usage = data['usage']; ins = usage['prompt_tokens']; outs = usage['completion_tokens']
+    # Provider JSON is untrusted. Check containers before attribute access so
+    # malformed successful responses take the normal uncertain-outcome path.
+    if not isinstance(data, dict):
+        raise ValueError('provider_response_invalid')
+    usage = data.get('usage'); choices = data.get('choices')
+    if not isinstance(usage, dict):
+        raise ValueError('provider_usage_invalid')
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        raise ValueError('provider_output_invalid')
+    choice = choices[0]; message = choice.get('message')
+    if not isinstance(message, dict):
+        raise ValueError('provider_output_invalid')
+    ins = usage['prompt_tokens']; outs = usage['completion_tokens']
     if type(ins) is not int or type(outs) is not int or not 0 <= ins <= 100000000 or not 0 <= outs <= 100000000:
         raise ValueError('provider_usage_invalid')
-    choice = data['choices'][0]; answer = choice['message'].get('content')
-    if choice['message'].get('tool_calls') or not isinstance(answer, str) or len(answer) > 100000:
+    answer = message.get('content')
+    if message.get('tool_calls') or not isinstance(answer, str) or len(answer) > 100000:
         raise ValueError('provider_output_invalid')
     request_id = data.get('id', '')
     return {'answer': answer, 'input_tokens': ins, 'output_tokens': outs, 'provider_request_id': str(request_id)[:200], 'finish_reason': str(choice.get('finish_reason', ''))[:60]}
