@@ -140,6 +140,19 @@ data and settings are preserved. No files or passwords are required. See
 [the ingestion drill guide](docs/SYNTHETIC_INGESTION_DRILL.md) for the checks and
 the limits of this synthetic exercise; OCR quality is not tested.
 
+## Run the disposable agent-workflow drill
+
+```powershell
+npm.cmd run test:agents
+```
+
+This runs 24 checks across durable pause/resume, independent workflow and business
+approvals, uncertain-outcome cancellation/reconciliation, workspace isolation and
+simulated review/claim expiry. It uses fresh synthetic accounts and databases;
+your existing app, records and settings remain separate. See
+[the agent drill guide](docs/SYNTHETIC_AGENT_DRILL.md) for exit codes, fault
+injection details and limits. No customer credentials or report path are needed.
+
 ## Verify a downloaded supplier evidence report
 
 From the project root in Cursor's PowerShell terminal:

@@ -20,7 +20,7 @@
       "title": "Durable agent execution",
       "area": "Engineering",
       "delivery": "partial",
-      "required_evidence": "Pause/resume, cancellation and worker crash recovery for multi-step agents.",
+      "required_evidence": "Bounded pause/resume, approvals, cancellation, lease recovery and a disposable synthetic agent-workflow drill are implemented. Autonomous planning, customer-workflow and deployment acceptance remain.",
       "workspace": "agentRuns"
     },
     {
