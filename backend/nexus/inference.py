@@ -26,6 +26,9 @@ from .service import audit
 from .workbench import asset_for, retrieve, check_guardrail, validate_config
 
 
+MAX_INPUT_GUARDRAILS = 100
+
+
 class InferenceInput(Strict):
     model_id: str = Field(min_length=1, max_length=64)
     expected_version: int = Field(ge=1)
@@ -206,7 +209,9 @@ def register_inference(app, factory, settings, human):
                 citations = retrieve(db, user.org_id, query) if body.retrieve_evidence else []
                 evidence = '\n\n'.join('['+str(i+1)+'] '+c['text'] for i,c in enumerate(citations))
                 content = query + ('\n\nUntrusted reference excerpts:\n' + evidence if citations else '')
-                rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(100)).all()
+                rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(MAX_INPUT_GUARDRAILS+1)).all()
+                if len(rules) > MAX_INPUT_GUARDRAILS:
+                    fail(422, 'GUARDRAIL_LIMIT_EXCEEDED', 'More than 100 input guardrails are configured for this environment. Review and archive surplus rules before sending inference.')
                 for rule in rules:
                     checked = check_guardrail(content, rule.config)
                     if checked['verdict'] == 'blocked': fail(422, 'GUARDRAIL_BLOCKED', 'A saved input guardrail blocked this request. No provider call was made.')
