@@ -5,6 +5,7 @@ stored in the archive. Inspection authenticates the entire archive before any
 member is extracted; it never overwrites application data.
 """
 import base64
+from contextlib import contextmanager
 import io
 import os
 from pathlib import Path
@@ -13,7 +14,7 @@ import tarfile
 import tempfile
 from cryptography.hazmat.primitives.ciphers import Cipher,algorithms,modes
 from cryptography.exceptions import InvalidTag
-from .backup import backup,inspect_backup
+from .backup import backup,inspect_backup,inspection_manifest
 
 MAGIC=b'NEXUSENC1'
 MAX_BYTES=512*1024*1024
@@ -69,14 +70,17 @@ def encrypted_backup(settings,destination,quiesced=False):
     return {'backup_created':True,'file':str(destination),'encrypted_by_application':True,'algorithm':'AES-256-GCM','kind':info['kind'],'key_stored_in_archive':False,'restore_verified':False,'boundary':'Quiesced bounded backup. Key custody, encrypted temporary storage, off-host retention and full PostgreSQL restore drills remain operator responsibilities.'}
 
 
-def inspect_encrypted_backup(source):
+@contextmanager
+def authenticated_snapshot(source,temporary_parent=None):
     key=encryption_key();source=Path(source).resolve();size=source.stat().st_size
     if not len(MAGIC)+12+16<size<=MAX_BYTES+len(MAGIC)+28:raise RuntimeError('Invalid or unsupported encrypted backup size.')
     with source.open('rb') as encrypted:
         if encrypted.read(len(MAGIC))!=MAGIC:raise RuntimeError('Unsupported encrypted backup format.')
         nonce=encrypted.read(12);encrypted.seek(-16,2);tag=encrypted.read(16)
         decryptor=Cipher(algorithms.AES(key),modes.GCM(nonce,tag)).decryptor();decryptor.authenticate_additional_data(MAGIC)
-        with tempfile.TemporaryDirectory(prefix='nexus-restore-inspection-') as temp:
+        options={'prefix':'nexus-restore-inspection-'}
+        if temporary_parent is not None:options['dir']=temporary_parent
+        with tempfile.TemporaryDirectory(**options) as temp:
             root=Path(temp);os.chmod(root,0o700);archive=root/'authenticated.tar'
             try:
                 with archive.open('wb') as plain:
@@ -100,4 +104,46 @@ def inspect_encrypted_backup(source):
                 if set(declared)!=(set(names)-{'manifest.json'}) or len(set(declared))!=len(declared):raise RuntimeError('Encrypted backup manifest does not match archive members.')
                 result=inspect_backup(target)
             except (tarfile.TarError,ValueError,KeyError,TypeError,OSError):raise RuntimeError('Encrypted backup inspection failed; no application data was overwritten.') from None
-    return {**result,'authenticated':True,'algorithm':'AES-256-GCM','active_data_overwritten':False,'boundary':'Checksums and SQLite integrity were inspected in a temporary directory. This is not a live restore, PostgreSQL restore drill or measured RPO/RTO.'}
+            yield target,result
+
+
+def inspect_encrypted_backup(source):
+    with authenticated_snapshot(source) as (_,result):
+        return {**result,'authenticated':True,'algorithm':'AES-256-GCM','active_data_overwritten':False,'boundary':'Checksums and SQLite integrity were inspected in a temporary directory. This is not a live restore, PostgreSQL restore drill or measured RPO/RTO.'}
+
+
+def recover_encrypted_sqlite(source,destination):
+    """Copy authenticated SQLite files into an exclusively created directory.
+
+    Never activates a database, loads runtime settings or overwrites a path.
+    Failed copies retain their partial new directory for protected local review.
+    """
+    requested=Path(destination).absolute()
+    if requested.exists() or requested.is_symlink():raise FileExistsError('Recovery destination already exists; no file was overwritten.')
+    parent=requested.parent.resolve()
+    if not parent.is_dir():raise RuntimeError('Create a protected recovery parent directory first.')
+    target=parent/requested.name
+    with authenticated_snapshot(source,temporary_parent=parent) as (snapshot,result):
+        if result['kind']!='sqlite':raise RuntimeError('Isolated recovery copy supports SQLite only; PostgreSQL requires a separate reviewed restore workflow.')
+        manifest=inspection_manifest(snapshot)
+        # mkdir is exclusive on both Windows and POSIX. Do not rename over an
+        # empty preexisting directory or remove any destination on failure.
+        target.mkdir(mode=0o700,exist_ok=False)
+        # Read-only SQLite inspection may create WAL/SHM companions. Export
+        # only authenticated declarations, never incidental directory contents.
+        files=sorted([snapshot/'manifest.json']+[snapshot/item['name'] for item in manifest['files']],key=lambda file:(file.name=='manifest.json',file.name))
+        try:
+            for file in files:
+                fd=os.open(target/file.name,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+                with os.fdopen(fd,'wb') as output,file.open('rb') as original:
+                    shutil.copyfileobj(original,output);output.flush();os.fsync(output.fileno())
+            if {file.name for file in target.iterdir()}!={file.name for file in files}:raise RuntimeError('Unexpected recovery directory contents.')
+            # These are quiesced, authenticated copies with no live writer.
+            # Immutable reads avoid creating unauthenticated WAL/SHM files.
+            checked=inspect_backup(target,immutable_sqlite=True)
+            if not checked['checksums_valid'] or not checked['sqlite_integrity_valid']:raise RuntimeError('Recovery copy verification failed.')
+        except (OSError,RuntimeError):
+            raise RuntimeError('Isolated recovery copy failed. A partial new directory may remain; no existing file was overwritten.') from None
+    return {'isolated_copy_created':True,'directory':str(target),'authenticated':True,'kind':'sqlite','files':len(files),
+        'active_data_overwritten':False,'application_started':False,'restore_verified':False,'postgresql_restore_verified':False,
+        'boundary':'Authenticated SQLite files copied into a new plaintext directory. No active database was replaced, runtime settings changed, schema migrated or application started. Full application restore acceptance and measured RPO/RTO remain separate work.'}

@@ -37,15 +37,24 @@ def seed(factory, password):
 
 
 def main():
-    parser = argparse.ArgumentParser(); parser.add_argument('operation', choices=['init', 'migrate', 'create-user', 'maintenance', 'backup', 'inspect-backup', 'backup-encrypted', 'inspect-encrypted-backup', 'bootstrap', 'set-local-password'])
+    parser = argparse.ArgumentParser(); parser.add_argument('operation', choices=['init', 'migrate', 'create-user', 'maintenance', 'backup', 'inspect-backup', 'backup-encrypted', 'inspect-encrypted-backup', 'recover-encrypted-sqlite', 'bootstrap', 'set-local-password'])
     parser.add_argument('--oidc-subject', help='Optional trusted IdP subject to bind before first SSO login')
     parser.add_argument('--apply', action='store_true', help='Apply expired-record cleanup; maintenance defaults to dry-run')
     parser.add_argument('--destination')
+    parser.add_argument('--source',help='Encrypted input archive for isolated SQLite recovery copy')
     parser.add_argument('--quiesced', action='store_true')
     parser.add_argument('--organization', default='Enterprise workspace')
     parser.add_argument('--email'); parser.add_argument('--name', default='Workspace member')
     parser.add_argument('--role', choices=['owner', 'approver', 'security', 'engineer', 'auditor'], default='engineer')
     args = parser.parse_args()
+    if args.operation=='recover-encrypted-sqlite':
+        import json
+        from .encrypted_backup import recover_encrypted_sqlite
+        if not args.source or not args.destination:parser.error('--source and --destination are required')
+        # Recovery must remain usable when the active app configuration is broken.
+        # Its key is explicitly injected in the process environment, not .env.
+        print(json.dumps(recover_encrypted_sqlite(args.source,args.destination),indent=2))
+        return
     if args.operation == 'init' and os.getenv('NEXUS_MODE', 'local') != 'local': parser.error('Synthetic init is local-only. Use migrate then bootstrap for pilot deployments.')
     if args.operation == 'init' and not Path('.env').exists():
         content = f'NEXUS_SECRET={secrets.token_urlsafe(48)}\nNEXUS_AGENT_SECRET={secrets.token_urlsafe(48)}\nNEXUS_MODE=local\nNEXUS_POLICY_MODE=reference\n'

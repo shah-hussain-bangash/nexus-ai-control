@@ -70,7 +70,7 @@ def inspection_manifest(root):
     return manifest
 
 
-def inspect_backup(directory):
+def inspect_backup(directory,*,immutable_sqlite=False):
     root=Path(directory).resolve();manifest=inspection_manifest(root)
     for item in manifest['files']:
         path=root/item['name']
@@ -78,7 +78,8 @@ def inspect_backup(directory):
             if path.is_symlink() or not path.is_file():raise RuntimeError('Missing or unsafe backup member.')
             if path.stat().st_size!=item['bytes'] or hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('Backup checksum or size mismatch.')
             if path.suffix=='.sqlite3':
-                with closing(sqlite3.connect(path.as_uri()+'?mode=ro',uri=True)) as db:
+                uri=path.as_uri()+'?mode=ro'+('&immutable=1' if immutable_sqlite else '')
+                with closing(sqlite3.connect(uri,uri=True)) as db:
                     if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise RuntimeError('Backup integrity check failed.')
                     if item['name']=='control.sqlite3' and db.execute('SELECT max(version) FROM schema_versions').fetchone()[0]!=manifest['schema']:raise RuntimeError('Backup schema metadata mismatch.')
         except (OSError,sqlite3.Error):

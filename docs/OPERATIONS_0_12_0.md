@@ -28,4 +28,6 @@ Encrypted archive member validation is incremental: it stops on the first unsafe
 
 ## Remaining operational acceptance
 
+An isolated SQLite copy can be created from a validated encrypted backup without replacing active data. See [isolated recovery instructions](ISOLATED_SQLITE_RECOVERY.md) for the fresh-directory requirement, explicit process key injection, partial-copy behavior and remaining cutover acceptance. This operation does not start the application or claim a verified application restore.
+
 Choose the cloud account/region/private network, IdP/MFA policy, secret service, monitoring and notification destinations, immutable audit archive, backup retention and measured RPO/RTO. Run deployment-specific security/load/device/accessibility reviews. Source tests are engineering evidence, not approval to deploy sensitive customer workloads.
