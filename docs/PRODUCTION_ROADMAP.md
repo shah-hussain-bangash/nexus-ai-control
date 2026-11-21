@@ -20,7 +20,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Secrets & network isolation | partial | Managed-secret injection, rotation and deployment-enforced egress isolation. |
 | Telemetry, alerts & SLOs | partial | External logs/metrics/traces, service objectives and operator notification drills. |
 | Audit integrity & retention | partial | Unsigned supplier-check exports and offline format/checksum verification are implemented. Immutable off-host archive, authenticated evidence, retention rules and deployment acceptance remain. |
-| Encrypted backup & recovery | partial | Quiesced snapshots, authenticated encrypted inspection and a disposable backup-safeguard drill are implemented. Scheduled encrypted backups, full restore acceptance, PostgreSQL restore and measured RPO/RTO remain. |
+| Encrypted backup & recovery | partial | Quiesced snapshots, authenticated encrypted inspection, isolated SQLite recovery copies and a disposable backup-safeguard drill are implemented. Scheduled encrypted backups, full application restore acceptance, PostgreSQL restore and measured RPO/RTO remain. |
 | Cloud deployment & rollback | partial | Reviewed images, TLS/private networking, staged rollout and recovery evidence. |
 | Security & load acceptance | partial | Independent review, dependency/image scans, penetration and load/soak tests. |
 | Accessibility & device acceptance | partial | Readable text, keyboard/screen-reader checks and responsive device assessment. |
