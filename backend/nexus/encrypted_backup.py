@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 from cryptography.hazmat.primitives.ciphers import Cipher,algorithms,modes
 from cryptography.exceptions import InvalidTag
-from .backup import backup,inspect_backup,inspection_manifest
+from .backup import backup,inspect_backup,inspection_manifest,new_backup_destination
 
 MAGIC=b'NEXUSENC1'
 MAX_BYTES=512*1024*1024
@@ -44,8 +44,7 @@ def encryption_key():
 
 def encrypted_backup(settings,destination,quiesced=False):
     if not quiesced:raise RuntimeError('Stop API and worker before creating a cross-database backup; pass --quiesced only after stopping them.')
-    key=encryption_key();destination=Path(destination).resolve()
-    if destination.exists():raise FileExistsError('Backup destination already exists; no file was overwritten.')
+    key=encryption_key();destination=new_backup_destination(destination)
     if not destination.parent.is_dir():raise RuntimeError('Create the private backup destination directory first.')
     # Use the destination's protected filesystem; plaintext temporary snapshots
     # are cleaned on normal completion/failure, not guaranteed securely erased.
