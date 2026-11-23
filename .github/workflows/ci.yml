@@ -51,8 +51,14 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r backend/requirements-dev.txt
-      - run: python -m pytest --junitxml=../docs/postgresql-ci-results.xml
+      - run: python -m pytest tests/test_ci_postgresql_recovery.py --junitxml=../docs/postgresql-recovery-ci-results.xml
+        working-directory: backend
+      - run: python -m pytest --ignore=tests/test_ci_postgresql_recovery.py --junitxml=../docs/postgresql-ci-results.xml
         working-directory: backend
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: postgresql-tests, path: docs/postgresql-ci-results.xml}
+        with:
+          name: postgresql-tests
+          path: |
+            docs/postgresql-ci-results.xml
+            docs/postgresql-recovery-ci-results.xml
