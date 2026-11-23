@@ -170,7 +170,7 @@ customer system is contacted.
 ## Run the disposable backup-safeguard drill
 
 For encrypted recovery followed by in-process login, record and permission checks,
-run `npm.cmd run test:recovery`. Its 31 checks use fresh disposable databases and
+run `npm.cmd run test:recovery`. Its 39 checks use two disposable workspaces and
 an in-memory key; your running app can stay open. See
 [the recovery drill guide](docs/SYNTHETIC_RECOVERY_DRILL.md). It exercises a separate
 synthetic copy without restoring your active database or certifying deployment recovery.
