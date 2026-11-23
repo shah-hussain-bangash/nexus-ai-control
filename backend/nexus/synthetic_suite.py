@@ -1,7 +1,9 @@
 """Run the fixed disposable drills in separate processes and retain safe totals."""
 import argparse
 from datetime import datetime,timezone
+import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -17,9 +19,48 @@ DRILLS=(
     ('backup','backup',()),('recovery','recovery',()),
 )
 TIMEOUT_SECONDS=60
+SOURCE_SCOPE='nexus-python-and-drill-entries-v1'
+MAX_SOURCE_FILES=4096
+MAX_SOURCE_BYTES=32*1024*1024
 BOUNDARY=('Disposable synthetic checks only. No active application database was restored or overwritten. '
     'No customer system or live model provider was contacted. This unsigned summary is not customer acceptance, '
     'authenticated evidence, deployment recovery, measured RPO/RTO or production readiness.')
+
+
+def source_fingerprint(project=None):
+    """Hash only Python modules and fixed entry scripts, never operator data."""
+    project=Path(project or Path(__file__).resolve().parents[2]).resolve()
+    modules=project/'backend/nexus'
+    if not modules.is_dir() or modules.resolve()!=modules:raise ValueError('Unavailable source inventory')
+    paths=set()
+    def traversal_error(error):raise error
+    for directory,dirs,files in os.walk(modules,onerror=traversal_error,followlinks=False):
+        dirs[:]=sorted(name for name in dirs if name!='__pycache__')
+        for name in dirs:
+            path=Path(directory)/name
+            if path.is_symlink() or path.resolve()!=path:raise ValueError('Redirected source directory')
+        for name in files:
+            if name.endswith('.py'):
+                paths.add(Path(directory)/name)
+                if len(paths)>MAX_SOURCE_FILES:raise ValueError('Source inventory too large')
+    required={modules/'__init__.py',modules/'synthetic_suite.py',project/'scripts/run_synthetic_suite.py'}
+    required.update(project/'scripts'/('run_synthetic_'+entry+'_drill.py') for _,entry,_ in DRILLS)
+    paths.update(required)
+    if len(paths)>MAX_SOURCE_FILES:raise ValueError('Source inventory too large')
+    digest=hashlib.sha256(b'NEXUS-SOURCE-V1\0');remaining=MAX_SOURCE_BYTES
+    for path in sorted(paths,key=lambda path:path.relative_to(project).as_posix()):
+        if path.is_symlink() or path.resolve()!=path or not path.is_file():raise ValueError('Unavailable source file')
+        with path.open('rb') as source:data=source.read(remaining+1)
+        if len(data)>remaining:raise ValueError('Source inventory too large')
+        remaining-=len(data);name=path.relative_to(project).as_posix().encode('utf-8')
+        digest.update(len(name).to_bytes(4,'big'));digest.update(name)
+        digest.update(len(data).to_bytes(8,'big'));digest.update(hashlib.sha256(data).digest())
+    return {'sha256':digest.hexdigest(),'files':len(paths)}
+
+
+def probe_source():
+    try:return source_fingerprint()
+    except (OSError,ValueError):return None
 
 
 def verified_count(completed,directory,kind):
@@ -51,10 +92,12 @@ def verified_count(completed,directory,kind):
 def run_suite(directory):
     root=Path(directory).resolve();root.mkdir(exist_ok=False)
     scripts=Path(__file__).resolve().parents[2]/'scripts'
-    rows=[]
-    for name,entry,extra in DRILLS:
+    before=probe_source()
+    rows=[{'id':name,'passed':False,'checks_passed':0,'status':'not_run'} for name,_,_ in DRILLS]
+    for (name,entry,extra),row in zip(DRILLS,rows):
+        if before is None:break
         output=root/name;output.mkdir()
-        row={'id':name,'passed':False,'checks_passed':0,'status':'could_not_run'}
+        row['status']='could_not_run'
         try:
             completed=subprocess.run([sys.executable,str(scripts/('run_synthetic_'+entry+'_drill.py')),*extra,
                 '--output-dir',str(output)],cwd=output,capture_output=True,text=True,encoding='utf-8',timeout=TIMEOUT_SECONDS)
@@ -66,11 +109,13 @@ def run_suite(directory):
                 except (OSError,ValueError,KeyError,TypeError):row['status']='invalid_report'
         except subprocess.TimeoutExpired:row['status']='timed_out'
         except (OSError,UnicodeError):row['status']='could_not_run'
-        rows.append(row)
-    return {'format':'nexus-synthetic-suite','format_version':1,'release':__version__,'schema_version':CURRENT_SCHEMA,
-        'created_at_utc':datetime.now(timezone.utc).isoformat(),'passed':bool(rows) and all(row['passed'] for row in rows),
+    after=probe_source() if before is not None else None
+    source_status='unavailable' if before is None or after is None else ('unchanged' if before==after else 'changed')
+    return {'format':'nexus-synthetic-suite','format_version':2,'release':__version__,'schema_version':CURRENT_SCHEMA,
+        'created_at_utc':datetime.now(timezone.utc).isoformat(),'passed':bool(rows) and all(row['passed'] for row in rows) and source_status=='unchanged',
         'drills_total':len(rows),'drills_passed':sum(row['passed'] for row in rows),
         'checks_passed':sum(row['checks_passed'] for row in rows),'per_drill_timeout_seconds':TIMEOUT_SECONDS,'drills':rows,
+        'source':{'scope':SOURCE_SCOPE,'status':source_status,'before':before,'after':after},
         'active_database_restored':False,'customer_acceptance':False,'production_ready':False,'boundary':BOUNDARY}
 
 
@@ -86,7 +131,7 @@ def main(argv=None):
         report=destination/('synthetic-suite-'+uuid.uuid4().hex+'.json')
         with report.open('x',encoding='utf-8') as target:json.dump(result,target,indent=2)
         print(json.dumps({'passed':result['passed'],'drills_passed':result['drills_passed'],'checks_passed':result['checks_passed'],
-            'report':str(report),'boundary':BOUNDARY}))
+            'source_status':result['source']['status'],'report':str(report),'boundary':BOUNDARY}))
         return 0 if result['passed'] else 1
     except (OSError,ValueError):
         print(json.dumps({'passed':False,'failure':'Could not create or clean up the disposable suite report.','boundary':BOUNDARY}));return 1

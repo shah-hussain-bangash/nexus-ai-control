@@ -114,7 +114,9 @@ def test_cli_unique_safe_aggregate_reports_after_child_cleanup(tmp_path,capsys,m
         summary=json.loads(capsys.readouterr().out);assert summary['passed'] and summary['drills_passed']==8
         report=json.loads(Path(summary['report']).read_text())
         assert set(report)=={'format','format_version','release','schema_version','created_at_utc','passed','drills_total',
-            'drills_passed','checks_passed','per_drill_timeout_seconds','drills','active_database_restored','customer_acceptance','production_ready','boundary'}
+            'drills_passed','checks_passed','per_drill_timeout_seconds','drills','source','active_database_restored','customer_acceptance','production_ready','boundary'}
+        assert report['format_version']==2 and report['source']['status']=='unchanged'
+        assert report['source']['before']==report['source']['after'] and report['source']['before']['files']>0
         assert all(set(row)=={'id','passed','checks_passed','status'} for row in report['drills'])
         assert not any(report[key] for key in ('active_database_restored','customer_acceptance','production_ready'))
         assert 'private child output sentinel' not in json.dumps(report)
@@ -152,3 +154,83 @@ def test_portable_full_suite_from_unrelated_directory_preserves_operator_files(t
     summary=json.loads(response.stdout);assert summary['passed'] and summary['drills_passed']==8 and summary['checks_passed']==218 and not response.stderr
     assert list((tmp_path/'reports').iterdir())==[Path(summary['report'])]
     assert private.read_bytes()==b'private operator database' and envfile.read_text()=='NEXUS_DATABASE_URL=invalid\nNEXUS_MODE=pilot\n'
+
+
+def source_project(root):
+    modules=root/'backend/nexus';modules.mkdir(parents=True)
+    (modules/'__init__.py').write_bytes(b'fixture version\n')
+    (modules/'synthetic_suite.py').write_bytes(b'fixture suite\n')
+    scripts=root/'scripts';scripts.mkdir()
+    for entry in {entry for _,entry,_ in suite.DRILLS}:
+        (scripts/('run_synthetic_'+entry+'_drill.py')).write_bytes(b'fixture entry\n')
+    (scripts/'run_synthetic_suite.py').write_bytes(b'fixture parent\n')
+    return root
+
+
+def test_source_fingerprint_is_portable_and_excludes_private_data_and_caches(tmp_path):
+    first=source_project(tmp_path/'first');second=source_project(tmp_path/'second')
+    original=suite.source_fingerprint(first)
+    assert original==suite.source_fingerprint(second) and len(original['sha256'])==64
+    (first/'.env').write_bytes(b'private operator key sentinel')
+    data=first/'backend/data';data.mkdir();(data/'operator.db').write_bytes(b'private operator data')
+    cache=first/'backend/nexus/__pycache__';cache.mkdir();(cache/'ignored.py').write_bytes(b'ignored cached fixture')
+    (first/'README.md').write_text('Unrelated documentation')
+    assert suite.source_fingerprint(first)==original
+
+
+@pytest.mark.parametrize('change',['edit','add','remove','entry'])
+def test_source_edits_additions_removals_and_entry_changes_change_fingerprint(tmp_path,change):
+    project=source_project(tmp_path/'project');extra=project/'backend/nexus/nested';extra.mkdir()
+    module=extra/'fixture.py';module.write_bytes(b'original fixture')
+    original=suite.source_fingerprint(project)
+    if change=='edit':module.write_bytes(b'changed fixture')
+    elif change=='add':(extra/'added.py').write_bytes(b'new fixture')
+    elif change=='remove':module.unlink()
+    else:(project/'scripts/run_synthetic_suite.py').write_bytes(b'changed entry')
+    assert suite.source_fingerprint(project)!=original
+
+
+@pytest.mark.parametrize('failure',['missing_entry','too_large','too_many','unreadable'])
+def test_unavailable_or_oversized_source_inventory_fails_closed(tmp_path,monkeypatch,failure):
+    project=source_project(tmp_path/'project')
+    if failure=='missing_entry':(project/'scripts/run_synthetic_suite.py').unlink()
+    elif failure=='too_large':monkeypatch.setattr(suite,'MAX_SOURCE_BYTES',1)
+    elif failure=='too_many':monkeypatch.setattr(suite,'MAX_SOURCE_FILES',1)
+    else:
+        original=Path.open
+        def denied(path,*args,**kwargs):
+            if path==project/'backend/nexus/__init__.py':raise PermissionError('private source error')
+            return original(path,*args,**kwargs)
+        monkeypatch.setattr(Path,'open',denied)
+    with pytest.raises((OSError,ValueError)):suite.source_fingerprint(project)
+
+
+def test_source_link_is_rejected_before_reading_its_target(tmp_path,monkeypatch):
+    project=source_project(tmp_path/'project');outside=tmp_path/'private.py';outside.write_bytes(b'private source sentinel')
+    link=project/'backend/nexus/linked.py'
+    try:link.symlink_to(outside)
+    except OSError:pytest.skip('Creating symlinks requires Windows privileges on this host.')
+    original=Path.open
+    def guarded(path,*args,**kwargs):
+        if path in (outside,link):pytest.fail('Redirected source contents were read')
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'open',guarded)
+    with pytest.raises(ValueError):suite.source_fingerprint(project)
+
+
+@pytest.mark.parametrize('failure',['changed','before_unavailable','after_unavailable'])
+def test_all_drills_passing_cannot_hide_changed_or_unavailable_source(tmp_path,monkeypatch,failure):
+    fingerprint={'sha256':'a'*64,'files':10};calls=[]
+    def probe():
+        calls.append(True)
+        if failure=='before_unavailable' or failure=='after_unavailable' and len(calls)>1:raise OSError('private source error')
+        return {**fingerprint,'sha256':'b'*64} if failure=='changed' and len(calls)>1 else fingerprint
+    monkeypatch.setattr(suite,'source_fingerprint',probe);launched=[]
+    def launch(argv,**kwargs):launched.append(argv);return child_result(argv,**kwargs)
+    monkeypatch.setattr(suite.subprocess,'run',launch)
+    result=suite.run_suite(tmp_path/'suite')
+    assert not result['passed'] and result['source']['status']==('changed' if failure=='changed' else 'unavailable')
+    assert 'private source error' not in json.dumps(result)
+    if failure=='before_unavailable':
+        assert not launched and result['checks_passed']==0 and all(row['status']=='not_run' for row in result['drills'])
+    else:assert len(launched)==result['drills_passed']==8 and result['checks_passed']==16
