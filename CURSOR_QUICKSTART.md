@@ -169,6 +169,11 @@ customer system is contacted.
 
 ## Run the disposable backup-safeguard drill
 
+To run all eight existing disposable drills together, use `npm.cmd run test:synthetic`.
+The current suite totals 218 checks and saves one combined result after removing
+child reports and temporary data. Your app can stay open. See
+[the combined synthetic guide](docs/SYNTHETIC_SUITE.md) for failures, timeouts and limits.
+
 For encrypted recovery followed by in-process login, record and permission checks,
 run `npm.cmd run test:recovery`. Its 39 checks use two disposable workspaces and
 an in-memory key; your running app can stay open. See
