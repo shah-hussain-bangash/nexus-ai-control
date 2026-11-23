@@ -1,5 +1,6 @@
 """Fresh-database recovery on the fixed disposable GitHub PostgreSQL service."""
 import base64
+from contextlib import closing,contextmanager
 from dataclasses import replace
 import gc
 import hashlib
@@ -9,6 +10,7 @@ from pathlib import Path
 import re
 import secrets
 import shutil
+import sqlite3
 import subprocess
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
@@ -20,7 +22,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 from nexus import backup as backup_module,encrypted_backup as sealed
 from nexus.app import create_app
-from nexus.backup_drill import LocalKeyOS,records
+from nexus.backup_drill import LocalKeyOS,records,seal_fixture
 from nexus.cli import seed
 from nexus.config import Settings
 from nexus.db import Base,CURRENT_SCHEMA,migrate
@@ -46,6 +48,14 @@ def owned_name(name):
 
 def pg_environment(url):
     return {'PGHOST':url.host,'PGPORT':str(url.port),'PGDATABASE':url.database,'PGUSER':url.username,'PGPASSWORD':url.password or ''}
+
+
+@contextmanager
+def postgres_snapshot(archive,root):
+    """Yield a dump only after native authentication and manifest validation."""
+    with sealed.authenticated_snapshot(archive,temporary_parent=root) as (snapshot,inspection):
+        if inspection['kind']!='postgresql':raise RuntimeError('Fixture restore requires a PostgreSQL backup.')
+        yield snapshot
 
 
 class ContainerTools:
@@ -94,10 +104,14 @@ def logical_records(engine):
     return result
 
 
+def public_relations(db):
+    return [tuple(row) for row in db.execute(text("SELECT c.relname,c.relkind,c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' ORDER BY c.relname,c.relkind"))]
+
+
 def conflict_target_state(engine):
     """Inspect only the intentionally populated failure fixture's relations."""
     with engine.connect() as db:
-        relations=[tuple(row) for row in db.execute(text("SELECT c.relname,c.relkind,c.oid FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' ORDER BY c.relname,c.relkind"))]
+        relations=public_relations(db)
         canary=[tuple(row) for row in db.execute(text('SELECT id,note FROM recovery_canary ORDER BY id'))]
         collision=[tuple(row) for row in db.execute(text('SELECT id,note FROM workspace_assets ORDER BY id'))]
     return {'relations':relations,'canary':canary,'collision':collision}
@@ -183,6 +197,53 @@ def test_only_the_expected_server_conflict_can_count_as_rollback_evidence(tmp_pa
     assert tools.last_failure==expected and 'private connection error' not in str(error.value)
 
 
+@pytest.fixture
+def pg_container(tmp_path,monkeypatch):
+    # Container metadata only; genuine pg_dump contents are exercised in CI.
+    key=os.urandom(32);view=LocalKeyOS({sealed.KEY_ENV:base64.b64encode(key).decode()})
+    path=tmp_path/'fixture.enc';dump=b'PGDMP-disposable-container-metadata'
+    manifest={'kind':'postgresql','schema':CURRENT_SCHEMA,'files':[{'name':'control.dump','bytes':len(dump),'sha256':hashlib.sha256(dump).hexdigest()}]}
+    seal_fixture(path,key,[('manifest.json',json.dumps(manifest).encode()),('control.dump',dump)])
+    def private_temp(**options):
+        options.setdefault('dir',tmp_path)
+        return TemporaryDirectory(**options)
+    monkeypatch.setattr(sealed,'os',view);monkeypatch.setattr(sealed,'tempfile',SimpleNamespace(TemporaryDirectory=private_temp))
+    return {'path':path,'key':key,'view':view,'dump':dump}
+
+
+def test_authenticated_pg_container_reaches_the_gated_boundary(tmp_path,pg_container):
+    before=pg_container['path'].read_bytes();calls=[]
+    with postgres_snapshot(pg_container['path'],tmp_path) as snapshot:
+        calls.append(snapshot/'control.dump');assert calls[0].read_bytes()==pg_container['dump']
+    assert len(calls)==1 and not list(tmp_path.glob('nexus-restore-inspection-*'))
+    assert pg_container['path'].read_bytes()==before
+
+
+@pytest.mark.parametrize('fault,expected',[
+    ('wrong_key','authentication'),('tampered','authentication'),('truncated','size'),
+    ('manifest','Invalid backup manifest'),('sqlite','requires a PostgreSQL backup'),
+])
+def test_invalid_or_wrong_engine_archive_never_reaches_restore(tmp_path,pg_container,fault,expected):
+    path=pg_container['path'];blob=path.read_bytes();calls=[]
+    if fault=='wrong_key':pg_container['view'].environ[sealed.KEY_ENV]=base64.b64encode(os.urandom(32)).decode()
+    elif fault=='tampered':
+        offset=len(sealed.MAGIC)+12;path.write_bytes(blob[:offset]+bytes([blob[offset]^1])+blob[offset+1:])
+    elif fault=='truncated':path.write_bytes(blob[:20])
+    elif fault=='manifest':seal_fixture(path,pg_container['key'],[('manifest.json',json.dumps({'kind':'postgresql','schema':CURRENT_SCHEMA,'files':[]}).encode())])
+    else:
+        control=tmp_path/'control.sqlite3'
+        with closing(sqlite3.connect(control)) as db:
+            db.execute('CREATE TABLE schema_versions (version INTEGER PRIMARY KEY)')
+            db.execute('INSERT INTO schema_versions VALUES (?)',(CURRENT_SCHEMA,));db.commit()
+        data=control.read_bytes();manifest={'kind':'sqlite','schema':CURRENT_SCHEMA,'files':[
+            {'name':'control.sqlite3','bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}]}
+        seal_fixture(path,pg_container['key'],[('manifest.json',json.dumps(manifest).encode()),('control.sqlite3',data)])
+    submitted=path.read_bytes()
+    with pytest.raises(RuntimeError,match=expected):
+        with postgres_snapshot(path,tmp_path) as snapshot:calls.append(snapshot)
+    assert not calls and path.read_bytes()==submitted and not list(tmp_path.glob('nexus-restore-inspection-*'))
+
+
 def test_ci_encrypted_postgresql_recovery_and_failed_restore_rollback(tmp_path,monkeypatch):
     if os.name!='posix' or os.environ.get('GITHUB_ACTIONS')!='true' or not os.environ.get('NEXUS_TEST_DATABASE_URL'):
         pytest.skip('Requires the disposable Linux GitHub PostgreSQL service; never selects local operator data.')
@@ -233,8 +294,32 @@ def test_ci_encrypted_postgresql_recovery_and_failed_restore_rollback(tmp_path,m
             assert checked['authenticated'] and not checked['postgresql_restore_verified']
             with pytest.raises(RuntimeError):sealed.recover_encrypted_sqlite(archive,tmp_path/'wrong-kind')
             assert not (tmp_path/'wrong-kind').exists()
-            with sealed.authenticated_snapshot(archive,temporary_parent=tmp_path) as (snapshot,inspection):
-                assert inspection['kind']=='postgresql'
+            untouched=create_engine(url.set(database=target_name));extra_engines.append(untouched)
+            with untouched.connect() as db:target_before=public_relations(db)
+            altered=tmp_path/'altered.enc';offset=len(sealed.MAGIC)+12
+            altered.write_bytes(encrypted_bytes[:offset]+bytes([encrypted_bytes[offset]^1])+encrypted_bytes[offset+1:])
+            truncated=tmp_path/'truncated.enc';truncated.write_bytes(encrypted_bytes[:20])
+            malformed=tmp_path/'bad-manifest.enc'
+            seal_fixture(malformed,base64.b64decode(key_view.environ[sealed.KEY_ENV]),[
+                ('manifest.json',json.dumps({'kind':'postgresql','schema':CURRENT_SCHEMA,'files':[]}).encode())])
+            invalid_calls=[]
+            def forbidden_restore(*args,**kwargs):
+                invalid_calls.append(True);pytest.fail('Invalid archive reached the PostgreSQL restore callback')
+            with monkeypatch.context() as guard:
+                guard.setattr(tools,'run',forbidden_restore)
+                with monkeypatch.context() as wrong_key:
+                    wrong_key.setitem(key_view.environ,sealed.KEY_ENV,base64.b64encode(os.urandom(32)).decode())
+                    with pytest.raises(RuntimeError,match='authentication'):
+                        with postgres_snapshot(archive,tmp_path) as snapshot:
+                            tools.run(['pg_restore',*RESTORE_FLAGS,target_name,str(snapshot/'control.dump')],env=pg_environment(url.set(database=target_name)))
+                for invalid,expected in ((altered,'authentication'),(truncated,'size'),(malformed,'Invalid backup manifest')):
+                    with pytest.raises(RuntimeError,match=expected):
+                        with postgres_snapshot(invalid,tmp_path) as snapshot:
+                            tools.run(['pg_restore',*RESTORE_FLAGS,target_name,str(snapshot/'control.dump')],env=pg_environment(url.set(database=target_name)))
+            assert not invalid_calls and not list(tmp_path.glob('nexus-restore-inspection-*'))
+            with untouched.connect() as db:assert public_relations(db)==target_before
+            assert archive.read_bytes()==encrypted_bytes
+            with postgres_snapshot(archive,tmp_path) as snapshot:
                 tools.run(['pg_restore',*RESTORE_FLAGS,target_name,str(snapshot/'control.dump')],
                     env=pg_environment(url.set(database=target_name)))
                 failure_engine=create_engine(url.set(database=failure_name));extra_engines.append(failure_engine)
