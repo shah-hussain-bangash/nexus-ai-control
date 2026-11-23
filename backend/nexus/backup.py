@@ -10,6 +10,24 @@ import subprocess
 from sqlalchemy.engine import make_url
 
 MAX_MANIFEST_BYTES=64*1024
+CHECKSUM_CHUNK_BYTES=64*1024
+
+
+def file_metadata(path):
+    """Hash a regular snapshot in bounded chunks, rejecting length changes."""
+    try:
+        with path.open('rb') as stream:
+            size=os.fstat(stream.fileno()).st_size;count=0;digest=hashlib.sha256()
+            # At most one byte beyond the opening size is read. A growing
+            # input cannot turn checksum verification into an endless read.
+            while block:=stream.read(min(CHECKSUM_CHUNK_BYTES,size-count+1)):
+                count+=len(block)
+                if count>size:raise RuntimeError('Backup member length changed during checksum verification.')
+                digest.update(block)
+            if count!=size:raise RuntimeError('Backup member length changed during checksum verification.')
+    except OSError:
+        raise RuntimeError('Backup member checksum failed; review protected storage access privately.') from None
+    return {'name':path.name,'sha256':digest.hexdigest(),'bytes':count}
 
 
 def new_backup_destination(destination):
@@ -69,7 +87,7 @@ def backup(settings, destination, quiesced=False):
         finally: engine.dispose()
     else: raise RuntimeError('Unsupported backup database.')
     if Path(settings.mock_database).exists():sqlite_snapshot(settings.mock_database,target/'business.sqlite3')
-    files=[{'name':p.name,'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size} for p in target.iterdir() if p.is_file()]
+    files=[file_metadata(p) for p in target.iterdir() if p.is_file()]
     manifest={'schema':schema,'kind':kind,'files':files,'contains_sensitive_data':True,'encrypted_by_application':False,'requires_external_encryption_and_retention':True}
     p=target/'manifest.json';p.write_text(json.dumps(manifest,indent=2)+'\n');os.chmod(p,0o600)
     return {'backup_created':True,'directory':str(target),'kind':kind,'files':len(files),'restore_verified':False}
@@ -107,7 +125,9 @@ def inspect_backup(directory,*,immutable_sqlite=False):
         path=root/item['name']
         try:
             if path.is_symlink() or not path.is_file():raise RuntimeError('Missing or unsafe backup member.')
-            if path.stat().st_size!=item['bytes'] or hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('Backup checksum or size mismatch.')
+            if path.stat().st_size!=item['bytes']:raise RuntimeError('Backup checksum or size mismatch.')
+            checked=file_metadata(path)
+            if checked['bytes']!=item['bytes'] or checked['sha256']!=item['sha256']:raise RuntimeError('Backup checksum or size mismatch.')
             if path.suffix=='.sqlite3':
                 uri=path.as_uri()+'?mode=ro'+('&immutable=1' if immutable_sqlite else '')
                 with closing(sqlite3.connect(uri,uri=True)) as db:
