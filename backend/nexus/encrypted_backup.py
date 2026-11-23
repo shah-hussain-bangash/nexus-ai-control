@@ -64,8 +64,10 @@ def encrypted_backup(settings,destination,quiesced=False):
         fd=os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
         try:
             with os.fdopen(fd,'wb') as output,encrypted.open('rb') as source:shutil.copyfileobj(source,output);output.flush();os.fsync(output.fileno())
-        except BaseException:
-            destination.unlink(missing_ok=True);raise
+        except OSError:
+            # The path may no longer name our open file. Retain it rather than
+            # unlinking an unrelated replacement after a publication failure.
+            raise RuntimeError('Encrypted backup publication failed. An incomplete archive may remain at the new destination; inspect privately and retry with a different destination.') from None
     return {'backup_created':True,'file':str(destination),'encrypted_by_application':True,'algorithm':'AES-256-GCM','kind':info['kind'],'key_stored_in_archive':False,'restore_verified':False,'boundary':'Quiesced bounded backup. Key custody, encrypted temporary storage, off-host retention and full PostgreSQL restore drills remain operator responsibilities.'}
 
 
