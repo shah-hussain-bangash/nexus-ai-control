@@ -32,11 +32,17 @@ def check_sqlite_relationships(db):
 
 
 def sqlite_snapshot(source, destination):
-    if not Path(source).is_file(): raise RuntimeError('Configured SQLite file is missing; backup stopped.')
-    with closing(sqlite3.connect(str(source))) as src, closing(sqlite3.connect(str(destination))) as dst:
-        src.backup(dst)
-        if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok': raise RuntimeError('SQLite integrity check failed.')
-        check_sqlite_relationships(dst)
+    source=Path(source).resolve()
+    if not source.is_file(): raise RuntimeError('Configured SQLite file is missing; backup stopped.')
+    try:
+        # mode=ro also prevents creating a new empty source if it disappears
+        # after the regular-file check. Preserve ordinary WAL-aware reads.
+        with closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as src, closing(sqlite3.connect(str(destination))) as dst:
+            src.backup(dst)
+            if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok': raise RuntimeError('SQLite integrity check failed.')
+            check_sqlite_relationships(dst)
+    except sqlite3.Error:
+        raise RuntimeError('SQLite snapshot failed; no successful backup was created. Review source availability and destination access privately.') from None
     os.chmod(destination, 0o600)
 
 
