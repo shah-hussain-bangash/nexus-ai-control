@@ -55,13 +55,6 @@ def create_app(settings=None):
 
     @app.middleware('http')
     async def headers(request, call_next):
-        try:
-            content_length = int(request.headers.get('Content-Length', '0') or '0')
-        except ValueError:
-            return JSONResponse({'error': {'code': 'INVALID_LENGTH', 'message': 'Invalid content length.'}}, 400)
-        limit=1572864 if request.method=='POST' and request.url.path=='/v1/ingestion-jobs' else 65536
-        if content_length > limit:
-            return JSONResponse({'error': {'code': 'PAYLOAD_TOO_LARGE', 'message': f'Maximum request size is {limit} bytes.'}}, 413)
         response = await call_next(request)
         if response.status_code<400 and not response_context_valid(request,factory,settings):
             replacement=JSONResponse({'error':{'code':'STALE_SESSION_CONTEXT','message':'Your workspace access or context changed. Refresh before continuing.'}},409)
