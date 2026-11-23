@@ -19,8 +19,10 @@ from .app import create_app
 from .backup_drill import DrillFailure,LocalKeyOS,records
 from .cli import seed
 from .config import Settings
-from .db import CURRENT_SCHEMA,migrate
+from .db import CURRENT_SCHEMA,Organization,Policy,User,migrate
+from .environments import assign_staging
 from .mock_connector import MockBusiness
+from .security import password_hash
 
 BOUNDARY=('Disposable synthetic encrypted SQLite recovery and in-process API exercise only. '
     'No active application database was restored or overwritten. No customer system or model provider was contacted. '
@@ -65,17 +67,27 @@ def run_drill(directory):
         original=create_app(settings);apps.append(original)
         check('source_runtime_is_disposable_and_synthetic',type(original.state.connector) is MockBusiness and settings.live_inference==0)
         migrate(original.state.engine,original.state.factory);seed(original.state.factory,password)
+        with original.state.factory.begin() as db:
+            db.add(Organization(id='recovery-other',name='Disposable recovery workspace'))
+            db.add(Policy(org_id='recovery-other',version=1))
+            other=User(org_id='recovery-other',name='Disposable recovery owner',email='other@drill.invalid',role='owner',password_hash=password_hash(password))
+            db.add(other);db.flush();assign_staging(db,other)
         with TestClient(original) as client:
             login(client);owner=expect(client.get('/v1/me'),200)
             marker=expect(client.post('/v1/workbench',json=payload,headers=headers(client)),201)
             token=client.cookies.get('nexus_session')
             check('source_login_and_marker_saved',bool(token) and owner['user']['role']=='owner' and marker['version']==1)
+            client.cookies.clear();login(client,'other@drill.invalid')
+            other_owner=expect(client.get('/v1/me'),200)
+            other_marker=expect(client.post('/v1/workbench',json={**payload,'name':'Other workspace recovery marker'},headers=headers(client)),201)
+            check('second_workspace_has_its_own_owner_and_marker',other_owner['user']['org_id']=='recovery-other' and
+                other_owner['environment']=='staging' and other_marker['id']!=marker['id'])
         # This is fixture data, not governed dispatch or customer acceptance.
         receipt=original.state.connector.invoke('synthetic-recovery-receipt',{'action':'supplier:read','arguments':{'supplier_id':'SUP-DEMO-104'}})
         check('source_synthetic_receipt_saved',original.state.connector.count()==1 and bool(receipt))
         original.state.engine.dispose();gc.collect()
         before_control=records(control);before_business=records(business)
-        check('source_has_three_disposable_accounts',before_control['users'][0]==3)
+        check('source_has_four_disposable_accounts',before_control['users'][0]==4)
         archive=root/'backup.enc';target=root/'recovered'
         with patch.object(sealed,'os',LocalKeyOS(environment)),patch.object(sealed,'tempfile',SimpleNamespace(TemporaryDirectory=private_temp)):
             environment[sealed.KEY_ENV]=base64.b64encode(key).decode()
@@ -133,11 +145,31 @@ def run_drill(directory):
             check('stale_recovered_revision_rejected',client.put(endpoint,json=edit,headers=headers(client)).status_code==409)
             history=expect(client.get(endpoint+'/history'),200)
             check('recovered_original_revision_retained',[row['version'] for row in history]==[2,1] and history[1]['snapshot']['name']==payload['name'])
+            client.cookies.clear();login(client,'other@drill.invalid')
+            restored_other=expect(client.get('/v1/me'),200)
+            check('second_owner_restores_only_its_workspace_context',restored_other['user']['id']==other_owner['user']['id'] and
+                restored_other['user']['org_id']=='recovery-other' and restored_other['user']['role']=='owner' and restored_other['environment']=='staging')
+            isolated=expect(client.get('/v1/workbench'),200)
+            check('second_workspace_lists_only_its_recovered_marker',[row['id'] for row in isolated['assets']]==[other_marker['id']])
+            check('cross_workspace_history_is_hidden',client.get(endpoint+'/history').status_code==404)
+            check('cross_workspace_edit_is_blocked',client.put(endpoint,json={**edit,'expected_version':2},headers=headers(client)).status_code==404)
+            check('cross_workspace_run_is_blocked',client.post(endpoint+'/run',json=run_body,headers=headers(client)).status_code==404)
+            other_added=expect(client.post('/v1/workbench',json={**payload,'name':'Other recovered copy only'},headers=headers(client)),201)
+            other_listing=expect(client.get('/v1/workbench'),200)
+            check('second_owner_can_write_only_its_recovered_workspace',other_added['id'] not in (marker['id'],added['id']) and
+                {row['id'] for row in other_listing['assets']}=={other_marker['id'],other_added['id']})
+            client.cookies.clear();login(client)
+            primary=expect(client.get('/v1/workbench'),200)
+            final_history=expect(client.get(endpoint+'/history'),200)
+            check('primary_workspace_remains_isolated_after_other_owner_writes',
+                {row['id'] for row in primary['assets']}=={marker['id'],added['id']} and
+                client.get('/v1/workbench/'+other_marker['id']+'/history').status_code==404 and
+                [row['version'] for row in final_history]==[2,1] and final_history[0]['snapshot']['name']==edit['name'])
             check('synthetic_receipt_preserved_without_redispatch',recovered.state.connector.lookup('synthetic-recovery-receipt')==receipt and recovered.state.connector.count()==1)
         recovered.state.engine.dispose();gc.collect()
         check('source_records_and_sessions_unchanged',records(control)==before_control and records(business)==before_business)
         check('encrypted_input_unchanged',archive.read_bytes()==blob)
-        result['source_account_count']=3;result['synthetic_api_exercised']=True;result['passed']=True
+        result['source_account_count']=4;result['synthetic_api_exercised']=True;result['passed']=True
     except DrillFailure as exc:result['failure']=str(exc)
     except Exception:result['failure']='isolated_recovery_drill_could_not_finish'
     finally:

@@ -22,8 +22,8 @@ def test_recovered_api_preserves_operator_data_key_and_module_views(tmp_path,mon
     monkeypatch.setattr(httpx.HTTPTransport,'handle_request',forbidden)
     original=(drill.sealed.os,drill.sealed.tempfile,logging.getLogger('nexus.http').disabled)
     result=drill.run_drill(tmp_path/'disposable')
-    assert result['passed'] and len(result['steps'])==31 and all(row['passed'] for row in result['steps'])
-    assert result['synthetic_api_exercised'] and result['source_account_count']==3
+    assert result['passed'] and len(result['steps'])==39 and all(row['passed'] for row in result['steps'])
+    assert result['synthetic_api_exercised'] and result['source_account_count']==4
     assert not any(result[field] for field in ('active_database_restored','postgresql_restore_verified','customer_acceptance','production_ready'))
     assert (drill.sealed.os,drill.sealed.tempfile,logging.getLogger('nexus.http').disabled)==original
     assert os.environ['NEXUS_BACKUP_ENCRYPTION_KEY']=='private operator key sentinel'
@@ -41,7 +41,7 @@ def test_unique_safe_reports_only_after_plaintext_and_key_cleanup(tmp_path,capsy
     output=tmp_path/'reports'
     for _ in range(2):
         assert drill.main(['--output-dir',str(output)])==0
-        summary=json.loads(capsys.readouterr().out);assert summary['passed'] and summary['steps_passed']==31
+        summary=json.loads(capsys.readouterr().out);assert summary['passed'] and summary['steps_passed']==39
         result=json.loads(Path(summary['report']).read_text(encoding='utf-8'))
         assert set(result)=={'format','format_version','release','schema_version','created_at_utc','connector_mode','key_mode',
             'passed','synthetic_api_exercised','active_database_restored','postgresql_restore_verified','customer_acceptance',
@@ -91,6 +91,35 @@ def test_recovered_api_permission_failure_is_detected(tmp_path,monkeypatch):
     assert not result['passed'] and result['failure']=='recovered_auditor_cannot_write'
 
 
+@pytest.mark.parametrize('operation,expected',[
+    ('listing','second_workspace_lists_only_its_recovered_marker'),
+    ('history','cross_workspace_history_is_hidden'),
+    ('edit','cross_workspace_edit_is_blocked'),
+    ('run','cross_workspace_run_is_blocked'),
+])
+def test_broken_recovered_workspace_isolation_cannot_pass(tmp_path,monkeypatch,operation,expected):
+    method={'listing':'get','history':'get','edit':'put','run':'post'}[operation]
+    original=getattr(drill.TestClient,method)
+    def broken(client,url,*args,**kwargs):
+        response=original(client,url,*args,**kwargs)
+        if operation=='listing' and url=='/v1/workbench' and response.status_code==200:
+            body=response.json()
+            if any(row['name']=='Other workspace recovery marker' for row in body['assets']):
+                body['assets'].append({**body['assets'][0],'id':'leaked-cross-workspace-fixture'})
+                return httpx.Response(200,json=body)
+        if response.status_code==404 and (
+            operation=='history' and url.endswith('/history') or
+            operation=='edit' and url.startswith('/v1/workbench/') or
+            operation=='run' and url.endswith('/run')):
+            return httpx.Response(200,json={})
+        return response
+    monkeypatch.setattr(drill.TestClient,method,broken)
+    result=drill.run_drill(tmp_path/'disposable')
+    assert not result['passed'] and result['failure']==expected
+    assert result['steps'][-1]=={'id':expected,'passed':False}
+    assert not result['synthetic_api_exercised']
+
+
 def test_private_failure_hidden_and_module_views_restored(tmp_path,capsys,monkeypatch):
     def broken(*args):raise ValueError('private recovery exception sentinel')
     monkeypatch.setattr(drill.sealed,'recover_encrypted_sqlite',broken)
@@ -132,5 +161,5 @@ def test_portable_entry_ignores_unrelated_configuration(tmp_path,monkeypatch):
     script=Path(__file__).resolve().parents[2]/'scripts/run_synthetic_recovery_drill.py'
     response=subprocess.run([sys.executable,str(script),'--output-dir',str(tmp_path/'saved reports')],cwd=tmp_path,capture_output=True,text=True)
     assert response.returncode==0,response.stderr
-    summary=json.loads(response.stdout);assert summary['passed'] and summary['steps_passed']==31 and not response.stderr
+    summary=json.loads(response.stdout);assert summary['passed'] and summary['steps_passed']==39 and not response.stderr
     assert list((tmp_path/'saved reports').iterdir())==[Path(summary['report'])]
