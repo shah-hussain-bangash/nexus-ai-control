@@ -10,6 +10,15 @@ import subprocess
 from sqlalchemy.engine import make_url
 
 
+def new_backup_destination(destination):
+    """Reject any existing leaf entry before resolving its parent directory."""
+    requested=Path(destination).absolute()
+    try:requested.lstat()
+    except FileNotFoundError:pass
+    else:raise FileExistsError('Backup destination already exists; no path was overwritten.')
+    return requested.parent.resolve()/requested.name
+
+
 def check_sqlite_relationships(db):
     # integrity_check does not check foreign keys. Stop at the first violation
     # without returning private table names, row identifiers or SQLite errors.
@@ -31,7 +40,7 @@ def sqlite_snapshot(source, destination):
 
 def backup(settings, destination, quiesced=False):
     if not quiesced: raise RuntimeError('Stop API and worker, then pass --quiesced to acknowledge cross-database consistency.')
-    target=Path(destination).resolve();target.mkdir(mode=0o700,parents=True,exist_ok=False)
+    target=new_backup_destination(destination);target.mkdir(mode=0o700,parents=True,exist_ok=False)
     url=make_url(settings.database_url)
     if url.get_backend_name()=='sqlite':
         sqlite_snapshot(url.database,target/'control.sqlite3');kind='sqlite'
