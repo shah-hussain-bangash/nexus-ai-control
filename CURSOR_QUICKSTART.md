@@ -171,7 +171,9 @@ customer system is contacted.
 
 To run all eight existing disposable drills together, use `npm.cmd run test:synthetic`.
 The current suite totals 218 checks and saves one combined result after removing
-child reports and temporary data. Your app can stay open. See
+child reports and temporary data. A successful run also reports
+`source_status: "unchanged"`; detected source changes or unreadable source prevent
+an overall pass. Your app can stay open. See
 [the combined synthetic guide](docs/SYNTHETIC_SUITE.md) for failures, timeouts and limits.
 
 For encrypted recovery followed by in-process login, record and permission checks,
