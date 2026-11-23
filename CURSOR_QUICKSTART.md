@@ -179,7 +179,7 @@ synthetic copy without restoring your active database or certifying deployment r
 npm.cmd run test:backup
 ```
 
-This runs 27 checks using temporary SQLite databases and a fresh, disposable
+This runs 34 checks using temporary SQLite databases and a fresh, disposable
 encryption key. It checks snapshot records, authentication, wrong keys, tampering,
 malformed archives, overwrite prevention and cleanup. No existing backup or key
 is needed; your running app and settings are untouched. See

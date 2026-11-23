@@ -1,7 +1,8 @@
 """Disposable SQLite snapshots and encrypted inspection; never restores active data."""
 import argparse
 import base64
-from contextlib import closing
+from contextlib import closing,contextmanager
+from dataclasses import replace
 from datetime import datetime,timezone
 import gc
 import hashlib
@@ -138,11 +139,42 @@ def run_drill(directory):
             seal_fixture(malformed,key,[('../outside-fixture',b'{}')])
             with patch.object(tarfile.TarFile,'extractfile',no_extract):
                 check('unsafe_member_path_rejected_before_extraction',rejected(lambda:sealed.inspect_encrypted_backup(malformed)))
+            broken_business=root/'broken-business.db'
+            with closing(sqlite3.connect(broken_business)) as db:
+                db.execute('PRAGMA foreign_keys=OFF')
+                db.execute('CREATE TABLE fixture_parent (id INTEGER PRIMARY KEY)')
+                db.execute('CREATE TABLE fixture_child (id INTEGER PRIMARY KEY,parent INTEGER REFERENCES fixture_parent(id))')
+                db.execute('INSERT INTO fixture_child VALUES (1,99)');db.commit()
+            broken_settings=replace(settings,mock_database=str(broken_business))
+            broken_plain=root/'broken-plain';broken_archive=root/'broken.enc'
+            check('plaintext_rejects_broken_declared_relationships',rejected(lambda:backup(broken_settings,broken_plain,True)) and not (broken_plain/'manifest.json').exists())
+            check('encrypted_rejects_broken_relationships_before_publication',rejected(lambda:sealed.encrypted_backup(broken_settings,broken_archive,True)) and not broken_archive.exists())
+            failed=root/'publication-failed.enc'
+            def interrupted_copy(source,output):
+                output.write(source.read(20));raise OSError('Disposable publication fault')
+            with patch.object(sealed,'shutil',SimpleNamespace(copyfileobj=interrupted_copy)):
+                check('failed_publication_retains_incomplete_archive',rejected(lambda:sealed.encrypted_backup(settings,failed,True)) and failed.is_file() and failed.stat().st_size==20)
+            retained=failed.read_bytes()
+            check('incomplete_publication_cannot_pass_inspection',rejected(lambda:sealed.inspect_encrypted_backup(failed)))
+            check('failed_publication_destination_never_overwritten',rejected(lambda:sealed.encrypted_backup(settings,failed,True),FileExistsError) and failed.read_bytes()==retained)
+            retry=root/'publication-retry.enc';retried=sealed.encrypted_backup(settings,retry,True)
+            check('fresh_destination_after_failed_publication_succeeds',retried['backup_created'] and sealed.inspect_encrypted_backup(retry)['authenticated'] and failed.read_bytes()==retained)
+            replacement=root/'publication-replacement.enc';retired=root/'publication-retired.enc';sentinel=b'Disposable replacement artifact'
+            @contextmanager
+            def replaced_output(fd,*args,**kwargs):
+                with os.fdopen(fd,*args,**kwargs) as output:yield output
+                # Closing the fixture handle first makes this race portable.
+                replacement.replace(retired);replacement.write_bytes(sentinel)
+                raise OSError('Disposable replacement fault')
+            replacement_os=LocalKeyOS(environment);replacement_os.fdopen=replaced_output
+            with patch.object(sealed,'os',replacement_os):
+                check('replacement_artifact_survives_publication_failure',rejected(lambda:sealed.encrypted_backup(settings,replacement,True)) and
+                    replacement.is_file() and replacement.read_bytes()==sentinel and sealed.inspect_encrypted_backup(retired)['authenticated'])
             check('private_plaintext_temporary_directories_removed',not list(root.glob('.nexus-private-*')) and not list(root.glob('nexus-restore-inspection-*')))
         check('source_records_unchanged_after_all_checks',records(control)==original_control and records(business)==original_business)
         check('original_snapshots_remain_valid',inspect_backup(plain)['checksums_valid'] and manifest.read_bytes()==manifest_bytes and
             snapshot.read_bytes()==snapshot_bytes and records(plain/'business.sqlite3')==original_business and destination.read_bytes()==blob)
-        report['successful_backup_count']=2;report['source_account_count']=3;report['passed']=True
+        report['successful_backup_count']=3;report['source_account_count']=3;report['passed']=True
     except DrillFailure as exc:report['failure']=str(exc)
     except Exception:report['failure']='isolated_drill_could_not_finish'
     finally:

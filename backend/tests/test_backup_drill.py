@@ -21,8 +21,8 @@ def test_full_drill_ignores_operator_data_and_key_and_restores_module_views(tmp_
     monkeypatch.setattr(httpx.HTTPTransport,'handle_request',forbidden)
     original=(drill.sealed.os,drill.sealed.tempfile)
     report=drill.run_drill(tmp_path/'disposable')
-    assert report['passed'] and len(report['steps'])==27 and all(row['passed'] for row in report['steps'])
-    assert report['successful_backup_count']==2 and report['source_account_count']==3
+    assert report['passed'] and len(report['steps'])==34 and all(row['passed'] for row in report['steps'])
+    assert report['successful_backup_count']==3 and report['source_account_count']==3
     assert not any(report[field] for field in ('customer_acceptance','production_ready','live_restore_performed','postgresql_restore_verified'))
     assert (drill.sealed.os,drill.sealed.tempfile)==original
     assert os.environ['NEXUS_BACKUP_ENCRYPTION_KEY']=='private operator key sentinel'
@@ -40,7 +40,7 @@ def test_cli_unique_reports_contain_only_safe_metadata_after_artifact_cleanup(tm
     output=tmp_path/'reports'
     for _ in range(2):
         assert drill.main(['--output-dir',str(output)])==0
-        summary=json.loads(capsys.readouterr().out);assert summary['passed'] and summary['steps_passed']==27
+        summary=json.loads(capsys.readouterr().out);assert summary['passed'] and summary['steps_passed']==34
         report=json.loads(Path(summary['report']).read_text(encoding='utf-8'))
         assert set(report)=={'format','format_version','release','schema_version','created_at_utc','connector_mode','key_mode',
             'passed','customer_acceptance','production_ready','live_restore_performed','postgresql_restore_verified','steps','boundary',
@@ -123,5 +123,35 @@ def test_portable_entry_from_unrelated_directory(tmp_path,monkeypatch):
     script=Path(__file__).resolve().parents[2]/'scripts/run_synthetic_backup_drill.py'
     response=subprocess.run([sys.executable,str(script),'--output-dir',str(tmp_path/'saved reports')],cwd=tmp_path,capture_output=True,text=True)
     assert response.returncode==0,response.stderr
-    summary=json.loads(response.stdout);assert summary['passed'] and summary['steps_passed']==27 and not response.stderr
+    summary=json.loads(response.stdout);assert summary['passed'] and summary['steps_passed']==34 and not response.stderr
     assert list((tmp_path/'saved reports').iterdir())==[Path(summary['report'])]
+
+
+@pytest.mark.parametrize('broken,expected',[
+    ('relationships','plaintext_rejects_broken_declared_relationships'),
+    ('partial_inspection','incomplete_publication_cannot_pass_inspection'),
+    ('retained_partial','failed_publication_retains_incomplete_archive'),
+    ('replacement_cleanup','replacement_artifact_survives_publication_failure'),
+])
+def test_bypassed_new_backup_guards_cannot_pass(tmp_path,monkeypatch,broken,expected):
+    if broken=='relationships':monkeypatch.setattr(backup_module,'check_sqlite_relationships',lambda db:None)
+    elif broken=='partial_inspection':
+        original=drill.sealed.inspect_encrypted_backup
+        def unchecked(path):
+            if Path(path).name=='publication-failed.enc':return {'authenticated':True}
+            return original(path)
+        monkeypatch.setattr(drill.sealed,'inspect_encrypted_backup',unchecked)
+    else:
+        original=drill.sealed.encrypted_backup
+        target='publication-failed.enc' if broken=='retained_partial' else 'publication-replacement.enc'
+        def old_cleanup(settings,destination,*args,**kwargs):
+            try:return original(settings,destination,*args,**kwargs)
+            except RuntimeError:
+                if Path(destination).name==target:Path(destination).unlink(missing_ok=True)
+                raise
+        monkeypatch.setattr(drill.sealed,'encrypted_backup',old_cleanup)
+    module_views=(drill.sealed.os,drill.sealed.tempfile,drill.sealed.shutil)
+    report=drill.run_drill(tmp_path/'disposable')
+    assert not report['passed'] and report['failure']==expected
+    assert report['steps'][-1]=={'id':expected,'passed':False}
+    assert (drill.sealed.os,drill.sealed.tempfile,drill.sealed.shutil)==module_views
