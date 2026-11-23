@@ -10,11 +10,22 @@ import subprocess
 from sqlalchemy.engine import make_url
 
 
+def check_sqlite_relationships(db):
+    # integrity_check does not check foreign keys. Stop at the first violation
+    # without returning private table names, row identifiers or SQLite errors.
+    try:
+        invalid=db.execute('PRAGMA foreign_key_check').fetchone() is not None
+    except sqlite3.Error:
+        raise RuntimeError('SQLite foreign-key check failed.') from None
+    if invalid:raise RuntimeError('SQLite foreign-key check failed.')
+
+
 def sqlite_snapshot(source, destination):
     if not Path(source).is_file(): raise RuntimeError('Configured SQLite file is missing; backup stopped.')
     with closing(sqlite3.connect(str(source))) as src, closing(sqlite3.connect(str(destination))) as dst:
         src.backup(dst)
         if dst.execute('PRAGMA integrity_check').fetchone()[0] != 'ok': raise RuntimeError('SQLite integrity check failed.')
+        check_sqlite_relationships(dst)
     os.chmod(destination, 0o600)
 
 
@@ -81,6 +92,7 @@ def inspect_backup(directory,*,immutable_sqlite=False):
                 uri=path.as_uri()+'?mode=ro'+('&immutable=1' if immutable_sqlite else '')
                 with closing(sqlite3.connect(uri,uri=True)) as db:
                     if db.execute('PRAGMA integrity_check').fetchone()[0]!='ok':raise RuntimeError('Backup integrity check failed.')
+                    check_sqlite_relationships(db)
                     if item['name']=='control.sqlite3' and db.execute('SELECT max(version) FROM schema_versions').fetchone()[0]!=manifest['schema']:raise RuntimeError('Backup schema metadata mismatch.')
         except (OSError,sqlite3.Error):
             raise RuntimeError('Backup member inspection failed; no application data was overwritten.') from None
