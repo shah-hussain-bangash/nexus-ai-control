@@ -41,12 +41,26 @@ def main():
     parser.add_argument('--oidc-subject', help='Optional trusted IdP subject to bind before first SSO login')
     parser.add_argument('--apply', action='store_true', help='Apply expired-record cleanup; maintenance defaults to dry-run')
     parser.add_argument('--destination')
-    parser.add_argument('--source',help='Encrypted input archive for isolated SQLite recovery copy')
+    parser.add_argument('--source',help='Input backup directory/archive for inspection, or encrypted archive for isolated SQLite recovery copy')
     parser.add_argument('--quiesced', action='store_true')
     parser.add_argument('--organization', default='Enterprise workspace')
     parser.add_argument('--email'); parser.add_argument('--name', default='Workspace member')
     parser.add_argument('--role', choices=['owner', 'approver', 'security', 'engineer', 'auditor'], default='engineer')
     args = parser.parse_args()
+    if args.operation in ('inspect-backup','inspect-encrypted-backup'):
+        import json
+        if bool(args.source)==bool(args.destination):parser.error('Choose exactly one of --source or --destination for inspection.')
+        source=args.source or args.destination
+        # Offline inspection must work without loading operator settings/.env.
+        # Encrypted inspection uses only its explicitly injected process key.
+        if args.operation=='inspect-backup':
+            from .backup import inspect_backup
+            result=inspect_backup(source)
+        else:
+            from .encrypted_backup import inspect_encrypted_backup
+            result=inspect_encrypted_backup(source)
+        print(json.dumps(result,indent=2))
+        return
     if args.operation=='recover-encrypted-sqlite':
         import json
         from .encrypted_backup import recover_encrypted_sqlite
@@ -61,17 +75,17 @@ def main():
         Path('.env').write_text(content)
         if os.name != 'nt': os.chmod('.env', 0o600)
     settings = Settings.from_env(); settings.validate()
-    if args.operation in ('backup-encrypted','inspect-encrypted-backup'):
+    if args.operation=='backup-encrypted':
         import json
-        from .encrypted_backup import encrypted_backup,inspect_encrypted_backup
+        from .encrypted_backup import encrypted_backup
         if not args.destination:parser.error('--destination is required')
-        print(json.dumps(encrypted_backup(settings,args.destination,args.quiesced) if args.operation=='backup-encrypted' else inspect_encrypted_backup(args.destination),indent=2))
+        print(json.dumps(encrypted_backup(settings,args.destination,args.quiesced),indent=2))
         return
-    if args.operation in ('backup', 'inspect-backup'):
+    if args.operation=='backup':
         import json
-        from .backup import backup, inspect_backup
+        from .backup import backup
         if not args.destination: parser.error('--destination is required')
-        print(json.dumps(backup(settings,args.destination,args.quiesced) if args.operation=='backup' else inspect_backup(args.destination),indent=2))
+        print(json.dumps(backup(settings,args.destination,args.quiesced),indent=2))
         return
     if settings.database_url.startswith('sqlite:///'): Path(settings.database_url.removeprefix('sqlite:///')).parent.mkdir(parents=True, exist_ok=True)
     engine, factory = database(settings.database_url); migrate(engine, factory)
