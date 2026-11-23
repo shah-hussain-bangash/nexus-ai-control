@@ -87,13 +87,14 @@ def main():
         if not args.destination: parser.error('--destination is required')
         print(json.dumps(backup(settings,args.destination,args.quiesced),indent=2))
         return
+    if args.operation=='maintenance':
+        import json
+        from .operations import maintenance
+        print(json.dumps(maintenance(settings,apply=args.apply),indent=2))
+        return
     if settings.database_url.startswith('sqlite:///'): Path(settings.database_url.removeprefix('sqlite:///')).parent.mkdir(parents=True, exist_ok=True)
     engine, factory = database(settings.database_url); migrate(engine, factory)
-    if args.operation == 'maintenance':
-        import json
-        from .operations import housekeeping
-        print(json.dumps(housekeeping(factory, apply=args.apply), indent=2))
-    elif args.operation == 'init':
+    if args.operation == 'init':
         password = secrets.token_urlsafe(16)
         if seed(factory, password):
             print('Local synthetic workspace initialized. Save these temporary development credentials privately:')

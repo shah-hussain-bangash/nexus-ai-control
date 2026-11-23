@@ -38,6 +38,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Synthetic backup-safeguard test](docs/SYNTHETIC_BACKUP_DRILL.md) — `npm run test:backup`
 - [Offline backup inspection](docs/OFFLINE_BACKUP_INSPECTION.md) — inspect backups without loading application settings
 - [Streaming backup checksums](docs/BACKUP_STREAMING_CHECKSUMS.md) — verify payloads using bounded reads
+- [Maintenance preview](docs/MAINTENANCE_PREVIEW.md) — preview cleanup without initializing or upgrading a database
 - [All synthetic drills in one command](docs/SYNTHETIC_SUITE.md) — `npm run test:synthetic`
 - [Synthetic recovered-application test](docs/SYNTHETIC_RECOVERY_DRILL.md) — `npm run test:recovery`
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
