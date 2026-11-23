@@ -3,6 +3,7 @@
   "version": "0.16.2",
   "private": true,
   "scripts": {
+    "test:recovery": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-recovery.ps1",
     "test:backup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-backup.ps1",
     "test:inference": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-inference.ps1",
     "test:agents": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-agents.ps1",

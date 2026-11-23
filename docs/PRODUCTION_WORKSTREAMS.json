@@ -124,7 +124,7 @@
       "title": "Encrypted backup & recovery",
       "area": "Operations",
       "delivery": "partial",
-      "required_evidence": "Quiesced snapshots, authenticated encrypted inspection, isolated SQLite recovery copies and a disposable backup-safeguard drill are implemented. Scheduled encrypted backups, full application restore acceptance, PostgreSQL restore and measured RPO/RTO remain.",
+      "required_evidence": "Quiesced snapshots, authenticated encrypted inspection, isolated SQLite recovery copies and disposable backup/recovered-API drills are implemented. Scheduled encrypted backups, deployment application restore acceptance, PostgreSQL restore and measured RPO/RTO remain.",
       "workspace": "operations"
     },
     {
