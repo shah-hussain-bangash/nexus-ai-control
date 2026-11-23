@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 from starlette.responses import JSONResponse
+from starlette.datastructures import Headers
 
 log = logging.getLogger('nexus.http')
 if not log.handlers:
@@ -12,6 +13,12 @@ if not log.handlers:
     log.addHandler(handler)
 log.setLevel(logging.INFO)
 log.propagate = False
+
+
+def request_event(scope,request_id,status,started):
+    route=getattr(scope.get('route'),'path','unmatched')
+    log.info(json.dumps({'event':'http.request','request_id':request_id,'method':scope.get('method'),
+        'route':route,'status':status,'duration_ms':round((time.perf_counter()-started)*1000,3)},separators=(',',':')))
 
 
 class RequestControls:
@@ -24,14 +31,20 @@ class RequestControls:
         request_id = uuid.uuid4().hex
         started = time.perf_counter(); status = 500
         limit=1572864 if scope.get('method')=='POST' and scope.get('path')=='/v1/ingestion-jobs' else self.limit
+        async def reject(code,message,status):
+            response=JSONResponse({'error':{'code':code,'message':message}},status,headers={'X-Request-ID':request_id})
+            try:return await response(scope,receive,send)
+            finally:request_event(scope,request_id,status,started)
+        try:content_length=int(Headers(scope=scope).get('Content-Length','0') or '0')
+        except ValueError:return await reject('INVALID_LENGTH','Invalid content length.',400)
+        if content_length>limit:return await reject('PAYLOAD_TOO_LARGE',f'Maximum request size is {limit} bytes.',413)
         body = bytearray()
         while True:
             message = await receive()
             if message['type'] == 'http.disconnect': return
             part = message.get('body', b'')
             if len(body) + len(part) > limit:
-                response = JSONResponse({'error': {'code':'PAYLOAD_TOO_LARGE','message':f'Maximum request size is {limit} bytes.'}},413,headers={'X-Request-ID':request_id})
-                return await response(scope, receive, send)
+                return await reject('PAYLOAD_TOO_LARGE',f'Maximum request size is {limit} bytes.',413)
             body.extend(part)
             if not message.get('more_body', False): break
         delivered = False
@@ -50,5 +63,4 @@ class RequestControls:
         try:
             await self.app(scope, bounded_receive, traced_send)
         finally:
-            route = getattr(scope.get('route'), 'path', 'unmatched')
-            log.info(json.dumps({'event':'http.request','request_id':request_id,'method':scope.get('method'),'route':route,'status':status,'duration_ms':round((time.perf_counter()-started)*1000,3)},separators=(',',':')))
+            request_event(scope,request_id,status,started)
