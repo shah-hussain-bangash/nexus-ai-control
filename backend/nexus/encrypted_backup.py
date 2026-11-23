@@ -14,7 +14,7 @@ import tarfile
 import tempfile
 from cryptography.hazmat.primitives.ciphers import Cipher,algorithms,modes
 from cryptography.exceptions import InvalidTag
-from .backup import backup,inspect_backup,inspection_manifest,new_backup_destination
+from .backup import backup,inspect_backup,inspection_manifest,new_backup_destination,MAX_MANIFEST_BYTES
 
 MAGIC=b'NEXUSENC1'
 MAX_BYTES=512*1024*1024
@@ -30,6 +30,8 @@ def validated_members(tar):
     for member in tar:
         if len(members)>=MAX_MEMBERS or member.name in names or not member.isfile() or member.name not in MEMBERS or member.size<0 or total+member.size>MAX_BYTES:
             raise RuntimeError('Unsafe encrypted backup member layout.')
+        if member.name=='manifest.json' and member.size>MAX_MANIFEST_BYTES:
+            raise RuntimeError('Backup manifest exceeds the 64 KiB inspection limit.')
         members.append(member);names.add(member.name);total+=member.size
     if 'manifest.json' not in names:raise RuntimeError('Unsafe encrypted backup member layout.')
     return members
@@ -100,7 +102,8 @@ def authenticated_snapshot(source,temporary_parent=None):
                         file=tar.extractfile(member)
                         if file is None:raise RuntimeError('Missing encrypted backup member.')
                         with file,(target/member.name).open('xb') as output:shutil.copyfileobj(file,output)
-                manifest=__import__('json').loads((target/'manifest.json').read_text())
+                # Validate the object and file entries before indexing them.
+                manifest=inspection_manifest(target)
                 declared=[item['name'] for item in manifest['files']]
                 if set(declared)!=(set(names)-{'manifest.json'}) or len(set(declared))!=len(declared):raise RuntimeError('Encrypted backup manifest does not match archive members.')
                 result=inspect_backup(target)

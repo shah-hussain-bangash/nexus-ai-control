@@ -9,6 +9,8 @@ import sqlite3
 import subprocess
 from sqlalchemy.engine import make_url
 
+MAX_MANIFEST_BYTES=64*1024
+
 
 def new_backup_destination(destination):
     """Reject any existing leaf entry before resolving its parent directory."""
@@ -71,7 +73,10 @@ def inspection_manifest(root):
     try:
         source=root/'manifest.json'
         if source.is_symlink() or not source.is_file():raise ValueError()
-        manifest=json.loads(source.read_text(encoding='utf-8'))
+        # Read a bounded amount even if the file grows after a size check.
+        with source.open('rb') as stream:raw=stream.read(MAX_MANIFEST_BYTES+1)
+        if len(raw)>MAX_MANIFEST_BYTES:raise ValueError()
+        manifest=json.loads(raw.decode('utf-8'))
         if not isinstance(manifest,dict) or manifest.get('kind') not in ('sqlite','postgresql') or type(manifest.get('schema')) is not int or manifest['schema']<1:raise ValueError()
         files=manifest.get('files')
         if not isinstance(files,list) or not files:raise ValueError()
@@ -85,7 +90,7 @@ def inspection_manifest(root):
         required='control.sqlite3' if manifest['kind']=='sqlite' else 'control.dump'
         opposite='control.dump' if manifest['kind']=='sqlite' else 'control.sqlite3'
         if opposite in names or not any(item['name']==required and item['bytes']>0 for item in files):raise ValueError()
-    except (OSError,ValueError,KeyError,TypeError):
+    except (OSError,ValueError,KeyError,TypeError,RecursionError):
         raise RuntimeError('Invalid backup manifest or missing required database snapshot.') from None
     return manifest
 
