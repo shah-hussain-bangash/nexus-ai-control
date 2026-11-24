@@ -3,6 +3,8 @@
   "version": "0.16.2",
   "private": true,
   "scripts": {
+    "test:docker-recovery": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-docker-recovery.ps1 -Run",
+    "check:docker-recovery": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-docker-recovery.ps1",
     "test:synthetic": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-synthetic.ps1",
     "test:recovery": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-recovery.ps1",
     "test:backup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-backup.ps1",

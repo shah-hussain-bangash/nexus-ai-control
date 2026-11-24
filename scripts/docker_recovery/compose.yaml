@@ -1,0 +1,78 @@
+name: nexus-disposable-recovery
+x-limits: &limits
+  image: ${NEXUS_REVIEW_IMAGE:?Set the recorded local recovery image reference}
+  pull_policy: never
+  user: "10001:10001"
+  read_only: true
+  restart: "no"
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+  mem_limit: 768m
+  cpus: 1.0
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+  environment: &proxy-disabled
+    HTTP_PROXY: ""
+    HTTPS_PROXY: ""
+    ALL_PROXY: ""
+    http_proxy: ""
+    https_proxy: ""
+    all_proxy: ""
+    NO_PROXY: "*"
+    no_proxy: "*"
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: "2"}
+services:
+  recovered-api:
+    <<: *limits
+    environment:
+      <<: *proxy-disabled
+      NEXUS_DATABASE_URL: sqlite:////recovery/control.sqlite3
+      NEXUS_MOCK_DATABASE: /recovery/business.sqlite3
+      NEXUS_SECRET: ${NEXUS_REVIEW_SECRET:?Inject a disposable runtime secret privately}
+      NEXUS_AGENT_SECRET: ${NEXUS_REVIEW_AGENT_SECRET:?Inject a different disposable runtime secret privately}
+      NEXUS_MODE: local
+      NEXUS_POLICY_MODE: reference
+      NEXUS_BUSINESS_CONNECTOR: synthetic
+      NEXUS_LIVE_INFERENCE: "0"
+      NEXUS_PROVIDER_HOSTS: ""
+      NEXUS_BUSINESS_BASE_URL: ""
+      NEXUS_MONTHLY_BUDGET_USD: "0"
+      NEXUS_INGESTION_OCR_ENABLED: "0"
+      NEXUS_ORIGIN: http://127.0.0.1:${NEXUS_REVIEW_HTTP_PORT:?Choose a separate local test port}
+      NEXUS_FRONTEND_DIR: /app/frontend/dist
+    command: [python, -m, uvicorn, "nexus.main:app", --host, "0.0.0.0", --port, "8000", --no-access-log, --no-proxy-headers]
+    volumes:
+      - type: bind
+        source: ${NEXUS_REVIEW_FIXTURE_DIRECTORY:?Set the owned disposable restored directory}
+        target: /recovery
+        bind: {create_host_path: false}
+    networks: [recovery]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.build_opener(urllib.request.ProxyHandler({})).open('http://127.0.0.1:8000/health/ready',timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+  recovery-gateway:
+    <<: *limits
+    command: [python, -B, /review/recovery_gateway.py]
+    depends_on: [recovered-api]
+    volumes:
+      - type: bind
+        source: ${NEXUS_REVIEW_GATEWAY_FILE:?Set the reviewed fixed-target relay file}
+        target: /review/recovery_gateway.py
+        read_only: true
+        bind: {create_host_path: false}
+    ports:
+      - target: 8000
+        published: "${NEXUS_REVIEW_HTTP_PORT:?Choose a separate local test port}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    networks: [recovery, access]
+networks:
+  recovery:
+    internal: true
+  access:
+    internal: false
