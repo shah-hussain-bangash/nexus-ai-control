@@ -32,6 +32,11 @@ STAGES=(
  ('committed-wal','run_wal_snapshot_verification.py','wal-snapshot-receipt.json'),
  ('declared-relationships','run_relationship_verification.py','relationship-receipt.json'),
 )
+DEPENDENCIES={
+    'historical-upgrade':('produce_schema10_backup.py',),
+    'upgrade-rollback':('scripts/run_historical_verification.py','scripts/produce_schema10_backup.py'),
+    'abrupt-process-exit':('crash_or_reopen.py','scripts/run_historical_verification.py','scripts/produce_schema10_backup.py'),
+}
 
 
 def sha(data):return hashlib.sha256(data).hexdigest()
@@ -97,6 +102,13 @@ def base_files():
         # Acceptance of the archive must not execute these deliberately failing scripts.
         files[script_path]=b'raise RuntimeError("fixture archive scripts must never execute")\n'
         r['reproduction']['script_sha256']=sha(files[script_path])
+        if name in DEPENDENCIES:
+            parent=script_path.rsplit('/',1)[0]
+            source_hashes={script_path.rsplit('/',1)[-1]:sha(files[script_path])}
+            for relative in DEPENDENCIES[name]:
+                helper=parent+'/'+relative;files[helper]=b'raise RuntimeError("fixture helper must never execute")\n'
+                source_hashes[relative]=sha(files[helper])
+            r['reproduction']={'scripts_sha256':source_hashes}
         files[name+'/regression.xml']=XML;files[name+'/'+receipt]=encoded(r)
         stages.append({'stage':name,'passed':True,'receipt':name+'/'+receipt,'receipt_sha256':sha(files[name+'/'+receipt]),'regression_tests':dict(TOTALS)})
     index={'format':'nexus-disposable-recovery-evidence-pack','format_version':2,'passed':True,
@@ -159,6 +171,36 @@ def test_recomputed_hashes_do_not_replace_required_proof(tmp_path,fault):
 def test_rehashed_authorization_success_cannot_pass(tmp_path):
     files=base_files();alter(files,'restored-application',lambda r:r['functioning_restored_application']['api_statuses'].update(auditor_write_status=200))
     rejects(write(tmp_path,files),'API_STATUS')
+
+
+@pytest.mark.parametrize('fault',['empty_map','missing_entrypoint','missing_helper','both_forms','missing_entrypoint_bytes'])
+def test_required_reproduction_sources_cannot_be_omitted_after_rehashing(tmp_path,fault):
+    files=base_files()
+    def edit(r):
+        hashes=r['reproduction']['scripts_sha256']
+        if fault=='empty_map':hashes.clear()
+        elif fault in ('missing_entrypoint','missing_entrypoint_bytes'):hashes.pop('run_historical_verification.py')
+        elif fault=='missing_helper':hashes.pop('produce_schema10_backup.py')
+        else:
+            r['reproduction']['script_sha256']=hashes['run_historical_verification.py']
+            hashes['produce_schema10_backup.py']='0'*64
+    if fault=='missing_entrypoint_bytes':del files['reproduce/scripts/historical/run_historical_verification.py']
+    alter(files,'historical-upgrade',edit)
+    rejects(write(tmp_path,files),'SCRIPT_SET')
+
+
+def test_mapped_reproduction_windows_references_are_supported(tmp_path):
+    files=base_files()
+    alter(files,'upgrade-rollback',lambda r:r['reproduction'].update(scripts_sha256={
+        name.replace('/','\\'):value for name,value in r['reproduction']['scripts_sha256'].items()}))
+    assert checker.verify(write(tmp_path,files))['verification']=='consistent'
+
+
+def test_reproduction_reference_aliases_are_ambiguous(tmp_path):
+    files=base_files()
+    alter(files,'upgrade-rollback',lambda r:r['reproduction']['scripts_sha256'].update({
+        'scripts\\run_historical_verification.py':r['reproduction']['scripts_sha256']['scripts/run_historical_verification.py']}))
+    rejects(write(tmp_path,files),'SCRIPT_SET')
 
 
 def test_windows_receipt_references_normalize_without_relaxing_zip_paths(tmp_path):

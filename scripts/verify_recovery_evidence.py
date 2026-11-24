@@ -26,6 +26,11 @@ STAGES={
     'declared-relationships':('run_relationship_verification.py','relationship-receipt.json'),
 }
 FLAGS=('operator_configuration_loaded','live_app_changed','external_system_contacted','merged','deployed')
+SCRIPT_DEPENDENCIES={
+    'historical-upgrade':('produce_schema10_backup.py',),
+    'upgrade-rollback':('scripts/run_historical_verification.py','scripts/produce_schema10_backup.py'),
+    'abrupt-process-exit':('crash_or_reopen.py','scripts/run_historical_verification.py','scripts/produce_schema10_backup.py'),
+}
 
 
 class EvidenceError(Exception):pass
@@ -76,6 +81,26 @@ def historical_api(values):statuses(values,{'ready':200,'known_marker_read':200,
 def required_truths(values,*names):
     # Missing records cannot prove success: all({}.values()) is vacuously true.
     require(isinstance(values,dict) and names and all(values.get(name) is True for name in names),'RECORDED_CHECKS')
+
+
+def reproduction_scripts(stage,reproduction,script_path,ref):
+    require(isinstance(reproduction,dict),'SCRIPT_SET')
+    if stage not in SCRIPT_DEPENDENCIES:
+        require('script_sha256' in reproduction and 'scripts_sha256' not in reproduction,'SCRIPT_SET')
+        value=reproduction['script_sha256']
+        require(isinstance(value,str) and re.fullmatch('[a-f0-9]{64}',value) and sha(ref('',script_path))==value,'SCRIPT_HASH')
+        return
+    require('script_sha256' not in reproduction,'SCRIPT_SET')
+    hashes=reproduction.get('scripts_sha256');require(isinstance(hashes,dict) and hashes,'SCRIPT_SET')
+    normalized={}
+    for relative,value in hashes.items():
+        require(isinstance(relative,str),'SCRIPT_SET')
+        relative=relative.replace('\\','/')
+        require(relative not in normalized,'SCRIPT_SET');normalized[relative]=value
+    parent,entrypoint=script_path.rsplit('/',1)
+    require(set(normalized)=={entrypoint,*SCRIPT_DEPENDENCIES[stage]},'SCRIPT_SET')
+    for relative,value in normalized.items():
+        require(isinstance(value,str) and re.fullmatch('[a-f0-9]{64}',value) and sha(ref(parent,relative))==value,'SCRIPT_HASH')
 
 
 def stage_semantics(name,r,schema):
@@ -183,11 +208,7 @@ def _verify(path,expected_sha256=None,expected_revision=None):
         else:require(r.get('fixtures_cleaned',r.get('fixture_files_cleaned')) is True,'STAGE_SCHEMA')
         require(r.get('source_status') in ('unchanged_clean','both_checkouts_unchanged_clean') and r.get('schema_version',r.get('restored_schema'))==schema,'STAGE_SCHEMA')
         if 'historical_revision' in r:require(r['historical_revision']==index['historical_revision'],'STAGE_SCHEMA')
-        reproduction=r['reproduction'];script_path='reproduce/scripts/'+script
-        if 'script_sha256' in reproduction:require(sha(data[script_path])==reproduction['script_sha256'],'SCRIPT_HASH')
-        else:
-            parent=script_path.rsplit('/',1)[0]
-            for relative,value in reproduction['scripts_sha256'].items():require(sha(ref(parent,relative))==value,'SCRIPT_HASH')
+        reproduction_scripts(name,r['reproduction'],'reproduce/scripts/'+script,ref)
         xmls=[]
         for relative,value in r['artifacts_sha256'].items():
             body=ref(name,relative);require(sha(body)==value,'RECEIPT_ARTIFACT_HASH')
