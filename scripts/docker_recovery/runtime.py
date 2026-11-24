@@ -54,16 +54,17 @@ def exercise(workdir,revision,image,password,schema,port):
     before={path:digest(path) for path in source_files}
     def call(arguments,timeout=30):
         completed=subprocess.run([docker,*arguments],cwd=ROOT,env=environment,
-            capture_output=True,text=True,timeout=timeout)
+            capture_output=True,timeout=timeout)
         if completed.returncode:
-            error=completed.stderr.lower()
+            error=completed.stderr.decode('utf-8',errors='replace').lower()
             if 'address already in use' in error or 'port is already allocated' in error:code='TEST_PORT_CONFLICT'
             elif 'no such image' in error:code='CANDIDATE_IMAGE_UNAVAILABLE'
             elif 'mount' in error and ('denied' in error or 'not found' in error):code='FIXTURE_MOUNT_UNAVAILABLE'
             elif 'permission denied' in error or 'access is denied' in error:code='DOCKER_ACCESS_DENIED'
             else:code='DOCKER_OPERATION_FAILED'
             raise RehearsalFailure(code)
-        return completed.stdout.strip()
+        try:return completed.stdout.decode('utf-8').strip()
+        except UnicodeDecodeError:raise RehearsalFailure('DOCKER_OUTPUT_INVALID_UTF8') from None
     def dock(*arguments,timeout=30):return call(['--context',context,*arguments],timeout)
     def compose(*arguments,timeout=30):
         return dock('compose','--project-name',project,'--env-file',str(ROOT/'validation-only.env'),

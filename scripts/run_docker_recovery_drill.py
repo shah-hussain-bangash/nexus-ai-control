@@ -60,7 +60,7 @@ def main(argv=None):
         build_attempted=True
         client.run('build','--pull','--iidfile',str(work/'image-id.txt'),'--tag',tag,
             '--label','org.opencontainers.image.revision='+source['revision'],
-            '--label','io.nexus.recovery.run='+nonce,'--file',str(context/'Dockerfile'),str(context),timeout=900)
+            '--label','io.nexus.recovery.run='+nonce,'--file',str(context/'Dockerfile'),str(context),timeout=900,discard_output=True)
         build_completed=True
         image=(work/'image-id.txt').read_text().strip()
         require(image.startswith('sha256:') and len(image)==71,'INVALID_LOCAL_IMAGE_ID')

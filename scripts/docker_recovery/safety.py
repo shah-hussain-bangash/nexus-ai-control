@@ -49,24 +49,30 @@ class Docker:
         endpoint=json.loads(self.raw(['context','inspect',self.context,'--format','{{json .Endpoints.docker.Host}}']))
         require(local_endpoint(endpoint),'REMOTE_DOCKER_CONTEXT_REFUSED')
         require(self.run('version','--format','{{.Server.Os}}')=='linux','LINUX_DOCKER_ENGINE_REQUIRED')
-    def raw(self,arguments,timeout=60):
+    def raw(self,arguments,timeout=60,discard_output=False):
         try:
             result=subprocess.run([self.executable,*arguments],cwd=self.work,env=self.environment,
-                capture_output=True,text=True,timeout=timeout)
+                capture_output=True,timeout=timeout)
         except (OSError,subprocess.SubprocessError):raise DrillError('DOCKER_TOOL_UNAVAILABLE_OR_TIMEOUT') from None
         require(result.returncode==0,'DOCKER_OPERATION_FAILED')
-        return result.stdout.strip()
-    def run(self,*arguments,timeout=60):return self.raw(['--context',self.context,*arguments],timeout)
+        # Docker build diagnostics need no decoding. Binary capture also keeps
+        # Windows pipe-reader threads independent of the host ANSI code page.
+        if discard_output:return ''
+        try:return result.stdout.decode('utf-8').strip()
+        except UnicodeDecodeError:raise DrillError('DOCKER_OUTPUT_INVALID_UTF8') from None
+    def run(self,*arguments,timeout=60,discard_output=False):
+        return self.raw(['--context',self.context,*arguments],timeout,discard_output)
     def value(self,*arguments):return json.loads(self.run(*arguments))
 
 
 def git(repo,*arguments):
     try:
         result=subprocess.run(['git','-c','safe.directory='+Path(repo).resolve().as_posix(),'-C',str(repo),*arguments],
-            capture_output=True,text=True,timeout=30)
+            capture_output=True,timeout=30)
     except (OSError,subprocess.SubprocessError):raise DrillError('SOURCE_GIT_UNAVAILABLE') from None
     require(result.returncode==0,'SOURCE_GIT_FAILED')
-    return result.stdout.strip()
+    try:return result.stdout.decode('utf-8').strip()
+    except UnicodeDecodeError:raise DrillError('SOURCE_GIT_OUTPUT_INVALID_UTF8') from None
 
 
 def source_metadata(repo):

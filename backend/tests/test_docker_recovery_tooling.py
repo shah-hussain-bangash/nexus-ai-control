@@ -13,6 +13,59 @@ entry=importlib.util.module_from_spec(spec);spec.loader.exec_module(entry)
 from docker_recovery import safety,fixture
 
 
+def byte_cli(tmp_path):
+    client=safety.Docker.__new__(safety.Docker)
+    client.work=tmp_path;client.environment=safety.client_environment();client.executable=sys.executable
+    return client
+
+
+def test_docker_unicode_output_and_undecodable_diagnostics_do_not_break_success(tmp_path):
+    code="import os;os.write(1,b'fixture\\xe2\\x94\\x81');os.write(2,b'\\x81\\xff')"
+    assert byte_cli(tmp_path).raw(['-I','-c',code])=='fixture\u2501'
+
+
+def test_build_progress_is_discarded_without_decoding_arbitrary_bytes(tmp_path):
+    code="import os;os.write(1,b'\\xff\\x81');os.write(2,b'\\x81')"
+    assert byte_cli(tmp_path).raw(['-I','-c',code],discard_output=True)==''
+
+
+def test_invalid_machine_response_has_fixed_error_without_raw_decode_failure(tmp_path):
+    with pytest.raises(safety.DrillError,match='DOCKER_OUTPUT_INVALID_UTF8'):
+        byte_cli(tmp_path).raw(['-I','-c',"import os;os.write(1,b'\\xff\\x81')"])
+
+
+def test_git_response_uses_binary_capture_and_explicit_utf8(tmp_path,monkeypatch):
+    import subprocess
+    def fake_run(command,**options):
+        assert options.get('text') is not True and 'encoding' not in options
+        return subprocess.CompletedProcess(command,0,stdout='fixture\u2501'.encode(),stderr=b'\x81')
+    monkeypatch.setattr(safety.subprocess,'run',fake_run)
+    assert safety.git(tmp_path,'status')=='fixture\u2501'
+
+
+def test_runtime_invalid_docker_metadata_fails_before_start_without_decoder_thread(tmp_path,monkeypatch):
+    import subprocess
+    from docker_recovery import runtime
+    (tmp_path/'owned-workspace.json').write_text('{}')
+    for source,destination in (('compose.yaml','recovery-proxy.compose.yaml'),('gateway.py','recovery_gateway.py')):
+        (tmp_path/destination).write_bytes((REPO/'scripts/docker_recovery'/source).read_bytes())
+    root=tmp_path/'fixture';folder=root/'recovered';folder.mkdir(parents=True);(root/'source').mkdir()
+    for path in (folder/'control.sqlite3',folder/'business.sqlite3',root/'source/control.db',root/'source/business.db',root/'synthetic-backup.enc'):
+        path.write_bytes(b'synthetic-only')
+    (folder/'.nexus-disposable-fixture.json').write_text(json.dumps({
+        'format':'nexus-disposable-docker-recovery-fixture','revision':'a'*40,'schema_version':11,
+        'synthetic':True,'prepared_for':'nexus-disposable-docker-recovery'}))
+    def fake_run(command,**options):
+        assert options.get('text') is not True and 'encoding' not in options
+        return subprocess.CompletedProcess(command,0,stdout=b'\xff\x81',stderr=b'\x81')
+    monkeypatch.setattr(runtime.subprocess,'run',fake_run)
+    monkeypatch.setattr(runtime.shutil,'which',lambda name:'docker')
+    result=runtime.exercise(tmp_path,'a'*40,'sha256:'+'1'*64,'synthetic-only-password-123456',11,18080)
+    assert not result['passed'] and result['checks_passed']==0
+    assert result['failure_category']=='DOCKER_OUTPUT_INVALID_UTF8'
+    assert not result['owned_container_and_network_removed']
+
+
 @pytest.mark.parametrize('endpoint',['unix:///var/run/docker.sock','unix:///run/user/1000/docker.sock',
     'npipe:////./pipe/dockerDesktopLinuxEngine','npipe:////./pipe/docker_engine'])
 def test_local_docker_socket_endpoints(endpoint):assert safety.local_endpoint(endpoint)
@@ -102,6 +155,7 @@ def test_orchestration_preserves_uncertain_runtime_mounts_and_redacts_password(t
         def __init__(self,work):self.work=work;self.nonce=None
         def run(self,*args,**kwargs):
             if args[0]=='build':
+                assert kwargs.get('discard_output') is True
                 self.nonce=next(value.split('=',1)[1] for value in args if value.startswith('io.nexus.recovery.run='))
                 if outcome=='uncertain_build':raise safety.DrillError('DOCKER_TOOL_UNAVAILABLE_OR_TIMEOUT')
                 (self.work/'image-id.txt').write_text('sha256:'+'1'*64)
