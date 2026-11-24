@@ -31,6 +31,16 @@ def client_environment():
     return {name:os.environ[name] for name in names if name in os.environ}
 
 
+def container_user(uid=None,gid=None):
+    # Native recovery files remain 0700/0600. On Unix, run as their non-root
+    # creator instead of changing private file modes or ownership globally.
+    if uid is None:
+        if os.name=='nt':return '10001:10001'
+        uid=os.getuid();gid=os.getgid()
+    require(type(uid) is int and uid>0 and type(gid) is int and gid>=0,'NONROOT_UNIX_HOST_USER_REQUIRED')
+    return str(uid)+':'+str(gid)
+
+
 class Docker:
     def __init__(self,work):
         self.work=Path(work);self.environment=client_environment();self.executable=shutil.which('docker')

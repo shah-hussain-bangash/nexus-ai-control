@@ -4,6 +4,8 @@ This opt-in rehearsal builds its own candidate image from the exact Git commit, 
 
 Use a clean Git checkout with Docker Desktop in Linux-container mode, or a Linux Docker engine with Compose v2-compatible commands. The selected Docker context must use a local named pipe or Unix socket; TCP/SSH contexts are refused. Backend development dependencies must be installed in the Python environment invoking the tool. The image build may download base images and declared dependencies.
 
+On Unix, use a non-root host account with Docker access. The containers run as that account's UID/GID so native recovery's private `0700` directories and `0600` files stay protected without changing their modes. Root Unix invocation is refused. Windows uses the tested non-root container user `10001:10001`; actual Docker Desktop mount behavior is checked by the runtime exercise.
+
 For a fresh Windows checkout, create a Python environment and install dependencies without initializing an application database:
 
 ```powershell

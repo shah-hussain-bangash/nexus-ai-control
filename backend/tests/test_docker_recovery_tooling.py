@@ -23,6 +23,15 @@ def test_local_docker_socket_endpoints(endpoint):assert safety.local_endpoint(en
 def test_remote_and_ambiguous_docker_endpoints_refused(endpoint):assert not safety.local_endpoint(endpoint)
 
 
+def test_container_user_matches_nonroot_unix_fixture_owner():
+    assert safety.container_user(uid=1001,gid=1002)=='1001:1002'
+
+
+@pytest.mark.parametrize('uid,gid',[(0,0),(-1,1001),(True,1001),(1001,-1)])
+def test_root_or_invalid_fixture_user_refused(uid,gid):
+    with pytest.raises(safety.DrillError,match='NONROOT_UNIX_HOST_USER_REQUIRED'):safety.container_user(uid=uid,gid=gid)
+
+
 def test_environment_does_not_inherit_operator_runtime_or_remote_host(monkeypatch):
     monkeypatch.setenv('NEXUS_SECRET','private-fixture-canary');monkeypatch.setenv('DOCKER_HOST','tcp://remote.invalid:2375')
     monkeypatch.setenv('HTTP_PROXY','http://proxy.invalid')

@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-from .safety import local_endpoint
+from .safety import local_endpoint,container_user
 import re
 import secrets
 import shutil
@@ -45,7 +45,8 @@ def exercise(workdir,revision,image,password,schema,port):
         'HOME','XDG_CONFIG_HOME','XDG_RUNTIME_DIR','USERPROFILE','APPDATA','LOCALAPPDATA','ProgramData','ProgramFiles','ProgramFiles(x86)','DOCKER_CONFIG') if key in os.environ}
     environment.update(NEXUS_REVIEW_IMAGE=IMAGE,NEXUS_REVIEW_HTTP_PORT=str(PORT),
         NEXUS_REVIEW_SECRET=secrets.token_urlsafe(48),NEXUS_REVIEW_AGENT_SECRET=secrets.token_urlsafe(48),
-        NEXUS_REVIEW_FIXTURE_DIRECTORY=str(folder),NEXUS_REVIEW_GATEWAY_FILE=str(ROOT/'recovery_gateway.py'))
+        NEXUS_REVIEW_FIXTURE_DIRECTORY=str(folder),NEXUS_REVIEW_GATEWAY_FILE=str(ROOT/'recovery_gateway.py'),
+        NEXUS_REVIEW_CONTAINER_USER=container_user())
     docker=shutil.which('docker');context=None;cid=None;gateway_id=None;up_attempted=False;model=None
     started=datetime.now(timezone.utc).isoformat();clock=time.perf_counter()
     checks=[];statuses={};diagnostics={};failure=None;failure_category=None;phase='local_context';cleanup_ok=True;stopped_ok=False
@@ -112,6 +113,7 @@ def exercise(workdir,revision,image,password,schema,port):
         api=model['services']['recovered-api'];gateway=model['services']['recovery-gateway']
         mounts=api.get('volumes',[]);ports=gateway.get('ports',[])
         check('only_api_gateway_and_no_build',set(model['services'])=={'recovered-api','recovery-gateway'} and all(not service.get('build') for service in (api,gateway)))
+        check('nonroot_user_matches_owned_fixture',api.get('user')==gateway.get('user')==container_user())
         check('candidate_images_and_no_pull',all(service['image']==IMAGE and service.get('pull_policy')=='never' for service in (api,gateway)))
         check('single_owned_fixture_mount',len(mounts)==1 and mounts[0]['type']=='bind' and Path(mounts[0]['source']).resolve()==folder.resolve() and mounts[0]['target']=='/recovery' and mounts[0]['bind'].get('create_host_path') is False)
         check('single_loopback_port',len(ports)==1 and ports[0]['host_ip']=='127.0.0.1' and str(ports[0]['published'])==str(PORT) and ports[0]['target']==8000)
@@ -141,6 +143,7 @@ def exercise(workdir,revision,image,password,schema,port):
         check('requested_image_reference_preserved',inspect('{{json .Config.Image}}')==IMAGE)
         check('gateway_uses_same_image_reference',inspect_gateway('{{json .Config.Image}}')==IMAGE)
         check('container_nonprivileged_read_only_root',inspect('{{json .HostConfig.Privileged}}') is False and inspect('{{json .HostConfig.ReadonlyRootfs}}') is True)
+        check('actual_container_user_matches_fixture_owner',inspect('{{json .Config.User}}')==container_user())
         network=model['networks']['recovery']['name']
         check('actual_docker_network_is_internal',json.loads(dock('network','inspect','--format','{{json .Internal}}',network)) is True)
         check('actual_app_has_only_internal_attachment',set(inspect('{{json .NetworkSettings.Networks}}'))=={network})

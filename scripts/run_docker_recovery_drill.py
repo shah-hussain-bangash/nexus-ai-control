@@ -18,7 +18,7 @@ REPO=SCRIPTS.parent
 sys.path.insert(0,str(SCRIPTS))
 from docker_recovery import fixture,runtime
 from docker_recovery.safety import (Docker,DrillError,cleanup_workspace,export_source,git,
-    remove_owned_image,require,source_metadata)
+    remove_owned_image,require,source_metadata,container_user)
 
 
 def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
@@ -34,11 +34,12 @@ def main(argv=None):
     try:
         source=source_metadata(REPO)
         require(shutil.which('docker'),'DOCKER_CLI_MISSING')
+        user=container_user()
     except DrillError as error:
         print(json.dumps({'passed':False,'failure':str(error),'application_container_start_attempted':False}));return 1
     if args.check:
         print(json.dumps({'passed':True,'check_only':True,**source,'docker_cli_present':True,
-            'docker_engine_contacted':False,'images_built':False,'application_container_start_attempted':False,
+            'docker_engine_contacted':False,'images_built':False,'application_container_start_attempted':False,'container_user':user,
             'boundary':'Source/CLI prerequisites only. Docker runtime, permissions, image and recovery acceptance remain untested.'}))
         return 0
     output=args.output_dir.resolve();default=(REPO/'backend/data/drills').resolve()
@@ -110,7 +111,9 @@ def main(argv=None):
     with path.open('x',encoding='utf-8') as stream:json.dump(receipt,stream,indent=2)
     print(json.dumps({'passed':passed,'fixture_checks_passed':fixture_result['checks_passed'] if fixture_result else 0,
         'runtime_checks_passed':runtime_result['checks_passed'] if runtime_result else 0,
-        'failure':failure,'cleanup_passed':workspace_cleaned and image_removed,'report':str(path)}))
+        'failure':failure,'runtime_failure':runtime_result.get('failure') if runtime_result else None,
+        'runtime_failure_category':runtime_result.get('failure_category') if runtime_result else None,
+        'cleanup_passed':workspace_cleaned and image_removed,'report':str(path)}))
     return 0 if passed else 1
 
 

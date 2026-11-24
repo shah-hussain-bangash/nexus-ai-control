@@ -2,7 +2,7 @@ name: nexus-disposable-recovery
 x-limits: &limits
   image: ${NEXUS_REVIEW_IMAGE:?Set the recorded local recovery image reference}
   pull_policy: never
-  user: "10001:10001"
+  user: "${NEXUS_REVIEW_CONTAINER_USER:-10001:10001}"
   read_only: true
   restart: "no"
   cap_drop: [ALL]
