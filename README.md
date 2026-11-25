@@ -42,6 +42,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Streaming backup checksums](docs/BACKUP_STREAMING_CHECKSUMS.md) — verify payloads using bounded reads
 - [Maintenance preview](docs/MAINTENANCE_PREVIEW.md) — preview cleanup without initializing or upgrading a database
 - [Request rejection events](docs/REQUEST_REJECTION_EVENTS.md) — correlate oversized-request errors in structured logs
+- [Offline recovery evidence checker](docs/OFFLINE_RECOVERY_EVIDENCE.md) — inspect a provided version-2 evidence pack without running NEXUS
 - [All synthetic drills in one command](docs/SYNTHETIC_SUITE.md) — `npm run test:synthetic`
 - [Synthetic recovered-application test](docs/SYNTHETIC_RECOVERY_DRILL.md) — `npm run test:recovery`
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
