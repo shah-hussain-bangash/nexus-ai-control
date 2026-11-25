@@ -2006,11 +2006,18 @@ export function FlagshipHub({
                       <Field label="Provider">
                         <select
                           value={c.provider}
-                          onChange={(e) => config("provider", e.target.value)}
+                          onChange={(e) => {
+                            config("provider", e.target.value);
+                            if (e.target.value === "Ollama") {
+                              config("endpoint", "http://127.0.0.1:11434");
+                              config("credential_ref", "");
+                            }
+                          }}
                         >
                           {[
                             "Azure OpenAI",
                             "OpenAI",
+                            "Ollama",
                             "Anthropic",
                             "Local endpoint",
                           ].map((s) => (
@@ -2027,19 +2034,21 @@ export function FlagshipHub({
                         />
                       </Field>
                     </div>
-                    <Field label="HTTPS endpoint (optional)">
+                    <Field label={c.provider === "Ollama" ? "Local Ollama endpoint" : "HTTPS endpoint (optional)"}>
                       <input
                         value={c.endpoint}
-                        placeholder="https://your-resource.example"
+                        placeholder={c.provider === "Ollama" ? "http://127.0.0.1:11434" : "https://your-resource.example"}
+                        readOnly={c.provider === "Ollama"}
                         onChange={(e) => config("endpoint", e.target.value)}
                       />
                     </Field>
                     <Field
                       label="Credential environment reference"
-                      hint="Reference only, for example env:NEXUS_LLM_API_KEY. Never paste a credential."
+                      hint={c.provider === "Ollama" ? "Leave empty for local Ollama. Enable the exact installed model in server settings." : "Reference only, for example env:NEXUS_LLM_API_KEY. Never paste a credential."}
                     >
                       <input
                         value={c.credential_ref}
+                        disabled={c.provider === "Ollama"}
                         onChange={(e) =>
                           config("credential_ref", e.target.value)
                         }

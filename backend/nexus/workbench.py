@@ -45,7 +45,7 @@ class Prompt(Strict):
 
 
 class Model(Strict):
-    provider: Literal['Azure OpenAI','OpenAI','Anthropic','Local endpoint']
+    provider: Literal['Azure OpenAI','OpenAI','Anthropic','Local endpoint','Ollama']
     model: str = Field(min_length=1,max_length=100)
     endpoint: str = Field(default='',max_length=300)
     credential_ref: str = Field(default='',max_length=90)
@@ -146,6 +146,10 @@ def validate_config(kind, data):
         if key in config and any(not x.strip() or len(x)>150 for x in config[key]):
             fail(422,'INVALID_CONFIGURATION','List values must be nonempty and at most 150 characters.')
     if kind in ('model','connector'):
+        if kind == 'model' and config['provider'] == 'Ollama':
+            from .ollama import validate_config as validate_ollama
+            validate_ollama(config)
+            return config
         if config['credential_ref'] and not re.fullmatch(r'env:[A-Z][A-Z0-9_]{2,70}',config['credential_ref']):
             fail(422,'SECRET_REFERENCE_REQUIRED','Use an env:VARIABLE_NAME reference. Never enter a credential value.')
         if config['endpoint']:

@@ -35,6 +35,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Durable worker claim deadlines](docs/DURABLE_CLAIM_DEADLINES.md)
 - [Synthetic agent-workflow test](docs/SYNTHETIC_AGENT_DRILL.md) — `npm run test:agents`
 - [Synthetic inference-control test](docs/SYNTHETIC_INFERENCE_DRILL.md) — `npm run test:inference`
+- [Local Ollama connection](docs/LOCAL_OLLAMA.md) — opt-in local models without a provider API key
 - [Synthetic backup-safeguard test](docs/SYNTHETIC_BACKUP_DRILL.md) — `npm run test:backup`
 - [Offline backup inspection](docs/OFFLINE_BACKUP_INSPECTION.md) — inspect backups without loading application settings
 - [Streaming backup checksums](docs/BACKUP_STREAMING_CHECKSUMS.md) — verify payloads using bounded reads

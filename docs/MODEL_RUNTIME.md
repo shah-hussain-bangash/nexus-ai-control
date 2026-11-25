@@ -2,6 +2,10 @@
 
 Execution is disabled by default. No provider key is bundled. The runtime API and console are separate from workbench configuration tests.
 
+For the separate local-mode-only Ollama option, see [Local Ollama connection](LOCAL_OLLAMA.md).
+Its opt-in and exact-model allowlist do not enable hosted providers. The hosted
+configuration and positive-rate/budget requirements below remain unchanged.
+
 ## Operator configuration
 
 Set NEXUS_LIVE_INFERENCE=1 only after setting NEXUS_PROVIDER_HOSTS to the exact host, NEXUS_MONTHLY_BUDGET_USD to a positive organization-month limit, and NEXUS_PROVIDER_PRICES to a JSON map keyed by host|model. Each map value must contain positive input and output rates in USD per million tokens. Choose actual approved rates from your provider agreement; no market prices are assumed by this package.
