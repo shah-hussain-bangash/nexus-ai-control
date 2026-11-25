@@ -2,6 +2,7 @@
 import ctypes as c
 from ctypes import wintypes as w
 import os
+import json
 from pathlib import Path
 import socket
 import subprocess
@@ -61,6 +62,34 @@ def alive(k,handle):
     return code.value==259
 
 
+def send_owned_ctrl_c(root,owned,tmp_path):
+    # Attach/detach changes standard console handles. Keep it out of pytest's
+    # process so subsequent tests retain their original runner handles.
+    controller=tmp_path/'console_controller.py'
+    controller.write_text('''import ctypes as c,json,os,sys,time
+from ctypes import wintypes as w
+k=c.WinDLL('kernel32',use_last_error=True)
+k.AttachConsole.argtypes=[w.DWORD]
+k.GetConsoleProcessList.argtypes=[c.POINTER(w.DWORD),w.DWORD]
+k.SetConsoleCtrlHandler.argtypes=[c.c_void_p,w.BOOL]
+k.GenerateConsoleCtrlEvent.argtypes=[w.DWORD,w.DWORD]
+owned=set(json.loads(sys.argv[2]))
+k.FreeConsole()
+assert k.AttachConsole(int(sys.argv[1]))
+try:
+    ids=(w.DWORD*32)();count=k.GetConsoleProcessList(ids,32)
+    assert 0<count<=32
+    assert set(ids[:count])<=owned|{os.getpid()}
+    assert k.SetConsoleCtrlHandler(None,True)
+    assert k.GenerateConsoleCtrlEvent(0,0)
+    time.sleep(.25)
+finally:k.FreeConsole()
+''',encoding='utf-8')
+    result=subprocess.run([sys.executable,'-I',str(controller),str(root),json.dumps(sorted(owned))],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=10)
+    assert result.returncode==0,'Owned console signal controller failed'
+
+
 @pytest.mark.parametrize('inherited_ignore',[False,True])
 def test_windows_ctrl_c_stops_api_and_worker_after_verified_action(ctx,tmp_path,inherited_ignore):
     assert ctx['settings'].database_url.startswith('sqlite')
@@ -87,7 +116,7 @@ def test_windows_ctrl_c_stops_api_and_worker_after_verified_action(ctx,tmp_path,
     with log.open('w',encoding='utf-8') as output:
         try:
             proc=subprocess.Popen([sys.executable,'-I',str(bootstrap),str(backend),str(port)],
-                cwd=backend,env=env,stdout=output,stderr=output,
+                cwd=backend,env=env,stdin=subprocess.DEVNULL,stdout=output,stderr=output,
                 creationflags=subprocess.CREATE_NEW_CONSOLE,startupinfo=startup)
             with httpx.Client(base_url=origin,trust_env=False,follow_redirects=False,timeout=2) as client:
                 deadline=time.monotonic()+30
@@ -119,18 +148,7 @@ def test_windows_ctrl_c_stops_api_and_worker_after_verified_action(ctx,tmp_path,
             for pid in owned:
                 handle=k.OpenProcess(0x1001,False,pid)
                 if handle:handles.append(handle)  # Held handles prevent PID-reuse cleanup races.
-            k.FreeConsole()
-            assert k.AttachConsole(proc.pid),'Cannot attach owned disposable console'
-            try:
-                ids=(w.DWORD*32)();count=k.GetConsoleProcessList(ids,32)
-                assert 0<count<=32
-                assert set(ids[:count])<=owned|{os.getpid()},'Console contains unrelated processes'
-                assert k.SetConsoleCtrlHandler(None,True)
-                assert k.GenerateConsoleCtrlEvent(0,0)
-                time.sleep(.25)
-            finally:
-                k.FreeConsole()
-                k.SetConsoleCtrlHandler(None,False)
+            send_owned_ctrl_c(proc.pid,owned,tmp_path)
             proc.wait(timeout=15)
             deadline=time.monotonic()+5
             while any(alive(k,h) for h in handles) and time.monotonic()<deadline:time.sleep(.1)

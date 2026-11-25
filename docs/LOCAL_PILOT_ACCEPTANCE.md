@@ -94,6 +94,8 @@ console contains owned test processes, and check that the API listener and all
 owned processes exit. Both normal and explicitly inherited-ignore cases run in
 the Windows CI job. Failures trigger cleanup only through held handles to the
 owned test processes. The original POSIX shutdown test stays separate.
+Console attachment and signal delivery run in a separate controller process so
+the test runner keeps its own standard input and console handles intact.
 
 These checks do not accept closing the terminal window, forced task termination,
 Windows logoff/shutdown, interrupted external business writes or power-loss
