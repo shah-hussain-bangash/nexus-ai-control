@@ -346,9 +346,15 @@ export function RuntimeConsole({ me }: { me: Row }) {
                 checked={rag}
                 onChange={(e) => setRag(e.target.checked)}
               />{" "}
-              Include local retrieved excerpts (these will be sent to the
-              provider)
+              Include authorized source excerpts (sent to the selected model)
             </label>
+            {rag && (
+              <p className="muted">
+                Searches indexed Document library sources. Saved design sources
+                are used when no document matches. Review which model receives
+                your evidence before sending.
+              </p>
+            )}
             <div className="runtime-actions">
               <button
                 type="submit"
@@ -398,8 +404,8 @@ export function RuntimeConsole({ me }: { me: Row }) {
                   "Request recorded; refresh the runtime ledger for its outcome."}
               </p>
               {result.result.citations?.map((c: Row, i: number) => (
-                <small key={c.asset_id + "-" + c.chunk}>
-                  [{i + 1}] {c.title} · v{c.asset_version} · chunk {c.chunk}
+                <small key={(c.document_id || c.asset_id) + "-" + c.chunk}>
+                  [{i + 1}] {c.title} · v{c.document_version ?? c.asset_version} · chunk {c.chunk}
                 </small>
               ))}
             </div>
