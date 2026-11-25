@@ -35,6 +35,7 @@ class InferenceInput(Strict):
     expected_version: int = Field(ge=1)
     query: str = Field(min_length=1, max_length=2000)
     retrieve_evidence: bool = False
+    require_document_evidence: bool = False
     max_output_tokens: int = Field(default=512, ge=1, le=32768)
 
 
@@ -179,7 +180,14 @@ def register_inference(app, factory, settings, human):
         key_hash = hashlib.sha256(key.encode()).hexdigest()
         with factory() as db:
             user = human(request, db, True, 'operate',serialize=False)
-            fingerprint = hashlib.sha256(json.dumps({'author': user.id, **body.model_dump()}, sort_keys=True).encode()).hexdigest()
+            if body.require_document_evidence and not body.retrieve_evidence:
+                fail(422, 'DOCUMENT_RETRIEVAL_REQUIRED', 'Enable source excerpts when requiring document evidence. No provider call was made.')
+            request_body = body.model_dump()
+            # Preserve fingerprints for existing requests created before this
+            # optional control existed, including explicit false from clients.
+            if not body.require_document_evidence:
+                request_body.pop('require_document_evidence')
+            fingerprint = hashlib.sha256(json.dumps({'author': user.id, **request_body}, sort_keys=True).encode()).hexdigest()
             previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id), InferenceCall.key_hash == key_hash))
             if previous:
                 if previous.request_hash != fingerprint: fail(409, 'IDEMPOTENCY_CONFLICT', 'This key belongs to a different request.')
@@ -214,7 +222,11 @@ def register_inference(app, factory, settings, human):
                     fail(422, 'OUTPUT_LIMIT', 'Requested output exceeds the route/server token limit.')
                 query = body.query.strip()
                 if not query: fail(422, 'QUERY_REQUIRED', 'Enter a nonempty request.')
-                citations = (retrieve_evidence(db, user, query) or retrieve(db, user.org_id, query)) if body.retrieve_evidence else []
+                citations = retrieve_evidence(db, user, query) if body.retrieve_evidence else []
+                if body.require_document_evidence and not citations:
+                    fail(422, 'DOCUMENT_EVIDENCE_REQUIRED', 'No matching authorized indexed document was found. No provider call was made. Add an approved source or revise your question.')
+                if body.retrieve_evidence and not citations:
+                    citations = retrieve(db, user.org_id, query)
                 evidence = '\n\n'.join('['+str(i+1)+'] '+c['text'] for i,c in enumerate(citations))
                 content = query + ('\n\nUntrusted reference excerpts:\n' + evidence if citations else '')
                 rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(MAX_INPUT_GUARDRAILS+1)).all()
