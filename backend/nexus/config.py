@@ -32,6 +32,8 @@ class Settings:
     inference_requests_per_minute: int = 30
     inference_max_inflight: int = 4
     live_inference: int = 0
+    ollama_enabled: int = 0
+    ollama_models: str = ''
     provider_hosts: str = ''
     provider_prices: str = '{}'
     monthly_budget_usd: str = '0'
@@ -60,7 +62,7 @@ class Settings:
         for k in keys:
             v = os.getenv('NEXUS_' + k.upper())
             if v is not None:
-                values[k] = int(v) if k in ('session_seconds', 'live_inference', 'inference_max_output', 'inference_response_bytes', 'inference_requests_per_minute', 'inference_max_inflight', 'business_timeout_seconds', 'business_response_bytes', 'ingestion_ocr_enabled', 'ingestion_timeout_seconds', 'ingestion_in_action_worker') else v
+                values[k] = int(v) if k in ('session_seconds', 'live_inference', 'ollama_enabled', 'inference_max_output', 'inference_response_bytes', 'inference_requests_per_minute', 'inference_max_inflight', 'business_timeout_seconds', 'business_response_bytes', 'ingestion_ocr_enabled', 'ingestion_timeout_seconds', 'ingestion_in_action_worker') else v
         return cls(**values)
 
     def validate(self):
@@ -81,6 +83,15 @@ class Settings:
             raise RuntimeError('Invalid inference request/concurrency limits.')
         if self.live_inference not in (0, 1) or not 1 <= self.inference_max_output <= 32768 or not 4096 <= self.inference_response_bytes <= 4194304:
             raise RuntimeError('Invalid inference runtime limits.')
+        from .ollama import valid_model_tag
+        if self.ollama_enabled not in (0, 1):
+            raise RuntimeError('OLLAMA_ENABLED must be 0 or 1.')
+        local_models = [item.strip() for item in self.ollama_models.split(',') if item.strip()]
+        if (len(local_models) > 100 or len(local_models) != len(set(local_models)) or
+                any(not valid_model_tag(item) for item in local_models)):
+            raise RuntimeError('OLLAMA_MODELS requires at most 100 distinct explicit local model:tag values.')
+        if self.ollama_enabled and (self.mode != 'local' or not local_models):
+            raise RuntimeError('Ollama opt-in requires local mode and an explicit installed-model allowlist.')
         from decimal import Decimal, InvalidOperation
         import json
         try:
