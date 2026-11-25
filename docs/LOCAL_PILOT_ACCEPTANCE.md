@@ -80,6 +80,28 @@ If the app or worker fails, stop new work, preserve the terminal/error evidence
 privately and investigate; do not launch duplicate workers or blindly resend
 uncertain requests. Use saved request recovery and owner reconciliation.
 
+### Windows console shutdown
+
+The local launcher restores normal Ctrl+C processing in its own attached Windows
+console before creating the worker. Windows can inherit an ignore-Ctrl+C flag
+from its parent; resetting that flag lets the API and worker receive a normal
+console interrupt. This does not change other processes' console settings. A
+background process without a console is left unchanged.
+
+Native regression checks start a fresh hidden console with disposable databases,
+perform a governed synthetic action, send Ctrl+C only after verifying that the
+console contains owned test processes, and check that the API listener and all
+owned processes exit. Both normal and explicitly inherited-ignore cases run in
+the Windows CI job. Failures trigger cleanup only through held handles to the
+owned test processes. The original POSIX shutdown test stays separate.
+
+These checks do not accept closing the terminal window, forced task termination,
+Windows logoff/shutdown, interrupted external business writes or power-loss
+recovery. Preserve the previous failed probe reports; a later pass does not
+rewrite them or grant production acceptance. See Microsoft's
+[console control documentation](https://learn.microsoft.com/en-us/windows/console/ctrl-c-and-ctrl-break-signals)
+for the inherited Ctrl+C behavior.
+
 Before a source upgrade, stop all writers and use the existing reviewed encrypted
 backup procedure with a protected new destination and separately held key. Record
 the prior source revision and schema. Never switch old code onto a newer schema

@@ -10,6 +10,22 @@ import uvicorn
 from .config import Settings
 
 
+def enable_console_interrupts():
+    """Undo Windows' inherited ignore-Ctrl+C flag before starting the worker."""
+    if os.name != 'nt':
+        return
+    import ctypes
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.GetConsoleCP.restype = wintypes.UINT
+    if not kernel.GetConsoleCP():
+        return  # A background process without a console has no console events.
+    kernel.SetConsoleCtrlHandler.argtypes = [ctypes.c_void_p, wintypes.BOOL]
+    kernel.SetConsoleCtrlHandler.restype = wintypes.BOOL
+    if not kernel.SetConsoleCtrlHandler(None, False):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
 def bind_listener(port=None):
     """Retain the bound socket so another process cannot claim a chosen free port."""
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -61,6 +77,7 @@ def main(argv=None):
     worker = None
     done = threading.Event()
     try:
+        enable_console_interrupts()
         worker = subprocess.Popen([sys.executable, '-m', 'nexus.worker'], cwd=Path.cwd(), env=os.environ.copy())
         server = uvicorn.Server(uvicorn.Config('nexus.main:app', host='127.0.0.1', port=port))
         def supervise():
