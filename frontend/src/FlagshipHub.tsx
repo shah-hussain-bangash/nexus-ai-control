@@ -38,6 +38,7 @@ import {
   Zap,
 } from "lucide-react";
 import { api } from "./api";
+import { ProductionStatus } from "./ProductionStatus";
 type R = Record<string, any>;
 const pretty = (s: string) =>
   s?.replaceAll("_", " ").replace(/\b\w/g, (x) => x.toUpperCase());
@@ -832,6 +833,7 @@ export function FlagshipHub({
 
       {page === "overview" && (
         <>
+          <ProductionStatus onNavigate={onNavigate} />
           <section className="nx-hero">
             <div>
               <span className="nx-eyebrow">
