@@ -23,6 +23,46 @@ Report destinations must be new files; existing files are never replaced.
 
 ## Review supplied synthetic answers
 
+Prepare three separate files from the repository root:
+
+```powershell
+python scripts/evaluate_answers.py --export-prompts --output prompts.json
+python scripts/evaluate_answers.py --response-template --output responses.json
+```
+
+Only `prompts.json` is intended as model-facing input. It contains questions,
+authorized fixture contexts and untrusted document instructions; it excludes
+reference answers, expected decisions, rubric labels and scenario-revealing case
+IDs. The injected document instruction is intentionally retained as untrusted
+test content. Each prompt has an opaque `prompt-001` through `prompt-008` ID.
+These exports do not contact a model or establish a protected benchmark; the
+synthetic dataset and its answer keys are public repository fixtures.
+
+Keep `--export-fixtures` output for reviewers. Never give its answer keys or the
+canned demo answers/labels to a model as candidate-generation input. Keep the
+response template for the operator: its case IDs describe scenarios. Match
+`prompt-001` to the first template row, through `prompt-008` to the eighth. Fill
+each row's actual text, declared behavior and citations using the candidate
+response. Blank templates contain no reference text or preselected decision and
+cannot be scored. Do not reorder the template while matching prompt positions.
+
+Once all eight responses are complete:
+
+```powershell
+python scripts/evaluate_answers.py --prepare-review responses.json --output reviews.json
+```
+
+This validates the response structure and writes response-bound hashes with four
+`null` reviewer labels per case. Invalid-quality answers are kept for review;
+preparation does not approve them. An independent English/Arabic reviewer reads
+the actual answers and fixture rubric, then replaces every `null` with `true` or
+`false`. Null labels are rejected by scoring, and changing an answer requires
+fresh preparation and review. Existing files are never replaced; choose new
+paths for each revision. Use the built-in `--output` UTF-8 writer instead of shell
+redirection, which may select a different encoding in Windows PowerShell.
+
+After independent review:
+
 ```powershell
 python scripts/evaluate_answers.py --responses responses.json --reviews reviews.json --report answer-review-report.json
 ```
