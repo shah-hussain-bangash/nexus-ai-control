@@ -21,6 +21,8 @@ Supported endpoint bases: https://api.openai.com/v1 for OpenAI; https://RESOURCE
 1. Owner/security: create or update a model route, including model/deployment, endpoint, credential reference, output cap and timeout. Save, then Check saved config. Editing later resets it to Draft.
 2. Open Model gateway or AI FinOps and scroll to Live inference console. Refresh runtime to load checked routes.
 3. Confirm the operator-enabled state and budget. Enter synthetic or approved text. Selecting the retrieval checkbox explicitly includes local evidence in the provider request.
+   Indexed Document library sources are preferred; saved design sources remain
+   a fallback when no indexed document matches. See [Document-backed answers](DOCUMENT_INFERENCE.md).
 4. Send once. The request key is retained for same-body retry while the page remains open. The response and usage enter the inference ledger. “Recheck same request” retrieves the existing record; “Start a new request” intentionally creates a new billable intent.
 5. On Unknown, do not create another intent. An owner checks provider usage, enters verified token counts and an evidence note, and settles the reservation once. Pending calls can be reconciled after 300 seconds if the processing worker crashed; investigate the process/provider first.
 

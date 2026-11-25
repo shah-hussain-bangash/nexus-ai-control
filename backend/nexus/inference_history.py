@@ -4,12 +4,13 @@ import hmac
 import time
 import jwt
 from sqlalchemy import select, func, or_, and_
-from .db import InferenceCall, WorkspaceAsset, public
+from .db import InferenceCall, WorkspaceAsset
 from .security import fail
 from .runtime_context import runtime_environment
+from .inference_evidence import visible_call
 
 
-def page(db,settings,org_id,q='',status='all',limit=10,cursor='',environment=None):
+def page(db,settings,org_id,q='',status='all',limit=10,cursor='',environment=None,user=None):
     environment=runtime_environment(db,org_id,environment)
     q=q.strip()
     key=hmac.new(settings.secret.encode(),b'nexus-inference-pages-v1',hashlib.sha256).digest()
@@ -31,4 +32,4 @@ def page(db,settings,org_id,q='',status='all',limit=10,cursor='',environment=Non
     if more:
         last=rows[-1]
         next_cursor=jwt.encode({'aud':'nexus-inference-history','org':org_id,'env':environment,'q':q,'status':status,'created':last.created,'id':last.id,'exp':int(time.time())+900},key,algorithm='HS256')
-    return {'items':[public(row) for row in rows],'has_more':more,'next_cursor':next_cursor,'limit':limit}
+    return {'items':[visible_call(db,row,user) for row in rows],'has_more':more,'next_cursor':next_cursor,'limit':limit}

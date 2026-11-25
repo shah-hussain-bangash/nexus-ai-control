@@ -20,10 +20,11 @@ from sqlalchemy.exc import IntegrityError
 from .runtime_context import runtime_environment
 from .inference_accounting import workspace_budget,ensure_budget,admission_counts,reserve_budget,settle_budget
 from .schemas import Strict
-from .db import InferenceCall, WorkspaceAsset, Organization, public
+from .db import InferenceCall, WorkspaceAsset, Organization
 from .security import fail
 from .service import audit
 from .workbench import asset_for, retrieve, check_guardrail, validate_config
+from .inference_evidence import retrieve_evidence, sources_current, visible_call
 
 
 MAX_INPUT_GUARDRAILS = 100
@@ -153,14 +154,14 @@ def register_inference(app, factory, settings, human):
             budget = workspace_budget(db,user.org_id,environment,period())
             calls = db.scalars(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id)).order_by(InferenceCall.created.desc()).limit(50)).all()
             completed = db.scalar(select(func.count()).select_from(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == environment, InferenceCall.status == 'completed'))
-            return {'budget_scope':'workspace','admission_scope':'workspace','environment':environment,'enabled': bool(settings.live_inference or settings.ollama_enabled), 'hosted_provider_enabled': bool(settings.live_inference), 'local_ollama_enabled': bool(settings.ollama_enabled), 'period': period(), 'currency': 'USD', 'limit_micro_usd': micro(settings.monthly_budget_usd), 'held_micro_usd': budget.held if budget else 0, 'spent_micro_usd': budget.spent if budget else 0, 'completed_calls': completed, 'calls': [public(c) for c in calls], 'max_output_tokens': settings.inference_max_output, 'requests_per_minute': settings.inference_requests_per_minute, 'max_inflight': settings.inference_max_inflight, 'boundary': 'Hosted inference uses operator token rates. Local Ollama records zero provider-token cost, excluding hardware and electricity. No business tools. Cloud readiness is not certified.'}
+            return {'budget_scope':'workspace','admission_scope':'workspace','environment':environment,'enabled': bool(settings.live_inference or settings.ollama_enabled), 'hosted_provider_enabled': bool(settings.live_inference), 'local_ollama_enabled': bool(settings.ollama_enabled), 'period': period(), 'currency': 'USD', 'limit_micro_usd': micro(settings.monthly_budget_usd), 'held_micro_usd': budget.held if budget else 0, 'spent_micro_usd': budget.spent if budget else 0, 'completed_calls': completed, 'calls': [visible_call(db,c,user) for c in calls], 'max_output_tokens': settings.inference_max_output, 'requests_per_minute': settings.inference_requests_per_minute, 'max_inflight': settings.inference_max_inflight, 'boundary': 'Hosted inference uses operator token rates. Local Ollama records zero provider-token cost, excluding hardware and electricity. No business tools. Cloud readiness is not certified.'}
 
     @app.get('/v1/inference-calls')
     def history(request:Request,q:str=Query('',max_length=120),status:Literal['all','pending','completed','unknown','reconciled']='all',limit:int=Query(10,ge=1,le=25),cursor:str=Query('',max_length=2048)):
         from .inference_history import page
         with factory() as db:
             user=human(request,db)
-            return page(db,settings,user.org_id,q,status,limit,cursor)
+            return page(db,settings,user.org_id,q,status,limit,cursor,user=user)
 
     @app.post('/v1/inference/recover')
     def recover(body:RecoverInput,request:Request):
@@ -168,7 +169,7 @@ def register_inference(app, factory, settings, human):
             user=human(request,db,True,'operate')
             row=db.scalar(select(InferenceCall).where(InferenceCall.org_id==user.org_id,InferenceCall.env==runtime_environment(db,user.org_id),InferenceCall.author_id==user.id,InferenceCall.key_hash==hashlib.sha256(body.key.encode()).hexdigest()))
             if not row:fail(404,'CALL_NOT_FOUND','No matching request record was found for your account. Review the ledger before creating a new intent.')
-            return public(row)
+            return visible_call(db,row,user)
 
     @app.post('/v1/inference')
     def infer(body: InferenceInput, request: Request):
@@ -182,7 +183,7 @@ def register_inference(app, factory, settings, human):
             previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == user.org_id, InferenceCall.env == runtime_environment(db,user.org_id), InferenceCall.key_hash == key_hash))
             if previous:
                 if previous.request_hash != fingerprint: fail(409, 'IDEMPOTENCY_CONFLICT', 'This key belongs to a different request.')
-                return public(previous)
+                return visible_call(db,previous,user)
             if not (settings.live_inference or settings.ollama_enabled): fail(503, 'INFERENCE_DISABLED', 'Model execution is disabled by the server operator.')
             prepared_model=asset_for(db,user,body.model_id)
             if prepared_model.kind!='model' or prepared_model.status!='validated' or prepared_model.version!=body.expected_version:
@@ -200,7 +201,7 @@ def register_inference(app, factory, settings, human):
                 previous=db.scalar(select(InferenceCall).where(InferenceCall.org_id==org,InferenceCall.env==environment,InferenceCall.key_hash==key_hash))
                 if previous:
                     if previous.request_hash!=fingerprint:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to a different request.')
-                    return public(previous)
+                    return visible_call(db,previous,user)
                 # Recheck the selected route's opt-in under the admission lock.
                 # Enabling local inference must never enable a hosted route.
                 route(config, settings)
@@ -213,7 +214,7 @@ def register_inference(app, factory, settings, human):
                     fail(422, 'OUTPUT_LIMIT', 'Requested output exceeds the route/server token limit.')
                 query = body.query.strip()
                 if not query: fail(422, 'QUERY_REQUIRED', 'Enter a nonempty request.')
-                citations = retrieve(db, user.org_id, query) if body.retrieve_evidence else []
+                citations = (retrieve_evidence(db, user, query) or retrieve(db, user.org_id, query)) if body.retrieve_evidence else []
                 evidence = '\n\n'.join('['+str(i+1)+'] '+c['text'] for i,c in enumerate(citations))
                 content = query + ('\n\nUntrusted reference excerpts:\n' + evidence if citations else '')
                 rules = db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id == user.org_id, WorkspaceAsset.env == runtime_environment(db,user.org_id), WorkspaceAsset.kind == 'guardrail', WorkspaceAsset.status != 'archived').order_by(WorkspaceAsset.id).limit(MAX_INPUT_GUARDRAILS+1)).all()
@@ -238,6 +239,8 @@ def register_inference(app, factory, settings, human):
                 db.expire_all()
                 current=human(request,db,True,'operate')
                 if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before admission.')
+                if not sources_current(db,citations,current):
+                    fail(409,'EVIDENCE_CHANGED','Source access or version changed during preparation. Refresh before retrying.')
                 row = InferenceCall(org_id=org, env=environment, key_hash=key_hash, request_hash=fingerprint, author_id=author, asset_id=body.model_id, asset_version=model_version, period=period(), reserved=reserved, input_rate=str(rates['input']), output_rate=str(rates['output']))
                 db.add(row); db.flush()
                 ensure_budget(db,org,environment,row.period)
@@ -256,7 +259,7 @@ def register_inference(app, factory, settings, human):
                 current=human(request,db,True,'operate')
                 if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed before recovery.')
                 previous = db.scalar(select(InferenceCall).where(InferenceCall.org_id == org, InferenceCall.env == environment, InferenceCall.key_hash == key_hash))
-                if previous and previous.request_hash == fingerprint: return public(previous)
+                if previous and previous.request_hash == fingerprint: return visible_call(db,previous,current)
                 fail(409, 'IDEMPOTENCY_CONFLICT', 'Refresh the existing request before retrying.')
         started = time.perf_counter()
         try:
@@ -268,6 +271,8 @@ def register_inference(app, factory, settings, human):
             else:
                 result = provider_response(app, url, headers, payload, config['timeout_ms']/1000, settings.inference_response_bytes)
             result['citations'] = citations
+            if citations and citations[0].get('source_kind') == 'document_library':
+                result['evidence_source'] = 'document_library'
             # Saved output is scoped to this organization. Prompt text and credentials are not logged or stored.
             with factory.begin() as db:
                 row = db.scalar(select(InferenceCall).where(InferenceCall.id==call_id,InferenceCall.org_id==org,InferenceCall.env==environment).with_for_update())
@@ -275,7 +280,6 @@ def register_inference(app, factory, settings, human):
                 settle(db, row, result['input_tokens'], result['output_tokens'], 'completed', result)
                 row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 audit(db, row.org_id, author, 'inference.completed', detail={'call_id': call_id, 'charged_micro_usd': row.charged},env=row.env)
-                response=public(row)
         except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
             with factory.begin() as db:
                 row = db.scalar(select(InferenceCall).where(InferenceCall.id==call_id,InferenceCall.org_id==org,InferenceCall.env==environment).with_for_update())
@@ -284,14 +288,16 @@ def register_inference(app, factory, settings, human):
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
                 row.result = {'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
                 audit(db, row.org_id, author, 'inference.unknown', detail={'call_id': call_id},env=row.env)
-                response=public(row)
 
         # Commit provider accounting before rechecking delivery access. Revocation
         # cannot undo an outbound call, but must prevent its answer being returned.
         with factory() as db:
             current=human(request,db,True,'operate')
             if current.id!=author or current.org_id!=org or runtime_environment(db,org)!=environment:fail(403,'INFERENCE_SCOPE_CHANGED','The request identity changed while inference was running.')
-        return response
+            delivered=db.scalar(select(InferenceCall).where(InferenceCall.id==call_id,
+                InferenceCall.org_id==org,InferenceCall.env==environment))
+            if not delivered:fail(409,'CALL_CONTEXT_CHANGED','The stored call context changed. Refresh its evidence.')
+            return visible_call(db,delivered,current)
 
     @app.post('/v1/inference/{id}/reconcile')
     def reconcile(id: str, body: ReconcileInput, request: Request):
@@ -305,4 +311,4 @@ def register_inference(app, factory, settings, human):
                 fail(409, 'CALL_IN_PROGRESS', 'Wait for the active request deadline before reconciling.')
             settle(db, row, body.input_tokens, body.output_tokens, 'reconciled', {'message': 'Operator-reconciled usage. No response is fabricated.', 'note': body.note})
             audit(db, user.org_id, user.id, 'inference.reconciled', detail={'call_id': id, 'input_tokens': body.input_tokens, 'output_tokens': body.output_tokens, 'note': body.note})
-            return public(row)
+            return visible_call(db,row,user)
