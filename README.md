@@ -43,6 +43,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Request rejection events](docs/REQUEST_REJECTION_EVENTS.md) — correlate oversized-request errors in structured logs
 - [All synthetic drills in one command](docs/SYNTHETIC_SUITE.md) — `npm run test:synthetic`
 - [Synthetic recovered-application test](docs/SYNTHETIC_RECOVERY_DRILL.md) — `npm run test:recovery`
+- [Disposable Docker recovery and restart](docs/DISPOSABLE_DOCKER_RECOVERY.md) — `npm run test:docker-recovery` from a clean checkout
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
 
