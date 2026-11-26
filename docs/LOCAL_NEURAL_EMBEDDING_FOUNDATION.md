@@ -24,6 +24,8 @@ The current Ollama API contract is documented in the
 [official embedding endpoint](https://docs.ollama.com/api/embed).
 
 Input is limited to 33 strings, 4 KiB per string and 64 KiB total UTF-8 text.
+Input lists are snapshotted before validation or metadata I/O; later caller
+mutations cannot change transmitted text or reported corpus counts.
 Ranking uses one query and at most 32 explicitly supplied passages. Responses
 are limited to 2 MiB and vectors to 4,096 dimensions. Vector counts, dimensions,
 numeric types, finiteness, nonzero norms, model name and token-count types are

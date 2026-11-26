@@ -148,3 +148,30 @@ def test_publication_failure_leaves_no_success_or_temporary_receipt(tmp_path,mon
     monkeypatch.setattr(Path,'replace',fail)
     with pytest.raises(OSError):script.exercise(MODEL,tmp_path,transport=mock)
     assert list(tmp_path.iterdir())==[]
+
+
+def test_validated_batch_is_snapshotted_before_metadata_request():
+    texts=['Approved synthetic text'];sent=[]
+    def handle(request):
+        value=json.loads(request.content)
+        if request.url.path=='/api/show':
+            texts[:]=['x'*70000]
+            return httpx.Response(200,json=INFO)
+        sent.extend(value['input'])
+        return httpx.Response(200,json={'model':MODEL,'embeddings':[[1,0]],'prompt_eval_count':1})
+    result=embed_texts(MODEL,texts,transport=httpx.MockTransport(handle))
+    assert sent==['Approved synthetic text'] and result['dimensions']==2
+
+
+def test_ranker_corpus_count_uses_the_same_snapshot_as_its_vectors():
+    texts=['Approved synthetic passage'];sent=[]
+    def handle(request):
+        value=json.loads(request.content)
+        if request.url.path=='/api/show':
+            texts.clear()
+            return httpx.Response(200,json=INFO)
+        sent.extend(value['input'])
+        return httpx.Response(200,json={'model':MODEL,'embeddings':[[1,0],[1,0]],'prompt_eval_count':2})
+    result=rank_texts(MODEL,'Synthetic query',texts,transport=httpx.MockTransport(handle))
+    assert result['corpus_passages']==1 and result['scores']==[{'position':0,'score':1.0}]
+    assert sent==['Synthetic query','Approved synthetic passage']

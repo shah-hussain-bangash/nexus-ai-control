@@ -70,6 +70,7 @@ def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
     """
     if not valid_model_tag(model):
         reject('EMBEDDING_MODEL_INVALID')
+    texts = texts.copy() if type(texts) is list else texts
     validate_texts(texts)
     if not finite_number(timeout_seconds) or not 0 < timeout_seconds <= 30:
         reject('EMBEDDING_TIMEOUT_INVALID')
@@ -140,7 +141,10 @@ def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
 
 def rank_texts(model, query, texts, *, top_k=5, min_score=0, transport=None, timeout_seconds=10):
     """Rank explicitly supplied authorized passages; no access-control decision."""
-    if type(texts) is not list or not 1 <= len(texts) < MAX_INPUTS:
+    if type(texts) is not list:
+        reject('EMBEDDING_INPUT_LIMIT')
+    texts = texts.copy()
+    if not 1 <= len(texts) < MAX_INPUTS:
         reject('EMBEDDING_INPUT_LIMIT')
     if type(top_k) is not int or not 1 <= top_k <= 10:
         reject('EMBEDDING_RANKING_INVALID')
