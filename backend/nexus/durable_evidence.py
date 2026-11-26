@@ -57,6 +57,7 @@ def build_evidence(rows, actor):
                     'org_id':run.org_id,'env':run.env,'agent_id':run.agent_id,'tool_id':action.tool_id,
                     'action':request['action'],'resource':request['resource'],'arguments':arguments,
                     'tool_version':request['tool_version'],'policy_version':action.policy_version,
+                    'schema_version':body.schema_version,'simulation':body.simulation,
                     'destination':destination}.items()))
                 verified = action.status == 'verified'
                 if verified:

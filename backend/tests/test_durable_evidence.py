@@ -90,7 +90,7 @@ def test_export_permissions_workspace_environment_and_missing_run(ctx):
     assert ctx['client'].get('/v1/agent-runs/'+run['id']+'/evidence',headers=headers(current(ctx))).status_code==404
 
 
-@pytest.mark.parametrize('corruption',['definition','step','missing_step','linked_action','envelope','verification','review'])
+@pytest.mark.parametrize('corruption',['definition','step','missing_step','linked_action','envelope','verification','review','schema_version','simulation'])
 def test_inconsistent_ledgers_cannot_export_valid_evidence(ctx,corruption):
     run=create(ctx);run=advance(ctx,run['id'])
     with ctx['db'].begin() as db:
@@ -104,6 +104,9 @@ def test_inconsistent_ledgers_cannot_export_valid_evidence(ctx,corruption):
         elif corruption=='linked_action':action.principal='different-principal'
         elif corruption=='envelope':
             action.envelope={**action.envelope,'destination':'wrong'};action.payload_hash=digest(canonical(action.envelope))
+        elif corruption in ('schema_version','simulation'):
+            action.envelope={**action.envelope,corruption:99 if corruption=='schema_version' else 'timeout_after_commit'}
+            action.payload_hash=digest(canonical(action.envelope))
         elif corruption=='verification':action.verification={'matched':False}
         else:
             review=db.scalar(select(DurableStep).where(DurableStep.run_id==row.id,DurableStep.kind=='approval'))
