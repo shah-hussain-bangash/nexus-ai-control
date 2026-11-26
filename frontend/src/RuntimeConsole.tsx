@@ -24,6 +24,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
     [query, setQuery] = useState(""),
     [output, setOutput] = useState(512),
     [rag, setRag] = useState(false),
+    [requireDocuments, setRequireDocuments] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [result, setResult] = useState<Row | null>(null);
@@ -143,6 +144,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
         expected_version: selected.version,
         query,
         retrieve_evidence: rag,
+        ...(requireDocuments ? { require_document_evidence: true } : {}),
         max_output_tokens: output,
       };
       const digest = await requestFingerprint(body);
@@ -344,16 +346,34 @@ export function RuntimeConsole({ me }: { me: Row }) {
               <input
                 type="checkbox"
                 checked={rag}
-                onChange={(e) => setRag(e.target.checked)}
+                onChange={(e) => {
+                  setRag(e.target.checked);
+                  if (!e.target.checked) setRequireDocuments(false);
+                  setResult(null);
+                }}
               />{" "}
               Include authorized source excerpts (sent to the selected model)
             </label>
             {rag && (
-              <p className="muted">
-                Searches indexed Document library sources. Saved design sources
-                are used when no document matches. Review which model receives
-                your evidence before sending.
-              </p>
+              <>
+                <label className="runtime-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={requireDocuments}
+                    onChange={(e) => {
+                      setRequireDocuments(e.target.checked);
+                      setResult(null);
+                    }}
+                  />{" "}
+                  Require document evidence before sending
+                </label>
+                <p className="muted">
+                  {requireDocuments
+                    ? "Stops before contacting the model when no authorized indexed document matches. A match does not verify the answer's correctness."
+                    : "Searches indexed Document library sources. Saved design sources are used when no document matches."}
+                  {" "}Review which model receives your evidence before sending.
+                </p>
+              </>
             )}
             <div className="runtime-actions">
               <button

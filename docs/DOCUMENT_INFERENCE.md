@@ -27,6 +27,26 @@ With no matching source the existing inference path still runs without citations
 a missing citation does not establish grounding or an appropriate refusal. Review
 generated text against its actual source.
 
+### Require a document match
+
+With source excerpts enabled, select **Require document evidence before sending**
+to stop when no authorized indexed Document library source matches the question.
+The API equivalent is `retrieve_evidence: true` together with
+`require_document_evidence: true` on `POST /v1/inference`. This mode does not use
+saved design sources as a substitute. No match returns HTTP 422 with
+`DOCUMENT_EVIDENCE_REQUIRED` before a provider call, inference record or budget
+reservation. Retrieval disabled with this requirement returns
+`DOCUMENT_RETRIEVAL_REQUIRED`. The errors do not disclose inaccessible sources.
+
+The control is optional and off by default. Existing requests and recovery keys
+retain their fingerprints when it is omitted or false. Changing it to true is a
+different request intent; do not reuse a key from a dispatched request. A request
+rejected for missing evidence has not been admitted and can be retried after
+adding an approved source. Existing source snapshot and delivery checks still
+apply after a match. A lexical match is only an admission condition: it does not
+prove that the excerpt answers the question, that generated claims are supported,
+or that citation text is accurate. Review the answer against the source.
+
 ## Source changes and saved answers
 
 Current document access, indexed status, version and chunk hash/text are checked
