@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { canonicalEvidence } from "../src/supplierEvidence.ts";
-import { verifyRunEvidence } from "../src/runEvidence.ts";
+import {
+  verifyRunEvidence,
+  type RunEvidenceReport,
+} from "../src/runEvidence.ts";
 
 const context = {
   workspace_id: "workspace",
@@ -82,4 +85,29 @@ test("signed claims, unbounded steps and false verification claims are rejected"
   const falseClaim = report();
   falseClaim.payload.steps[1].action!.verified = true;
   await assert.rejects(verifyRunEvidence(falseClaim, context, "run"), /format/);
+});
+
+test("condition report validates the fixed route and boolean outcome", async () => {
+  const value: RunEvidenceReport = report();
+  value.payload.steps[1].status = "completed";
+  value.payload.steps[1].action = { status: "verified", verified: true };
+  value.payload.steps[2].position = 3;
+  value.payload.steps.splice(2, 0, {
+    position: 2,
+    kind: "condition",
+    status: "completed",
+    action: null,
+    condition: {
+      kind: "supplier_allowlist",
+      source_step: 1,
+      matched: false,
+      next_step: 3,
+    },
+  });
+  value.integrity.digest = createHash("sha256")
+    .update(canonicalEvidence(value.payload))
+    .digest("hex");
+  assert.equal(await verifyRunEvidence(value, context, "run"), value);
+  value.payload.steps[2].condition!.next_step = 0;
+  await assert.rejects(verifyRunEvidence(value, context, "run"), /format/);
 });

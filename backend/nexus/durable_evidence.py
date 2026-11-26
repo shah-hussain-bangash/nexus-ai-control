@@ -9,6 +9,7 @@ from .security import digest, fail
 from .service import canonical, verify
 from .schemas import ActionInput, SupplierArguments, PurchaseArguments
 from .check_evidence import require, timestamp
+from .durable_conditions import SupplierCondition, condition_result
 
 BOUNDARY = ('Unsigned recorded-state snapshot, not authenticated evidence or current server state. '
     'Workflow completion does not establish customer acceptance or production readiness. '
@@ -17,7 +18,7 @@ BOUNDARY = ('Unsigned recorded-state snapshot, not authenticated evidence or cur
 RUN_STATES = frozenset(('queued','processing','waiting_action','waiting_review','paused','cancelling',
     'outcome_unknown','succeeded','cancelled','failed','rejected','expired'))
 STEP_STATES = frozenset(('pending','waiting_action','waiting_review','outcome_unknown','completed',
-    'cancelled','failed','rejected','expired','denied','verification_failed','blocked','changes_requested'))
+    'cancelled','failed','rejected','expired','denied','verification_failed','blocked','changes_requested','skipped'))
 ACTION_STATES = frozenset(('queued','awaiting_approval','executing','outcome_unknown','verified',
     'cancelled','denied','rejected','expired','failed','verification_failed','blocked','changes_requested'))
 
@@ -39,7 +40,7 @@ def build_evidence(rows, actor):
             definition = definitions[position]
             require(step is not None and step.position == position and step.kind == definition['kind'])
             require(step.label == definition['label'] and step.status in STEP_STATES)
-            require(step.kind in ('checkpoint','approval','governed_action','output'))
+            require(step.kind in ('checkpoint','approval','governed_action','condition','output'))
             item = {'position':position,'kind':step.kind,'status':step.status,
                     'updated_at_utc':timestamp(step.updated),'action':None,'review':None}
             if step.action_id:
@@ -89,8 +90,21 @@ def build_evidence(rows, actor):
                 require(result['decision'] == decision and isinstance(result['reviewer_id'],str))
                 require(result['reviewer_id'] and result['reviewer_id'] != run.author_id)
                 item['review'] = {'decision':decision,'independent_reviewer_recorded':True}
+            if step.kind=='condition' and step.status=='completed':
+                condition=SupplierCondition.model_validate(definition['condition'])
+                require(condition.source_step<position)
+                result=condition_result(run,position,definition,rows[condition.source_step][1],rows[condition.source_step][2])
+                require(type(step.result.get('matched')) is bool and step.result==result)
+                item['condition']=result
+            if step.status=='skipped':
+                origin=step.result['skipped_by']
+                require(type(origin) is int and 0<=origin<position)
+                route=steps[origin].get('condition')
+                require(route and route['matched'] is False and route['next_step']>position)
+                item['skipped_by']=origin
             steps.append(item)
-        if run.status == 'succeeded':require(all(step['status'] == 'completed' for step in steps))
+        if run.status == 'succeeded':
+            require(run.cursor==len(definitions) and all(step['status'] in ('completed','skipped') for step in steps))
         payload = {'format':'nexus-durable-run-evidence','format_version':1,
             'exported_at_utc':timestamp(datetime.now(timezone.utc).timestamp()),
             'source_release':__version__,'schema_version':rows[0][4],

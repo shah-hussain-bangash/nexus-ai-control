@@ -99,6 +99,7 @@ def test_seven_day_boundary_and_immediate_legacy_fingerprint(ctx,clock):
     definition=immediate.json()['definition'];assert 'start_at' not in definition
     expected={**durable.RunInput.model_validate(request).model_dump(),'destination':'mock-business-v1'}
     expected.pop('start_at')
+    for step in expected['steps']:step.pop('condition')
     with ctx['db']() as db:assert db.get(DurableRun,immediate.json()['id']).request_digest==digest(canonical(expected))
     request['start_at']=None
     assert ctx['client'].post('/v1/agent-runs',headers=h,json=request).json()['id']==immediate.json()['id']
