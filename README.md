@@ -9,6 +9,10 @@ remaining acceptance work.
 **Cursor on Windows:** start with [CURSOR_QUICKSTART.md](CURSOR_QUICKSTART.md).
 Run `npm run setup`, then `npm start` from this folder.
 
+**Phase 1 connector development:** the [synthetic Business v1 reference gateway](docs/PHASE1_BUSINESS_REFERENCE.md)
+provides scoped, persistent operation receipts and a developer example through
+`npm run dev:business-reference`. It does not connect or accept a customer system.
+
 **Local pilot on this PC:** follow [local pilot acceptance](docs/LOCAL_PILOT_ACCEPTANCE.md).
 Use `npm run pilot:check` for read-only checks and `npm run test:answers:local`
 for the small synthetic English/Arabic Ollama exercise. Automated passes do not

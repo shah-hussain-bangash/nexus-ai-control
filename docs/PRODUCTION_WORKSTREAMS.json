@@ -12,7 +12,7 @@
       "title": "Customer business connectors",
       "area": "Engineering",
       "delivery": "partial",
-      "required_evidence": "HTTP adapter, governed supplier checks, receipt recovery, approval-bound dispatch, unsigned evidence downloads and a disposable synthetic approval/idempotency/recovery/isolation drill are implemented. Real customer sandbox, purchase/idempotency/isolation acceptance and deployment evidence remain.",
+      "required_evidence": "HTTP adapter, governed supplier checks, receipt recovery, approval-bound dispatch, unsigned evidence downloads, synthetic drills and a separate developer reference gateway with scoped durable receipts are implemented. Real customer mapping, sandbox purchase/idempotency/isolation acceptance and deployment evidence remain.",
       "workspace": "connectors"
     },
     {
