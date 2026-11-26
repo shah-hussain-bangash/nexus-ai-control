@@ -52,6 +52,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
     [dimensions, setDimensions] = useState(8),
     [threshold, setThreshold] = useState(0.15),
     [top, setTop] = useState(5),
+    [onePerDocument, setOnePerDocument] = useState(false),
     [result, setResult] = useState<Row | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -147,6 +148,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
                   semantic_weight: weight,
                   min_score: threshold,
                   top_k: top,
+                  ...(onePerDocument ? { one_per_document: true } : {}),
                 },
                 (key) =>
                   api(
@@ -161,6 +163,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
                       semantic_weight: weight,
                       min_score: threshold,
                       top_k: top,
+                      ...(onePerDocument ? { one_per_document: true } : {}),
                     },
                     key,
                   ),
@@ -169,6 +172,21 @@ export function HybridRetrieval({ me }: { me: Row }) {
           }}
         >
           <h3>Search setup</h3>
+          <label className="runtime-check">
+            <input
+              type="checkbox"
+              checked={onePerDocument}
+              disabled={busy}
+              onChange={(e) => setOnePerDocument(e.target.checked)}
+            />
+            <span>
+              One result per document
+              <small>
+                Keep the highest-ranked qualifying chunk from each document.
+                This can return fewer results than requested.
+              </small>
+            </span>
+          </label>
           <label className="field">
             <span>Evidence question or search terms</span>
             <textarea
@@ -303,6 +321,11 @@ export function HybridRetrieval({ me }: { me: Row }) {
                 rank {result.rank}
               </p>
               {result.error_code && <p role="alert">{result.error_code}</p>}
+              <p>
+                {result.parameters?.one_per_document === true
+                  ? "Recorded mode: one result per document."
+                  : "Recorded mode: multiple chunks per document allowed."}
+              </p>
               {result.normalization_current === false && (
                 <p role="status">
                   This saved search used an earlier text-matching method. Run a
