@@ -62,6 +62,7 @@ Use the loopback URL and the development password printed by the launcher setup.
 | Evidence | Observed result |
 | --- | --- |
 | Authenticated browser walkthrough | Submission required independent approval. The second account approved and the worker verified the result. No browser exceptions were observed. |
+| [HTTPS connector sandbox](docs/BUSINESS_CONNECTOR_0_12_0.md#loopback-https-acceptance-test) | A synthetic purchase committed once, the connection closed before delivery of the response, and reconciliation verified the original result. |
 | Local frontend | 100 tests passed and the Vite production build succeeded. Vite reported an advisory for the main bundle exceeding 500 kB minified. |
 | [GitHub Actions for the captured revision](https://github.com/shah-hussain-bangash/nexus-ai-control/actions/runs/45760501365) | Backend, PostgreSQL, Windows launcher, frontend and OPA jobs succeeded. |
 

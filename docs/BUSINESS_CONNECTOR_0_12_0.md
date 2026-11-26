@@ -35,3 +35,18 @@ Successful JSON is wrapped as operation_id, organization_id, tenant_id and resul
 Verify credential scope/TLS, supplier-read isolation, duplicate requests, mismatched key/body rejection, independent purchase approval, timeout-after-commit reconciliation, unavailable lookup, wrong tenant result, oversized response and destination change. Begin with synthetic test records in a customer-approved sandbox. There are no automatic HTTP retries. Unknown outcomes remain unknown until authoritative evidence matches; repeated submission is not a recovery procedure.
 
 The dashboard displays HTTP BUSINESS and an external-effects banner when configured. Review Release readiness → Runtime signals before submission. Do not use local demonstration accounts/data policy as proof of enterprise identity acceptance.
+
+## Loopback HTTPS acceptance test
+
+Run this test after installing `backend/requirements-dev.txt`. The existing backend and PostgreSQL CI jobs also discover it.
+
+```sh
+cd backend
+python -m pytest tests/test_business_sandbox.py
+```
+
+The test uses NEXUS's actual HTTP connector and worker with a disposable business endpoint. The endpoint runs on an ephemeral loopback port and presents a certificate issued by a test CA. The test reroutes only its configured destination and leaves TLS verification enabled. It rejects an untrusted certificate, a denied request, requester self-approval, and approval with a changed payload fingerprint before any business request is sent.
+
+After a valid independent approval, the endpoint commits one synthetic purchase and closes the connection before sending a response. The worker records an unknown outcome. Resubmitting the same intent returns its original ID, and changing the payload under the same key conflicts. The worker sends no second purchase request. Reconciliation reads the original operation through HTTPS and the test verifies both the recorded result and the single effect in the sandbox ledger.
+
+This test covers a disposable local, single-tenant purchase scenario. Customer staging still requires an approved sandbox URL and credential, separate tenancy tests, customer-side idempotency validation and deployment acceptance. See the [production roadmap](PRODUCTION_ROADMAP.md).
