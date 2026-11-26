@@ -116,7 +116,7 @@
       "title": "Audit integrity & retention",
       "area": "Governance",
       "delivery": "partial",
-      "required_evidence": "Unsigned supplier-check exports and offline format/checksum verification are implemented. Immutable off-host archive, authenticated evidence, retention rules and deployment acceptance remain.",
+      "required_evidence": "Unsigned supplier-check and workflow exports with offline format/checksum verification are implemented. Immutable off-host archive, authenticated evidence, retention rules and deployment acceptance remain.",
       "workspace": "audit"
     },
     {

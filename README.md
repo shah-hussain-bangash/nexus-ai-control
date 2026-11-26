@@ -29,6 +29,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Workflow attention filter](docs/DURABLE_RUN_ATTENTION.md)
 - [One-time durable workflow start](docs/DURABLE_SCHEDULED_START.md)
 - [Bounded supplier allowlist condition](docs/DURABLE_SUPPLIER_CONDITION.md)
+- [Offline workflow report verification](docs/OFFLINE_RUN_EVIDENCE.md)
 - [All production gaps and ordered next work](docs/PRODUCTION_GAPS_0_16_0.md)
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
