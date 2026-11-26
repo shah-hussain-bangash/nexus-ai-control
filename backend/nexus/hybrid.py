@@ -26,6 +26,7 @@ class Search(Strict):
  semantic_weight:float=Field(default=.6,ge=0,le=1,allow_inf_nan=False)
  min_score:float=Field(default=.15,ge=0,le=1,allow_inf_nan=False)
  top_k:int=Field(default=5,ge=1,le=10)
+ one_per_document:bool=Field(default=False,strict=True)
  @field_validator('query')
  @classmethod
  def nonempty(cls,v):
@@ -78,7 +79,7 @@ def register_hybrid(app,factory,settings,human):
  @app.get('/v1/hybrid-search/capabilities')
  def capabilities(request:Request):
   with factory() as db:human(request,db)
-  return {'method':METHOD,'max_chunks':128,'max_vocabulary':1024,'max_selected_sources':20,'max_requests_per_minute':30,'max_inflight':2,'history_limit':1000,'timeout_seconds':8,'provider_calls':0,'neural_embeddings':False,'persistent_vector_index':False,'language_boundary':'Unicode word tokens and corpus co-occurrence; no translation or pretrained multilingual semantics.'}
+  return {'method':METHOD,'max_chunks':128,'max_vocabulary':1024,'max_selected_sources':20,'max_requests_per_minute':30,'max_inflight':2,'history_limit':1000,'timeout_seconds':8,'provider_calls':0,'neural_embeddings':False,'persistent_vector_index':False,'one_per_document_supported':True,'language_boundary':'Unicode word tokens and corpus co-occurrence; no translation or pretrained multilingual semantics.'}
  @app.get('/v1/hybrid-search/history')
  def history(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(10,ge=1,le=25)):
   with factory() as db:
@@ -101,7 +102,9 @@ def register_hybrid(app,factory,settings,human):
  @app.post('/v1/hybrid-search',status_code=201)
  def search(body:Search,request:Request,idempotency_key:str=Header(default='',alias='Idempotency-Key')):
   if not re.fullmatch(r'[A-Za-z0-9_-]{16,100}',idempotency_key):fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use a 16–100 character search intent key.')
-  key=hashlib.sha256(idempotency_key.encode()).hexdigest();fingerprint=hashlib.sha256(canonical(body.model_dump()).encode()).hexdigest()
+  intent=body.model_dump()
+  if not body.one_per_document:intent.pop('one_per_document')
+  key=hashlib.sha256(idempotency_key.encode()).hexdigest();fingerprint=hashlib.sha256(canonical(intent).encode()).hexdigest()
   with factory.begin() as db:
    user=human(request,db,True)
    db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
@@ -128,6 +131,9 @@ def register_hybrid(app,factory,settings,human):
    if len(chunks)>128:fail(422,'CORPUS_LIMIT','Select a smaller corpus of at most 128 chunks. No sources were silently omitted.')
    snapshots=[{'id':d.id,'version':d.version,'hash':d.content_hash} for d in docs];metadata=[{'document_id':c.document_id,'document_version':c.document_version,'position':c.position,'sha256':c.content_hash} for c in chunks]
    payload={'texts':[c.text for c in chunks],**body.model_dump(exclude={'sources'})};author=user.id;org=user.org_id;environment=runtime_environment(db,org)
+   if body.one_per_document:
+    groups={doc.id:index for index,doc in enumerate(docs)}
+    payload['groups']=[groups[chunk.document_id] for chunk in chunks]
    parameters=body.model_dump(exclude={'query','sources'});row=WorkbenchRun(org_id=org,env=environment,kind=KIND,status='processing',duration_ms=0,author_id=author,result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'normalization_version':NORMALIZATION_VERSION,'source_count':len(docs),'corpus_chunks':len(chunks)})
    db.add(row);db.flush();id=row.id;audit(db,org,author,'retrieval.hybrid.started',detail={'run_id':id,'source_count':len(docs),'corpus_chunks':len(chunks)})
   start=time.perf_counter()
@@ -147,6 +153,9 @@ def register_hybrid(app,factory,settings,human):
    row.duration_ms=round((time.perf_counter()-start)*1000,3)
    result=normalize_result(result,len(metadata),body.top_k)
    error=result.get('error_code','')
+   if not error and body.one_per_document:
+    documents=[metadata[score['position']]['document_id'] for score in result['scores']]
+    if len(set(documents))!=len(documents):error='RANKING_FAILED'
    if not valid:error='SOURCE_SCOPE_CHANGED'
    hits=[]
    if not error:

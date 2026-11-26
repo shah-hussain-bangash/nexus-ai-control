@@ -28,6 +28,7 @@ upgrade reports describe their original releases, not the current schema.
 - [All production gaps and ordered next work](docs/PRODUCTION_GAPS_0_16_0.md)
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
+- [One result per document](docs/RETRIEVAL_SOURCE_DIVERSITY.md)
 - [Hybrid completion and concurrent source changes](docs/HYBRID_COMPLETION_ORDERING.md)
 - [Local ranking response validation](docs/RANKING_RESPONSE_VALIDATION.md)
 - [Disposable synthetic retrieval test](docs/SYNTHETIC_RETRIEVAL_DRILL.md) — `npm run test:retrieval`
