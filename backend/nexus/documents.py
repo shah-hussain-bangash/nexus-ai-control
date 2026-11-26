@@ -10,9 +10,10 @@ import re
 from collections import Counter
 from pathlib import PurePosixPath
 from typing import Literal
-from fastapi import Request,Header,Query
+from fastapi import Request,Response,Header,Query
 from pydantic import Field,field_validator
 from sqlalchemy import select,update,delete,func
+from sqlalchemy.orm import aliased
 from .schemas import Strict
 from .db import KnowledgeDocument,DocumentChunk,Organization,User,DocumentUpdate,IngestionJob,now,public
 from .security import fail,digest,PERMISSIONS
@@ -121,7 +122,7 @@ def allowed_docs(db,user,environment=None):
     rows=db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==environment,KnowledgeDocument.status=='indexed').order_by(KnowledgeDocument.created.desc())).all()
     return [doc for doc in rows if can_read(doc,user,environment)]
 
-def search_documents(db,user,query,top_k,environment=None):
+def search_documents(db,user,query,top_k,environment=None,*,one_per_document=False):
     environment=runtime_environment(db,user.org_id,environment)
     docs=allowed_docs(db,user,environment);by_id={d.id:d for d in docs}
     terms=list(dict.fromkeys(search_tokens(query)))[:64]
@@ -138,7 +139,14 @@ def search_documents(db,user,query,top_k,environment=None):
         if score:
             doc=by_id[chunk.document_id]
             ranked.append({'document_id':doc.id,'document_version':doc.version,'title':doc.title,'filename':doc.filename,'chunk':chunk.position+1,'excerpt':chunk.text,'sha256':chunk.content_hash,'score':round(score,5),'citation':f'{doc.id}:v{doc.version}:chunk{chunk.position+1}'})
-    return sorted(ranked,key=lambda r:(-r['score'],r['document_id'],r['chunk']))[:top_k]
+    ordered=sorted(ranked,key=lambda r:(-r['score'],r['document_id'],r['chunk']))
+    if one_per_document:
+        seen=set();distinct=[]
+        for hit in ordered:
+            if hit['document_id'] not in seen:
+                seen.add(hit['document_id']);distinct.append(hit)
+        ordered=distinct
+    return ordered[:top_k]
 
 def register_documents(app,factory,settings,human):
     @app.get('/v1/documents')
@@ -167,9 +175,9 @@ def register_documents(app,factory,settings,human):
             return metadata(doc)
 
     @app.get('/v1/documents/search')
-    def search(request:Request,q:str=Query(min_length=2,max_length=1000),top_k:int=Query(5,ge=1,le=10)):
+    def search(request:Request,q:str=Query(min_length=2,max_length=1000),top_k:int=Query(5,ge=1,le=10),one_per_document:bool=False):
         with factory() as db:
-            user=human(request,db);return {'items':search_documents(db,user,q,top_k),'method':'ACL-filtered BM25-style lexical ranking','normalization_version':NORMALIZATION_VERSION,'provider_calls':0}
+            user=human(request,db);return {'items':search_documents(db,user,q,top_k,one_per_document=one_per_document),'method':'ACL-filtered BM25-style lexical ranking'+('; highest-ranked passage per document' if one_per_document else ''),'one_per_document':one_per_document,'normalization_version':NORMALIZATION_VERSION,'provider_calls':0}
 
     @app.post('/v1/documents/recover')
     def recover(body:Recover,request:Request):
@@ -186,6 +194,34 @@ def register_documents(app,factory,settings,human):
             intake=db.scalar(select(IngestionJob).where(IngestionJob.document_id==doc.id,IngestionJob.org_id==user.org_id,IngestionJob.env==runtime_environment(db,user.org_id)))
             provenance=None if not intake else {'original_filename':intake.filename,'original_sha256':intake.original_sha256,'original_bytes':intake.original_bytes,'extraction':intake.extraction,'published_version':intake.published_version,'current_version_matches':intake.published_version==doc.version}
             return {**metadata(doc),'content':doc.content,'can_manage':can_manage(doc,user,runtime_environment(db,user.org_id)),'provenance':provenance}
+
+    @app.get('/v1/documents/{id}/copies')
+    def copies(id:str,request:Request,response:Response,expected_version:int=Query(...,ge=1),offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
+        with factory() as db:
+            user=human(request,db);environment=runtime_environment(db,user.org_id)
+            candidate=aliased(KnowledgeDocument)
+            # One statement snapshots source version, candidates and their ACLs together.
+            # Admission is bounded to 200 active documents per workspace/environment.
+            rows=db.execute(select(KnowledgeDocument,candidate).outerjoin(candidate,
+                (candidate.org_id==KnowledgeDocument.org_id)&(candidate.env==KnowledgeDocument.env)&
+                (candidate.status=='indexed')&(candidate.content_hash==KnowledgeDocument.content_hash)&
+                (candidate.id!=KnowledgeDocument.id)).where(
+                    KnowledgeDocument.id==id,KnowledgeDocument.org_id==user.org_id,
+                    KnowledgeDocument.env==environment,KnowledgeDocument.status=='indexed'
+                ).order_by(candidate.created.desc(),candidate.id)).all()
+            source=rows[0][0] if rows else None
+            if not source or not can_read(source,user,environment):fail(404,'DOCUMENT_NOT_FOUND','Document not found in your authorized scope.')
+            if source.version!=expected_version:fail(409,'STALE_VERSION','The source changed. Refresh it before reviewing copies.')
+            if digest(source.content)!=source.content_hash:fail(409,'DOCUMENT_INTEGRITY_FAILED','The indexed source cannot be verified. Review its integrity before comparing copies.')
+            # Apply visibility before equality, count and pagination. A digest match alone is insufficient.
+            visible=[copy for _,copy in rows if copy is not None and can_read(copy,user,environment) and copy.content==source.content]
+            fields=('id','title','filename','language','version','updated')
+            response.headers['Cache-Control']='no-store'
+            return {'scope':{'workspace_id':user.org_id,'account_id':user.id,'environment':environment},
+                'source':{'id':source.id,'version':source.version,'content_sha256':source.content_hash},
+                'items':[{key:getattr(copy,key) for key in fields} for copy in visible[offset:offset+limit]],
+                'visible_count':len(visible),'offset':offset,'next_offset':offset+limit if len(visible)>offset+limit else None,
+                'boundary':'Read-only exact indexed-text comparison of currently readable records. Different formatting, near copies and original binary files are not compared. No records are merged or deleted.'}
 
     @app.put('/v1/documents/{id}/access')
     def access(id:str,body:Access,request:Request):

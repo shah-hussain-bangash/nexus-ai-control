@@ -4,6 +4,9 @@ Open **Knowledge & RAG** after adding indexed documents in **Document library**.
 
 ## Implemented algorithm and boundaries
 
+The optional [one-result-per-document mode](RETRIEVAL_SOURCE_DIVERSITY.md) selects
+distinct documents after scoring. Default ranking and scores are unchanged.
+
 The worker builds Unicode word-token counts, smoothed TF-IDF vectors, row-normalizes them and fits a truncated singular-value decomposition to this authorized corpus. Latent dimensions are capped by the requested value, half the smaller matrix dimension (minimum one), and numerical rank. It projects the query into that space and combines clipped cosine similarity with BM25 scores normalized by the largest keyword score in that query. Weights/threshold are 0–1; top-k is 1–10. A score is not calibrated confidence. Small or unrepresentative corpora can produce poor or identical latent similarities; relevant-word co-occurrence and a representative evaluation corpus are necessary.
 
 This is a real local ranking implementation, not neural embeddings, a hosted model, ANN/vector database, learned reranker, translation, generated answer or a claim of multilingual semantic quality. It does not index or send content to an external provider. Arabic word matching is tested; Arabic relevance, morphology, translation and RTL/device acceptance remain open. A fixed synthetic co-occurrence regression proves that the LSA path can rank a related term with no literal query match; this is not a production benchmark.
