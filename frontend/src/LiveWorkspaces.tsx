@@ -17,6 +17,11 @@ import { procurementRun, intakeMetadata, runControls } from "./liveRequests";
 import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
 import { Modal } from "./RuntimeDialog";
+import { RunEvidencePanel } from "./RunEvidencePanel";
+import { RunListRequests } from "./runListRequests";
+import { scheduleRun } from "./runSchedule";
+import { withSupplierCondition } from "./supplierCondition";
+import { DocumentCopyReview } from "./DocumentCopyReview";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -68,8 +73,12 @@ export function DurableExecution({
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState(""),
     [offset, setOffset] = useState(0),
+    [attentionOnly, setAttentionOnly] = useState(false),
     [next, setNext] = useState<number | null>(null),
     [creating, setCreating] = useState(false),
+    [startAt, setStartAt] = useState(""),
+    [conditional, setConditional] = useState(false),
+    [allowedSuppliers, setAllowedSuppliers] = useState(""),
     [command, setCommand] = useState(""),
     [note, setNote] = useState(""),
     [agent, setAgent] = useState(""),
@@ -81,6 +90,7 @@ export function DurableExecution({
     );
   const scope = liveIntentScope("run", me.user.org_id, me.user.id, me.environment);
   const [pendingRun, setPendingRun] = useState(() => pendingIntent(scope));
+  const listRequests = useRef(new RunListRequests());
   const canEdit = me.permissions?.includes("operate"),
     canReview = me.permissions?.includes("approve"),
     run = rows.find((r) => r.id === selected) || rows[0],
@@ -88,28 +98,43 @@ export function DurableExecution({
   useEffect(() => {
     if (!agent && agents.length) setAgent(agents[0].id);
   }, [data.agents, agent]);
-  async function load() {
+  async function load(force = true) {
+    const epoch = listRequests.current.start(force);
+    if (epoch === null) return;
     try {
-      const r = await api("/v1/agent-runs?offset=" + offset + "&limit=20");
+      const r = await api(
+        "/v1/agent-runs?offset=" +
+          offset +
+          "&limit=20&attention_only=" +
+          attentionOnly,
+      );
       const items = r.items;
-      if (selected && !items.some((x: Row) => x.id === selected)) {
+      if (
+        !attentionOnly &&
+        selected &&
+        !items.some((x: Row) => x.id === selected)
+      ) {
         try {
           items.unshift(await api("/v1/agent-runs/" + selected));
         } catch {}
       }
+      if (!listRequests.current.accepts(epoch)) return;
       setRows(items);
       setNext(r.next_offset);
     } catch (e) {
-      setError((e as Error).message);
+      if (listRequests.current.accepts(epoch)) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (listRequests.current.finish(epoch)) setLoading(false);
     }
   }
   useEffect(() => {
     load();
-    const id = setInterval(load, 3000);
-    return () => clearInterval(id);
-  }, [offset, selected]);
+    const id = setInterval(() => load(false), 3000);
+    return () => {
+      clearInterval(id);
+      listRequests.current.invalidate();
+    };
+  }, [offset, selected, attentionOnly, scope]);
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -121,7 +146,7 @@ export function DurableExecution({
         purchase = data.tools.find(
           (t: Row) => t.kind === "purchase" && t.status === "validated",
         );
-      const body = procurementRun(
+      const workflow = procurementRun(
         agent,
         lookup?.id,
         purchase?.id,
@@ -129,6 +154,12 @@ export function DurableExecution({
         supplier,
         amount,
         purpose,
+      );
+      const body = scheduleRun(
+        mode === "procurement" && conditional
+          ? withSupplierCondition(workflow, allowedSuppliers)
+          : workflow,
+        startAt,
       );
       const result = await sendLiveIntent<Row & { id: string; status: string }>(
         sessionStorage,
@@ -138,10 +169,14 @@ export function DurableExecution({
       );
       setPendingRun(null);
       setSelected(result.id);
+      setAttentionOnly(false);
       setCreating(false);
+      setStartAt("");
       setOffset(0);
       setNotice(
-        "Run saved and queued. The worker will advance each persisted checkpoint.",
+        result.scheduled_start_at
+          ? "Run saved with its scheduled start. The worker will check current permissions when it becomes due."
+          : "Run saved and queued. The worker will advance each persisted checkpoint.",
       );
       await load();
     } catch (e) {
@@ -161,6 +196,7 @@ export function DurableExecution({
       acknowledgeRecovery(sessionStorage, scope, pendingRun, r);
       setPendingRun(null);
       setSelected(r.id);
+      setAttentionOnly(false);
       setNotice("Original run recovered without dispatching it again.");
       await load();
     } catch (e) {
@@ -234,6 +270,29 @@ export function DurableExecution({
         </div>
       </div>
       <Alerts error={error} notice={notice} />
+      <label>
+        <input
+          type="checkbox"
+          checked={attentionOnly}
+          onChange={(event) => {
+            listRequests.current.invalidate();
+            setAttentionOnly(event.target.checked);
+            setOffset(0);
+            setSelected("");
+            setRows([]);
+            setLoading(true);
+            setError("");
+          }}
+        />{" "}
+        Needs attention only
+      </label>
+      {attentionOnly && (
+        <p>
+          Checkpoint reviews, pending business approvals, uncertain outcomes and
+          stopped runs. Inspect the original action before using existing
+          controls; this view does not retry anything.
+        </p>
+      )}
       {pendingRun && (
         <div className="ops-alert" role="status">
           <p>
@@ -250,10 +309,15 @@ export function DurableExecution({
       ) : !rows.length ? (
         <div className="ops-empty">
           <Play size={28} />
-          <h3>No runs on this page</h3>
+          <h3>
+            {attentionOnly
+              ? "No runs need attention on this page"
+              : "No runs on this page"}
+          </h3>
           <p>
-            Create a supplier lookup or supervised procurement run. Keep the
-            execution worker running.
+            {attentionOnly
+              ? "No workflow currently matches this filter on this page. Turn it off to inspect other runs."
+              : "Create a supplier lookup or supervised procurement run. Keep the execution worker running."}
           </p>
         </div>
       ) : (
@@ -283,14 +347,31 @@ export function DurableExecution({
               </div>
               <State value={run.status} />
             </header>
+            {me.permissions?.includes("export") && (
+              <RunEvidencePanel key={run.id} id={run.id} />
+            )}
             <p>
               Checkpoint {Math.min(run.cursor + 1, run.steps.length)} of{" "}
               {run.steps.length} · lease recoveries {run.recoveries}
             </p>
+            {run.scheduled_start_at && (
+              <p>
+                Scheduled start:{" "}
+                {new Date(run.scheduled_start_at * 1000).toLocaleString()}. This
+                is the earliest start; the worker must be running. Current
+                approvals and permissions still apply.
+              </p>
+            )}
             {run.error && (
               <p className="ops-alert error">
                 Run stopped: {run.error}. Inspect the affected step before
                 retrying.
+              </p>
+            )}
+            {run.steps.some((step: Row) => step.status === "skipped") && (
+              <p>
+                Some steps were skipped by the supplier condition. Workflow
+                completion does not mean a purchase was executed.
               </p>
             )}
             <ol className="live-steps">
@@ -310,6 +391,14 @@ export function DurableExecution({
                     <strong>{step.label}</strong>
                     <State value={step.status} />
                     <small>{step.kind.replaceAll("_", " ")}</small>
+                    {step.kind === "condition" &&
+                      typeof step.result?.matched === "boolean" && (
+                        <p>
+                          {step.result.matched
+                            ? "Supplier matched; existing review and purchase controls continue."
+                            : "Supplier did not match; the workflow continued to its final output."}
+                        </p>
+                      )}
                     {step.action_id && (
                       <>
                         <p>
@@ -438,6 +527,19 @@ export function DurableExecution({
           }}
         >
           <form onSubmit={create}>
+            <label>
+              Start once at (this computer’s local time; leave empty to start
+              now)
+              <input
+                type="datetime-local"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+              />
+            </label>
+            <p>
+              Choose a future time within seven days. This does not create a
+              recurring schedule or guarantee an exact start time.
+            </p>
             <p>
               This creates real database records and sends authorized work to
               {me.synthetic
@@ -492,6 +594,30 @@ export function DurableExecution({
             </label>
             {mode === "procurement" && (
               <>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={conditional}
+                    onChange={(e) => setConditional(e.target.checked)}
+                  />{" "}
+                  Continue only for listed suppliers
+                </label>
+                {conditional && (
+                  <label>
+                    Allowed supplier references (comma separated)
+                    <input
+                      required
+                      maxLength={649}
+                      value={allowedSuppliers}
+                      onChange={(e) => setAllowedSuppliers(e.target.value)}
+                      placeholder="SUP-DEMO-104, SUP-DEMO-205"
+                    />
+                    <small>
+                      A verified non-match skips the remaining purchase steps. A
+                      match still requires the existing approvals.
+                    </small>
+                  </label>
+                )}
                 <label>
                   Amount USD
                   <input
@@ -602,6 +728,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
     [busy, setBusy] = useState(false),
     [detail, setDetail] = useState<Row | null>(null),
     [query, setQuery] = useState(""),
+    [onePerDocument, setOnePerDocument] = useState(false),
     [searchMethod, setSearchMethod] = useState(
       "ACL-filtered BM25-style lexical ranking",
     ),
@@ -829,7 +956,10 @@ export function DocumentLibrary({ me }: { me: Row }) {
     setError("");
     try {
       const r = await api(
-        "/v1/documents/search?q=" + encodeURIComponent(query) + "&top_k=10",
+        "/v1/documents/search?q=" +
+          encodeURIComponent(query) +
+          "&top_k=10" +
+          (onePerDocument ? "&one_per_document=true" : ""),
       );
       setResults(r.items);
       setSearchMethod(r.method || "ACL-filtered lexical ranking");
@@ -969,6 +1099,15 @@ export function DocumentLibrary({ me }: { me: Row }) {
             onChange={(e) => setQuery(e.target.value)}
           />
         </label>
+        <label className="live-search-diversity">
+          <input
+            type="checkbox"
+            checked={onePerDocument}
+            disabled={busy}
+            onChange={(e) => setOnePerDocument(e.target.checked)}
+          />
+          One result per document
+        </label>
         <button className="btn btn-primary" disabled={busy}>
           Search documents
         </button>
@@ -1096,6 +1235,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
                 </div>
               )}
               <pre className="live-document">{detail.content}</pre>
+              <DocumentCopyReview key={`${detail.id}:${detail.version}`} id={detail.id} version={detail.version} onOpen={inspect} />
               <div className="live-actions">
                 {canEdit && detail.can_manage && (
                   <>

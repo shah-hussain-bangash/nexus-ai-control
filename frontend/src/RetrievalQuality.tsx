@@ -43,6 +43,7 @@ export function RetrievalQuality({
     [editing, setEditing] = useState(false),
     [name, setName] = useState("Retrieval regression suite"),
     [topK, setTopK] = useState(5),
+    [onePerDocument, setOnePerDocument] = useState(false),
     [cases, setCases] = useState<Case[]>([emptyCase()]),
     [removing, setRemoving] = useState<Row | null>(null),
     [note, setNote] = useState(""),
@@ -123,7 +124,12 @@ export function RetrievalQuality({
     setError("");
     try {
       assertPrecisionTargets(cases);
-      const body = { name, top_k: topK, cases };
+      const body = {
+        name,
+        top_k: topK,
+        cases,
+        ...(onePerDocument ? { one_per_document: true } : {}),
+      };
       const r = await sendLiveIntent<Row & { id: string; status: string }>(
         sessionStorage,
         scope,
@@ -185,6 +191,7 @@ export function RetrievalQuality({
           onClick={() => {
             setName("Retrieval regression suite");
             setTopK(5);
+            setOnePerDocument(false);
             setCases([emptyCase()]);
             setEditing(true);
             setError("");
@@ -266,6 +273,9 @@ export function RetrievalQuality({
                 Run by {selected.result.actor_role} ·{" "}
                 {selected.result.authorized_corpus_count} authorized sources ·
                 top {selected.config.top_k}
+                {selected.result.one_per_document === true
+                  ? " · one passage per document"
+                  : " · passage-level ranking"}
               </p>
               <div className="live-quality-metrics">
                 <div>
@@ -470,6 +480,9 @@ export function RetrievalQuality({
                     onClick={() => {
                       setName(selected.config.name);
                       setTopK(selected.config.top_k);
+                      setOnePerDocument(
+                        selected.config.one_per_document === true,
+                      );
                       setCases(structuredClone(selected.config.cases));
                       setEditing(true);
                       setError("");
@@ -536,7 +549,7 @@ export function RetrievalQuality({
               />
             </label>
             <label>
-              Top ranked chunks per query
+              Top ranked passages per query
               <input
                 type="number"
                 required
@@ -546,6 +559,19 @@ export function RetrievalQuality({
                 onChange={(e) => setTopK(Number(e.target.value))}
               />
             </label>
+            <label className="live-check-precision-toggle">
+              <input
+                type="checkbox"
+                checked={onePerDocument}
+                disabled={busy}
+                onChange={(e) => setOnePerDocument(e.target.checked)}
+              />
+              Keep only the highest-ranked passage per document
+            </label>
+            <p>
+              This mode is saved with the run. Compare runs using the same mode;
+              document records with identical text remain distinct.
+            </p>
             {cases.map((c, i) => (
               <fieldset className="live-check-case" key={i}>
                 <legend>Case {i + 1}</legend>

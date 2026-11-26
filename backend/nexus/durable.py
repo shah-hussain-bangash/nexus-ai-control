@@ -3,21 +3,33 @@ from typing import Literal
 from fastapi import Request,Header,HTTPException,Query
 from pydantic import Field,model_validator,field_validator
 from sqlalchemy import select,update,func,and_,or_
-from .schemas import Strict,ActionInput
+from .schemas import Strict,ActionInput,SupplierArguments
 from .db import DurableRun,DurableStep,Organization,Agent,Tool,Action,Approval,User,now,uid,public
 from .security import fail,digest,PERMISSIONS
 from .runtime_context import environment_user_allowed,runtime_environment
 from .business_connector import connector_identity
 from .service import scoped,submit_action,audit,canonical
+from .durable_conditions import SupplierCondition, condition_result
 
 ACTIVE=('queued','processing','waiting_action','waiting_review','paused','cancelling','outcome_unknown')
 POLL=('queued','waiting_action','cancelling','outcome_unknown')
 
+def needs_attention():
+    linked=select(DurableStep.id).join(Action,(Action.id==DurableStep.action_id)&
+        (Action.org_id==DurableStep.org_id)&(Action.env==DurableStep.env)).where(
+        DurableStep.run_id==DurableRun.id,DurableStep.org_id==DurableRun.org_id,
+        DurableStep.env==DurableRun.env,DurableStep.position==DurableRun.cursor,
+        Action.status.in_(('awaiting_approval','outcome_unknown','blocked','failed','denied','rejected','expired','changes_requested'))
+    ).correlate(DurableRun).exists()
+    return or_(DurableRun.status.in_(('failed','expired','rejected','waiting_review','outcome_unknown')),
+               and_(DurableRun.status.in_(ACTIVE),linked))
+
 class StepInput(Strict):
-    kind: Literal['checkpoint','approval','governed_action','output']
+    kind: Literal['checkpoint','approval','governed_action','condition','output']
     label: str = Field(min_length=2,max_length=100)
     tool_id: str = Field(default='',max_length=64)
     request: ActionInput | None = None
+    condition: SupplierCondition | None = None
 
     @field_validator('label')
     @classmethod
@@ -29,16 +41,26 @@ class StepInput(Strict):
     def action_fields(self):
         if self.kind=='governed_action' and (not self.tool_id or self.request is None):raise ValueError('A governed action requires its tool and immutable request.')
         if self.kind!='governed_action' and (self.tool_id or self.request is not None):raise ValueError('Only action steps accept tool requests.')
+        if (self.kind=='condition')!=(self.condition is not None):raise ValueError('Only condition steps require a supplier allowlist condition.')
         return self
 
 class RunInput(Strict):
     name: str = Field(min_length=2,max_length=120)
     agent_id: str = Field(min_length=1,max_length=64)
     steps: list[StepInput] = Field(min_length=2,max_length=12)
+    start_at: int | None = Field(default=None,strict=True,ge=1)
 
     @model_validator(mode='after')
     def boundaries(self):
         if not self.name.strip() or self.steps[0].kind!='checkpoint' or self.steps[-1].kind!='output':raise ValueError('A run starts at a checkpoint and finishes with an output step.')
+        for position,step in enumerate(self.steps):
+            if step.kind=='condition':
+                source=step.condition.source_step
+                if source>=position or self.steps[source].kind!='governed_action' or self.steps[source].request.action!='supplier:read' or self.steps[source].request.resource!='suppliers':
+                    raise ValueError('A condition must reference an earlier governed supplier lookup.')
+                supplier=SupplierArguments.model_validate(self.steps[source].request.arguments).supplier_id
+                if any(later.kind=='governed_action' and later.request.action=='purchase:create' and later.request.arguments.get('supplier_id')!=supplier for later in self.steps[position+1:]):
+                    raise ValueError('Purchases after a supplier condition must use its verified supplier.')
         return self
 
 class Control(Strict):
@@ -81,6 +103,9 @@ def event(db,run,actor,name,detail=None):
 
 def touch(run,status):
     run.status=status;run.version+=1;run.updated=now();run.lease_token='';run.lease_until=0;run.next_poll=now()+1
+    if status=='queued' and run.cursor==0:
+        start=run.definition.get('start_at')
+        if type(start) is int:run.next_poll=max(run.next_poll,start)
 
 
 def recover_expired_claim(db,run):
@@ -94,6 +119,7 @@ def serialize(db,run):
     data['steps']=[public(s) for s in steps]
     current=next((s for s in steps if s.position==run.cursor),None)
     data['can_retry']=bool(run.status=='failed' and current and not current.action_id)
+    data['scheduled_start_at']=run.definition.get('start_at')
     data['boundary']='Persistent bounded execution with a pinned business destination. Autonomous model planning and arbitrary customer protocol mapping remain outside this engine.'
     return data
 
@@ -101,11 +127,18 @@ def create_run(db,settings,user,body,key):
     if not key or not 8<=len(key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character idempotency key.')
     # Serialize organization admission before the idempotency and quota reads.
     db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-    request={**body.model_dump(),'destination':connector_identity(settings)};hashed=digest(canonical(request))
+    request={**body.model_dump(),'destination':connector_identity(settings)}
+    # Preserve the exact legacy immediate-run fingerprint, including nested nulls.
+    if body.start_at is None:request.pop('start_at')
+    for step in request['steps']:
+        if step['condition'] is None:step.pop('condition')
+    hashed=digest(canonical(request))
     existing=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.author_id==user.id,DurableRun.idem_key==key))
     if existing:
         if existing.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to another immutable workflow request.')
         return existing
+    if body.start_at is not None and not now()<body.start_at<=now()+7*86400:
+        fail(422,'START_TIME_RANGE','Choose a future start within the next seven days.')
     if db.scalar(select(func.count()).select_from(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.status.in_(ACTIVE)))>=50:fail(429,'RUN_CAPACITY','This workspace already has 50 active runs.')
     agent=scoped(db,Agent,body.agent_id,user.org_id)
     if agent.status!='active':fail(403,'AGENT_INACTIVE','Choose an active agent.')
@@ -114,7 +147,7 @@ def create_run(db,settings,user,body,key):
             tool=scoped(db,Tool,step.tool_id,user.org_id)
             if tool.kind not in ('supplier','purchase') or tool.version!=step.request.tool_version:fail(422,'UNSUPPORTED_RUN_TOOL','Only the versioned governed supplier/purchase tools are supported by this bounded engine.')
             if settings.mode!='local' and step.request.simulation!='normal':fail(403,'SIMULATION_DISABLED','Fault injection is local-only.')
-    run=DurableRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key)
+    run=DurableRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key,next_poll=body.start_at or 0)
     db.add(run);db.flush()
     for i,step in enumerate(body.steps):db.add(DurableStep(org_id=user.org_id,env=run.env,run_id=run.id,position=i,label=step.label,kind=step.kind))
     db.flush();event(db,run,user.id,'created');return run
@@ -146,11 +179,16 @@ def cancel_current(db,run):
     finish_cancel(db,run)
 
 def register_durable(app,factory,settings,human):
+    from .durable_evidence import register_run_evidence
+    register_run_evidence(app,factory,human)
+
     @app.get('/v1/agent-runs')
-    def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
+    def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50),attention_only:bool=False):
         with factory() as db:
             user=human(request,db)
-            rows=db.scalars(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id)).order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
+            query=select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id))
+            if attention_only:query=query.where(needs_attention())
+            rows=db.scalars(query.order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
             return {'items':[serialize(db,r) for r in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
 
     @app.post('/v1/agent-runs',status_code=201)
@@ -259,7 +297,22 @@ def run_flow_once(factory,settings):
             author=db.scalar(select(User).where(User.id==run.author_id).with_for_update());agent=db.scalar(select(Agent).where(Agent.id==run.agent_id,Agent.org_id==run.org_id,Agent.env==run.env).with_for_update())
             if not author or author.org_id!=run.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,run.org_id,run.env,allow_non_staging=settings.mode=='local'):fail(403,'REQUESTER_REVOKED','Requester is no longer authorized.')
             if not agent or agent.org_id!=run.org_id or agent.env!=run.env or agent.status!='active' or agent.generation!=run.generation or not environment_user_allowed(db,agent.owner_id,run.org_id,run.env,allow_non_staging=settings.mode=='local'):fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
-            if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
+            if run.cursor==0 and run.definition.get('start_at',0)>now():
+                # next_poll is a wake-up hint, not authority to start early.
+                touch(run,'queued');return True
+            if definition['kind']=='condition':
+                try:
+                    source=db.scalar(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position==definition['condition']['source_step']))
+                    action=db.scalar(select(Action).where(Action.id==source.action_id,Action.org_id==run.org_id,Action.env==run.env).with_for_update()) if source and source.action_id else None
+                    result=condition_result(run,run.cursor,definition,source,action)
+                except (KeyError,TypeError,ValueError,AttributeError):
+                    fail(409,'CONDITION_SOURCE_INCONSISTENT','The condition requires an unchanged verified supplier lookup from this run.')
+                skipped=db.scalars(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position>run.cursor,DurableStep.position<result['next_step']).with_for_update()).all()
+                if len(skipped)!=result['next_step']-run.cursor-1 or any(row.status!='pending' or row.action_id for row in skipped):fail(409,'CONDITION_TARGET_CHANGED','A condition cannot skip missing, submitted or previously processed work.')
+                for row in skipped:row.status='skipped';row.result={'skipped_by':run.cursor};row.updated=now()
+                step.status='completed';step.result=result;step.updated=now();run.cursor=result['next_step']
+                touch(run,'queued');event(db,run,'worker','condition_evaluated',result)
+            elif definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
             elif definition['kind']=='governed_action':
                 tool=scoped(db,Tool,definition['tool_id'],run.org_id,environment=run.env)
                 body=ActionInput.model_validate(definition['request'])

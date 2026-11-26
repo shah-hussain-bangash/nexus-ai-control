@@ -43,6 +43,7 @@ class CheckCase(Strict):
 class CheckInput(Strict):
     name: str = Field(min_length=2,max_length=120)
     top_k: int = Field(default=5,ge=1,le=10)
+    one_per_document: bool = Field(default=False,strict=True)
     cases: list[CheckCase] = Field(min_length=1,max_length=20)
 
     @field_validator('name')
@@ -86,7 +87,17 @@ def summary(record):
 
 def check_config(body):
     # Omitting unset optional controls preserves exact legacy request fingerprints.
-    return body.model_dump(exclude_none=True)
+    config=body.model_dump(exclude_none=True)
+    if not config['one_per_document']:config.pop('one_per_document')
+    return config
+
+
+def recorded_search_mode(record):
+    defined=record.config.get('one_per_document',False)
+    measured=record.result.get('one_per_document',False)
+    if type(defined) is not bool or type(measured) is not bool or defined!=measured:
+        fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','The saved search mode does not match its measurements.')
+    return measured
 
 
 def comparison_config(record):
@@ -109,6 +120,7 @@ def validate_comparison_cases(detail,config):
 def checked_detail(db,record,user):
     environment=runtime_environment(db,user.org_id)
     if not accessible(record,user,environment):fail(404,'RETRIEVAL_CHECK_NOT_FOUND','Retrieval evidence is not visible to this account.')
+    recorded_search_mode(record)
     # Saved test queries/results are author/admin-only. Historical evidence never
     # bypasses a revoked/deleted source ACL. No excerpts are retained in evidence.
     versions=record.result['source_versions'];current={}
@@ -137,7 +149,7 @@ def execute(db,user,body):
     for case in body.cases:
         for id in case.expected_document_ids:
             doc=document_for(db,id,user);source_versions[id]=doc.version
-        hits=search_documents(db,user,case.query,body.top_k)
+        hits=search_documents(db,user,case.query,body.top_k,one_per_document=True) if body.one_per_document else search_documents(db,user,case.query,body.top_k)
         ids=list(dict.fromkeys(hit['document_id'] for hit in hits))
         for hit in hits:source_versions[hit['document_id']]=hit['document_version']
         expected=set(case.expected_document_ids);found=expected.intersection(ids)
@@ -155,7 +167,7 @@ def execute(db,user,body):
     # did not match; later evidence can distinguish a changed corpus.
     from .documents import allowed_docs
     corpus=[{'id':doc.id,'version':doc.version,'sha256':doc.content_hash} for doc in allowed_docs(db,user)]
-    return {'all_cases_passed':passed==len(results),'passed_cases':passed,'total_cases':len(results),'mean_document_recall_at_k':sum(r['document_recall_at_k'] for r in positives)/len(positives) if positives else None,'mean_reciprocal_rank':sum(r['reciprocal_rank'] for r in positives)/len(positives) if positives else None,'cases':results,'source_versions':source_versions,'corpus_fingerprint':digest(canonical(sorted(corpus,key=lambda r:r['id']))),'authorized_corpus_count':len(corpus),'actor_id':user.id,'actor_role':user.role,'checked_at':now(),'provider_calls':0,'normalization_version':NORMALIZATION_VERSION,'method':'Current-ACL BM25-style lexical retrieval with Arabic normalization; document recall and first expected chunk rank'}
+    return {'all_cases_passed':passed==len(results),'passed_cases':passed,'total_cases':len(results),'mean_document_recall_at_k':sum(r['document_recall_at_k'] for r in positives)/len(positives) if positives else None,'mean_reciprocal_rank':sum(r['reciprocal_rank'] for r in positives)/len(positives) if positives else None,'cases':results,'source_versions':source_versions,'corpus_fingerprint':digest(canonical(sorted(corpus,key=lambda r:r['id']))),'authorized_corpus_count':len(corpus),'actor_id':user.id,'actor_role':user.role,'checked_at':now(),'provider_calls':0,'one_per_document':body.one_per_document,'normalization_version':NORMALIZATION_VERSION,'method':'Current-ACL BM25-style lexical retrieval with Arabic normalization; document recall and first expected chunk rank'+('; highest-ranked passage per document' if body.one_per_document else '')}
 
 
 def register_retrieval_checks(app,factory,settings,human):
@@ -177,7 +189,7 @@ def register_retrieval_checks(app,factory,settings,human):
             except (ValidationError,ValueError,TypeError,KeyError):
                 fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved check definitions cannot be compared by this release.')
             if canonical(before)!=canonical(after):
-                fail(409,'COMPARISON_DEFINITION_CHANGED','Compare matching ordered queries, source expectations, top-k, language labels and precision targets. Suite names may differ.')
+                fail(409,'COMPARISON_DEFINITION_CHANGED','Compare matching ordered queries, source expectations, top-k, search mode, language labels and precision targets. Suite names may differ.')
             try:return compare_details(left,right)
             except (ValueError,TypeError,KeyError):fail(409,'EVIDENCE_FORMAT_UNSUPPORTED','Saved measurements cannot be compared by this release.')
 

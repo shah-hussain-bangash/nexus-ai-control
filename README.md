@@ -9,6 +9,10 @@ remaining acceptance work.
 **Cursor on Windows:** start with [CURSOR_QUICKSTART.md](CURSOR_QUICKSTART.md).
 Run `npm run setup`, then `npm start` from this folder.
 
+**Phase 1 connector development:** the [synthetic Business v1 reference gateway](docs/PHASE1_BUSINESS_REFERENCE.md)
+provides scoped, persistent operation receipts and a developer example through
+`npm run dev:business-reference`. It does not connect or accept a customer system.
+
 **Local pilot on this PC:** follow [local pilot acceptance](docs/LOCAL_PILOT_ACCEPTANCE.md).
 Use `npm run pilot:check` for read-only checks and `npm run test:answers:local`
 for the small synthetic English/Arabic Ollama exercise. Automated passes do not
@@ -25,12 +29,23 @@ printed by `npm start`. Keep the API/worker terminal open. The older versioned
 upgrade reports describe their original releases, not the current schema.
 
 - [Implemented source and verification](docs/IMPLEMENTATION_REPORT.md)
+- [Durable run evidence snapshots](docs/DURABLE_RUN_EVIDENCE.md)
+- [Workflow attention filter](docs/DURABLE_RUN_ATTENTION.md)
+- [One-time durable workflow start](docs/DURABLE_SCHEDULED_START.md)
+- [Bounded supplier allowlist condition](docs/DURABLE_SUPPLIER_CONDITION.md)
+- [Offline workflow report verification](docs/OFFLINE_RUN_EVIDENCE.md)
 - [All production gaps and ordered next work](docs/PRODUCTION_GAPS_0_16_0.md)
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
+- [Combined local-pilot integration review](docs/PILOT_INTEGRATION_REVIEW.md)
+- [One result per document](docs/RETRIEVAL_SOURCE_DIVERSITY.md)
+- [Read-only identical indexed-text review](docs/DOCUMENT_COPY_REVIEW.md)
+- [One result per document in keyword search](docs/LEXICAL_SOURCE_DIVERSITY.md)
+- [Saved quality checks for document-diverse search](docs/RETRIEVAL_DIVERSITY_EVALUATION.md)
 - [Hybrid completion and concurrent source changes](docs/HYBRID_COMPLETION_ORDERING.md)
 - [Local ranking response validation](docs/RANKING_RESPONSE_VALIDATION.md)
 - [Disposable synthetic retrieval test](docs/SYNTHETIC_RETRIEVAL_DRILL.md) — `npm run test:retrieval`
+- [Offline English and Arabic answer review](docs/SYNTHETIC_ANSWER_EVALUATION.md) — synthetic fixtures, citation checks and response-bound reviewer labels
 - [Combined synthetic knowledge test](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) — `npm run test:knowledge`
 - [Synthetic file-ingestion test](docs/SYNTHETIC_INGESTION_DRILL.md) — `npm run test:ingestion`
 - [File-worker completion deadlines](docs/INGESTION_COMPLETION_DEADLINES.md)
@@ -47,8 +62,10 @@ upgrade reports describe their original releases, not the current schema.
 - [Streaming backup checksums](docs/BACKUP_STREAMING_CHECKSUMS.md) — verify payloads using bounded reads
 - [Maintenance preview](docs/MAINTENANCE_PREVIEW.md) — preview cleanup without initializing or upgrading a database
 - [Request rejection events](docs/REQUEST_REJECTION_EVENTS.md) — correlate oversized-request errors in structured logs
+- [Offline recovery evidence checker](docs/OFFLINE_RECOVERY_EVIDENCE.md) — inspect a provided version-2 evidence pack without running NEXUS
 - [All synthetic drills in one command](docs/SYNTHETIC_SUITE.md) — `npm run test:synthetic`
 - [Synthetic recovered-application test](docs/SYNTHETIC_RECOVERY_DRILL.md) — `npm run test:recovery`
+- [Disposable Docker recovery and restart](docs/DISPOSABLE_DOCKER_RECOVERY.md) — `npm run test:docker-recovery` from a clean checkout
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
 - [Machine-readable verification](docs/VERIFICATION.json)
 

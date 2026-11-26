@@ -8,6 +8,11 @@ def rank(payload):
  import numpy as np
  texts=payload['texts'];query=payload['query'];counts=[Counter(search_tokens(t)) for t in texts]
  if not 1<=len(texts)<=128 or any(len(t)>700 for t in texts):raise ValueError('CORPUS_LIMIT')
+ diverse=payload.get('one_per_document',False)
+ if type(diverse) is not bool:raise ValueError('RANKING_FAILED')
+ groups=payload.get('groups')
+ if diverse and (type(groups) is not list or len(groups)!=len(texts) or any(type(group) is not int or not 0<=group<20 for group in groups)):
+  raise ValueError('RANKING_FAILED')
  vocab=sorted(set().union(*(c.keys() for c in counts)))
  if len(vocab)>1024:raise ValueError('VOCABULARY_LIMIT')
  if not vocab:return {'scores':[],'rank':0,'vocabulary':0}
@@ -31,7 +36,14 @@ def rank(payload):
  for i in range(n):
   lexical=lex[i]/ceiling;semantic=float(lsa[i]);combined=weight*semantic+(1-weight)*lexical
   if combined>0 and combined>=payload['min_score']:scores.append({'position':i,'score':round(combined,6),'semantic_score':round(semantic,6),'lexical_score':round(lexical,6)})
- return {'scores':sorted(scores,key=lambda r:(-r['score'],r['position']))[:payload['top_k']],'rank':int(k),'vocabulary':len(vocab)}
+ ordered=sorted(scores,key=lambda r:(-r['score'],r['position']))
+ if diverse:
+  seen=set();unique=[]
+  for score in ordered:
+   group=groups[score['position']]
+   if group not in seen:unique.append(score);seen.add(group)
+  ordered=unique
+ return {'scores':ordered[:payload['top_k']],'rank':int(k),'vocabulary':len(vocab)}
 
 def main():
  if os.name=='posix':
