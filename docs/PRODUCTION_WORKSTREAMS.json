@@ -20,7 +20,7 @@
       "title": "Durable agent execution",
       "area": "Engineering",
       "delivery": "partial",
-      "required_evidence": "Bounded pause/resume, approvals, cancellation, lease recovery, unsigned scoped run-evidence snapshots and a disposable synthetic agent-workflow drill are implemented. Autonomous planning, customer-workflow and deployment acceptance remain.",
+      "required_evidence": "Bounded pause/resume, approvals, cancellation, one-time scheduled starts, lease recovery, unsigned scoped run-evidence snapshots and a disposable synthetic agent-workflow drill are implemented. Autonomous planning, customer-workflow and deployment acceptance remain.",
       "workspace": "agentRuns"
     },
     {

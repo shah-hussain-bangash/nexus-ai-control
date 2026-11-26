@@ -45,6 +45,7 @@ class RunInput(Strict):
     name: str = Field(min_length=2,max_length=120)
     agent_id: str = Field(min_length=1,max_length=64)
     steps: list[StepInput] = Field(min_length=2,max_length=12)
+    start_at: int | None = Field(default=None,strict=True,ge=1)
 
     @model_validator(mode='after')
     def boundaries(self):
@@ -91,6 +92,9 @@ def event(db,run,actor,name,detail=None):
 
 def touch(run,status):
     run.status=status;run.version+=1;run.updated=now();run.lease_token='';run.lease_until=0;run.next_poll=now()+1
+    if status=='queued' and run.cursor==0:
+        start=run.definition.get('start_at')
+        if type(start) is int:run.next_poll=max(run.next_poll,start)
 
 
 def recover_expired_claim(db,run):
@@ -104,6 +108,7 @@ def serialize(db,run):
     data['steps']=[public(s) for s in steps]
     current=next((s for s in steps if s.position==run.cursor),None)
     data['can_retry']=bool(run.status=='failed' and current and not current.action_id)
+    data['scheduled_start_at']=run.definition.get('start_at')
     data['boundary']='Persistent bounded execution with a pinned business destination. Autonomous model planning and arbitrary customer protocol mapping remain outside this engine.'
     return data
 
@@ -111,11 +116,16 @@ def create_run(db,settings,user,body,key):
     if not key or not 8<=len(key)<=128:fail(422,'IDEMPOTENCY_KEY_REQUIRED','Use an 8–128 character idempotency key.')
     # Serialize organization admission before the idempotency and quota reads.
     db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
-    request={**body.model_dump(),'destination':connector_identity(settings)};hashed=digest(canonical(request))
+    request={**body.model_dump(),'destination':connector_identity(settings)}
+    # Preserve the exact legacy immediate-run fingerprint, including nested nulls.
+    if body.start_at is None:request.pop('start_at')
+    hashed=digest(canonical(request))
     existing=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.author_id==user.id,DurableRun.idem_key==key))
     if existing:
         if existing.request_digest!=hashed:fail(409,'IDEMPOTENCY_CONFLICT','This key belongs to another immutable workflow request.')
         return existing
+    if body.start_at is not None and not now()<body.start_at<=now()+7*86400:
+        fail(422,'START_TIME_RANGE','Choose a future start within the next seven days.')
     if db.scalar(select(func.count()).select_from(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.status.in_(ACTIVE)))>=50:fail(429,'RUN_CAPACITY','This workspace already has 50 active runs.')
     agent=scoped(db,Agent,body.agent_id,user.org_id)
     if agent.status!='active':fail(403,'AGENT_INACTIVE','Choose an active agent.')
@@ -124,7 +134,7 @@ def create_run(db,settings,user,body,key):
             tool=scoped(db,Tool,step.tool_id,user.org_id)
             if tool.kind not in ('supplier','purchase') or tool.version!=step.request.tool_version:fail(422,'UNSUPPORTED_RUN_TOOL','Only the versioned governed supplier/purchase tools are supported by this bounded engine.')
             if settings.mode!='local' and step.request.simulation!='normal':fail(403,'SIMULATION_DISABLED','Fault injection is local-only.')
-    run=DurableRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key)
+    run=DurableRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),name=body.name.strip(),agent_id=agent.id,generation=agent.generation,author_id=user.id,definition=request,payload_hash=hashed,request_digest=hashed,idem_key=key,next_poll=body.start_at or 0)
     db.add(run);db.flush()
     for i,step in enumerate(body.steps):db.add(DurableStep(org_id=user.org_id,env=run.env,run_id=run.id,position=i,label=step.label,kind=step.kind))
     db.flush();event(db,run,user.id,'created');return run
@@ -274,6 +284,9 @@ def run_flow_once(factory,settings):
             author=db.scalar(select(User).where(User.id==run.author_id).with_for_update());agent=db.scalar(select(Agent).where(Agent.id==run.agent_id,Agent.org_id==run.org_id,Agent.env==run.env).with_for_update())
             if not author or author.org_id!=run.org_id or not author.active or 'operate' not in PERMISSIONS.get(author.role,set()) or not environment_user_allowed(db,author.id,run.org_id,run.env,allow_non_staging=settings.mode=='local'):fail(403,'REQUESTER_REVOKED','Requester is no longer authorized.')
             if not agent or agent.org_id!=run.org_id or agent.env!=run.env or agent.status!='active' or agent.generation!=run.generation or not environment_user_allowed(db,agent.owner_id,run.org_id,run.env,allow_non_staging=settings.mode=='local'):fail(403,'AGENT_CHANGED','Agent identity or authorization changed.')
+            if run.cursor==0 and run.definition.get('start_at',0)>now():
+                # next_poll is a wake-up hint, not authority to start early.
+                touch(run,'queued');return True
             if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
             elif definition['kind']=='governed_action':
                 tool=scoped(db,Tool,definition['tool_id'],run.org_id,environment=run.env)
