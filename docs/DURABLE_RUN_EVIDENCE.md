@@ -36,12 +36,13 @@ accidental changes; it is **not a signature or proof of authenticity**. Export
 time identifies when records were read, not a deployment or source revision
 attestation. A file does not establish current server state, complete audit
 history, customer acceptance or production readiness. The existing
-`evidence:verify` command supports supplier-check evidence only; do not use it to
-validate this different format.
+`evidence:verify` command supports this format as well as supplier-check evidence.
+See [offline workflow report verification](OFFLINE_RUN_EVIDENCE.md) for commands,
+scope checks and the limits of unsigned file verification.
 
-No database migration or running-app change is required by this source change.
-It does not add autonomous model planning, workflow graphs/parallelism,
-scheduling, compensation, an immutable archive or authenticated evidence.
+No database migration or running-app change is required by this evidence addition.
+Export and offline verification do not execute, schedule or compensate workflows,
+provide autonomous planning, or establish an immutable archive/authenticated evidence.
 Customer workflow and deployment acceptance remain separate future work.
 
 Development checks are in `backend/tests/test_durable_evidence.py` and
