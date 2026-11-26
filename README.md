@@ -26,6 +26,7 @@ upgrade reports describe their original releases, not the current schema.
 
 - [Implemented source and verification](docs/IMPLEMENTATION_REPORT.md)
 - [Durable run evidence snapshots](docs/DURABLE_RUN_EVIDENCE.md)
+- [Workflow attention filter](docs/DURABLE_RUN_ATTENTION.md)
 - [All production gaps and ordered next work](docs/PRODUCTION_GAPS_0_16_0.md)
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)

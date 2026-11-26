@@ -13,6 +13,16 @@ from .service import scoped,submit_action,audit,canonical
 ACTIVE=('queued','processing','waiting_action','waiting_review','paused','cancelling','outcome_unknown')
 POLL=('queued','waiting_action','cancelling','outcome_unknown')
 
+def needs_attention():
+    linked=select(DurableStep.id).join(Action,(Action.id==DurableStep.action_id)&
+        (Action.org_id==DurableStep.org_id)&(Action.env==DurableStep.env)).where(
+        DurableStep.run_id==DurableRun.id,DurableStep.org_id==DurableRun.org_id,
+        DurableStep.env==DurableRun.env,DurableStep.position==DurableRun.cursor,
+        Action.status.in_(('awaiting_approval','outcome_unknown','blocked','failed','denied','rejected','expired','changes_requested'))
+    ).correlate(DurableRun).exists()
+    return or_(DurableRun.status.in_(('failed','expired','rejected','waiting_review','outcome_unknown')),
+               and_(DurableRun.status.in_(ACTIVE),linked))
+
 class StepInput(Strict):
     kind: Literal['checkpoint','approval','governed_action','output']
     label: str = Field(min_length=2,max_length=100)
@@ -150,10 +160,12 @@ def register_durable(app,factory,settings,human):
     register_run_evidence(app,factory,human)
 
     @app.get('/v1/agent-runs')
-    def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
+    def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50),attention_only:bool=False):
         with factory() as db:
             user=human(request,db)
-            rows=db.scalars(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id)).order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
+            query=select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id))
+            if attention_only:query=query.where(needs_attention())
+            rows=db.scalars(query.order_by(DurableRun.created.desc(),DurableRun.id).offset(offset).limit(limit+1)).all()
             return {'items':[serialize(db,r) for r in rows[:limit]],'next_offset':offset+limit if len(rows)>limit else None}
 
     @app.post('/v1/agent-runs',status_code=201)
