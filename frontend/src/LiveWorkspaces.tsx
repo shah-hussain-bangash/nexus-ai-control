@@ -17,6 +17,7 @@ import { procurementRun, intakeMetadata, runControls } from "./liveRequests";
 import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
 import { Modal } from "./RuntimeDialog";
+import { RunEvidencePanel } from "./RunEvidencePanel";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -283,6 +284,9 @@ export function DurableExecution({
               </div>
               <State value={run.status} />
             </header>
+            {me.permissions?.includes("export") && (
+              <RunEvidencePanel key={run.id} id={run.id} />
+            )}
             <p>
               Checkpoint {Math.min(run.cursor + 1, run.steps.length)} of{" "}
               {run.steps.length} · lease recoveries {run.recoveries}

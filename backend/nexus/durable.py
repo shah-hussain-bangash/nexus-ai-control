@@ -146,6 +146,9 @@ def cancel_current(db,run):
     finish_cancel(db,run)
 
 def register_durable(app,factory,settings,human):
+    from .durable_evidence import register_run_evidence
+    register_run_evidence(app,factory,human)
+
     @app.get('/v1/agent-runs')
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:
