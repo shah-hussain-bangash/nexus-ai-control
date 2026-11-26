@@ -23,6 +23,8 @@
 
 [Business problem](#1-business-problem-and-objectives) · [Architecture](#3-solution-architecture) · [Governed execution](#4-governed-actions-and-durable-workflows) · [Inference controls](#5-generative-ai-inference-and-cost-governance) · [Knowledge](#6-document-intake-retrieval-and-bilingual-evaluation) · [Evidence](#10-engineering-evidence-and-reproducibility) · [Demonstration](#12-technical-demonstration-and-next-delivery-gates)
 
+For the authenticated browser rehearsal of the approval-to-execution path, see the [running portal screenshots](../../README.md#running-portal).
+
 ### Application design preview
 
 ![NEXUS AI Control synthetic command center preview](assets/nexus-command-center-preview.png)

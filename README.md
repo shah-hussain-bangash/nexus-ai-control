@@ -1,28 +1,68 @@
-# NEXUS AI Control — 0.16.2 candidate
+# NEXUS AI Control
 
-The current source uses database schema 11 and supports governed runtime
-environment switching. Preserve your private configuration and database when
-updating; older installations may require a backed-up schema upgrade. See the
-[current production roadmap](docs/PRODUCTION_ROADMAP.md) for delivered scope and
-remaining acceptance work.
+NEXUS is a control plane for AI agents that request access to enterprise tools and data. It evaluates policy, routes sensitive actions to an independent reviewer, and records the outcome after a worker verifies the result.
 
-**Cursor on Windows:** start with [CURSOR_QUICKSTART.md](CURSOR_QUICKSTART.md).
-Run `npm run setup`, then `npm start` from this folder.
+**Release** 0.16.2 candidate · database schema 11 · local development and synthetic verification. Deployment acceptance is open.
 
-**Local pilot on this PC:** follow [local pilot acceptance](docs/LOCAL_PILOT_ACCEPTANCE.md).
-Use `npm run pilot:check` for read-only checks and `npm run test:answers:local`
-for the small synthetic English/Arabic Ollama exercise. Automated passes do not
-grant customer or production acceptance.
+[Running portal](#running-portal) · [Enterprise architecture](docs/ENTERPRISE_ARCHITECTURE.md) · [Engineering case study](docs/case-study/NEXUS_AI_CONTROL_CASE_STUDY.md) · [Run locally](#run-locally) · [Production roadmap](docs/PRODUCTION_ROADMAP.md)
 
-Enterprise Agentic AI Governance, Security & Operations Platform.
+## Running portal
 
-**Featured case study:** [NEXUS AI Control Case Study — governed AI execution, evidence retrieval and operational accountability](docs/case-study/NEXUS_AI_CONTROL_CASE_STUDY.md). Explore architecture decisions, independent approval, uncertain-outcome recovery, AI FinOps, source-scoped retrieval, environment isolation and inspected current CI evidence.
+Captured on 26 November 2026 from the authenticated React console, FastAPI API and execution worker at [the source revision under review](https://github.com/shah-hussain-bangash/nexus-ai-control/tree/c89707b7812c9d92ee3de93d2c2863921b1955bd). The run used a disposable local database, demo accounts and the synthetic connector.
 
-New working services: **local hybrid document retrieval** and **owner-controlled member/session administration**, connected to Knowledge & RAG and Workspace settings. Existing governance, approvals, execution, reviewed document intake, provider controls, business adapter and UI design workflows are retained.
+### AI command center
 
-Windows: follow [the Cursor quickstart](CURSOR_QUICKSTART.md) and open the URL
-printed by `npm start`. Keep the API/worker terminal open. The older versioned
-upgrade reports describe their original releases, not the current schema.
+![NEXUS AI Control command center showing the local staging workspace and production acceptance status](docs/case-study/assets/nexus-command-center.webp)
+
+The console shows the selected runtime environment and separates live governance records from deployment acceptance.
+
+### Independent approval
+
+![NEXUS approval dialog showing a synthetic purchase payload, its fingerprint and the reviewer decision form](docs/case-study/assets/nexus-independent-approval.webp)
+
+Policy held the synthetic USD 12,500 request for independent review. A second account inspected the exact request and approved it. The decision is bound to the payload hash, policy version and expiry.
+
+### Verified execution
+
+![NEXUS execution ledger showing a verified result for the reviewed synthetic purchase request](docs/case-study/assets/nexus-verified-execution.webp)
+
+The worker processed the approved request through the synthetic connector and the ledger showed the same request as **Verified**.
+
+## What the platform implements
+
+| Capability | Engineering detail |
+| --- | --- |
+| Governed tool execution | Explicit grants, typed tool input, reference or OPA policy decisions, revision-bound approval and dispatch revalidation |
+| Durable execution and recovery | Queued actions, persisted workflow steps, bounded worker claims, idempotency and reconciliation of uncertain effects |
+| Document AI and RAG | Reviewed intake, bounded extraction, English/Arabic search and authorization-filtered hybrid retrieval with versioned source evidence |
+| Model gateway and cost controls | Opt-in routes, request and concurrency limits, cost reservations and usage accounting |
+| Identity and operations | Scoped workspace/environment membership, audit events, readiness signals and encrypted backup exercises |
+
+The [architecture guide](docs/ENTERPRISE_ARCHITECTURE.md) maps the request path to source code, tests and the evidence needed for a team pilot. The [case study](docs/case-study/NEXUS_AI_CONTROL_CASE_STUDY.md) explains design decisions and their trade-offs.
+
+## Run locally
+
+On Windows with Python and Node.js installed, follow the [Cursor quickstart](CURSOR_QUICKSTART.md) from the repository root.
+
+```cmd
+npm run setup
+npm start
+```
+
+Use the loopback URL and the development password printed by the launcher setup. For an existing install, back up private configuration and the database before upgrading. Check the [schema upgrade notes](docs/PHASE_1_ENVIRONMENT_FOUNDATION.md) first.
+
+## Verification and release scope
+
+| Evidence | Observed result |
+| --- | --- |
+| Authenticated browser walkthrough | Submission required independent approval. The second account approved and the worker verified the result. No browser exceptions were observed. |
+| Local frontend | 100 tests passed and the Vite production build succeeded. Vite reported an advisory for the main bundle exceeding 500 kB minified. |
+| [GitHub Actions for the captured revision](https://github.com/shah-hussain-bangash/nexus-ai-control/actions/runs/45760501365) | Backend, PostgreSQL, Windows launcher, frontend and OPA jobs succeeded. |
+
+The [local pilot runbook](docs/LOCAL_PILOT_ACCEPTANCE.md) has the repeatable checks and acceptance criteria. The [generated production roadmap](docs/PRODUCTION_ROADMAP.md) tracks 1 implemented workstream awaiting acceptance and 17 partial workstreams. The 18-area, 216-function catalog represents design previews. Customer workflow validation, independent bilingual answer evaluation, deployment security and measured recovery remain release gates.
+
+<details>
+<summary>Implementation guides and verification references</summary>
 
 - [Implemented source and verification](docs/IMPLEMENTATION_REPORT.md)
 - [All production gaps and ordered next work](docs/PRODUCTION_GAPS_0_16_0.md)
@@ -50,8 +90,6 @@ upgrade reports describe their original releases, not the current schema.
 - [All synthetic drills in one command](docs/SYNTHETIC_SUITE.md) — `npm run test:synthetic`
 - [Synthetic recovered-application test](docs/SYNTHETIC_RECOVERY_DRILL.md) — `npm run test:recovery`
 - [Current UI baseline](docs/UI_BASELINE_0_16_0.json)
-- [Machine-readable verification](docs/VERIFICATION.json)
+- [Historical machine-readable verification](docs/VERIFICATION.json)
 
-The agreed design inventory remains 18 areas / 216 function previews. Design records, walkthrough roles/environments and exported review markers do not activate backend integrations. The isolated demo-preview harness blocks runtime writes; frontend and backend contain the authenticated application.
-
-**Full enterprise production readiness is not claimed.** The current roadmap has 1 implemented workstream awaiting acceptance and 17 partial workstreams, with deployment acceptance still open. Read the current roadmap before rollout. No real customer, IdP, cloud or provider account was changed by this release.
+</details>
