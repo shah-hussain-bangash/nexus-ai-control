@@ -21,6 +21,12 @@ export type RunEvidenceReport = {
       kind: string;
       status: string;
       action: null | { status: string; verified: boolean };
+      condition?: {
+        kind: string;
+        source_step: number;
+        matched: boolean;
+        next_step: number;
+      };
     }[];
   };
   integrity: {
@@ -57,9 +63,27 @@ export async function verifyRunEvidence(
     !p.steps.every(
       (step, index) =>
         step.position === index &&
-        ["checkpoint", "approval", "governed_action", "output"].includes(
-          step.kind,
+        [
+          "checkpoint",
+          "approval",
+          "governed_action",
+          "condition",
+          "output",
+        ].includes(step.kind) &&
+        !(
+          step.kind === "condition" &&
+          step.status === "completed" &&
+          !step.condition
         ) &&
+        (step.condition === undefined ||
+          (step.kind === "condition" &&
+            step.condition.kind === "supplier_allowlist" &&
+            typeof step.condition.matched === "boolean" &&
+            Number.isSafeInteger(step.condition.source_step) &&
+            step.condition.source_step >= 0 &&
+            step.condition.source_step < index &&
+            step.condition.next_step ===
+              (step.condition.matched ? index + 1 : p.steps.length - 1))) &&
         (step.action === null ||
           (step.kind === "governed_action" &&
             typeof step.action.verified === "boolean" &&

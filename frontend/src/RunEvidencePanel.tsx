@@ -84,6 +84,8 @@ export function RunEvidencePanel({ id }: { id: string }) {
                 {step.status.replaceAll("_", " ")}
                 {step.action &&
                   ` · action ${step.action.status.replaceAll("_", " ")}`}
+                {step.condition &&
+                  ` · condition ${step.condition.matched ? "matched" : "did not match"}`}
               </li>
             ))}
           </ol>

@@ -3,12 +3,13 @@ from typing import Literal
 from fastapi import Request,Header,HTTPException,Query
 from pydantic import Field,model_validator,field_validator
 from sqlalchemy import select,update,func,and_,or_
-from .schemas import Strict,ActionInput
+from .schemas import Strict,ActionInput,SupplierArguments
 from .db import DurableRun,DurableStep,Organization,Agent,Tool,Action,Approval,User,now,uid,public
 from .security import fail,digest,PERMISSIONS
 from .runtime_context import environment_user_allowed,runtime_environment
 from .business_connector import connector_identity
 from .service import scoped,submit_action,audit,canonical
+from .durable_conditions import SupplierCondition, condition_result
 
 ACTIVE=('queued','processing','waiting_action','waiting_review','paused','cancelling','outcome_unknown')
 POLL=('queued','waiting_action','cancelling','outcome_unknown')
@@ -24,10 +25,11 @@ def needs_attention():
                and_(DurableRun.status.in_(ACTIVE),linked))
 
 class StepInput(Strict):
-    kind: Literal['checkpoint','approval','governed_action','output']
+    kind: Literal['checkpoint','approval','governed_action','condition','output']
     label: str = Field(min_length=2,max_length=100)
     tool_id: str = Field(default='',max_length=64)
     request: ActionInput | None = None
+    condition: SupplierCondition | None = None
 
     @field_validator('label')
     @classmethod
@@ -39,6 +41,7 @@ class StepInput(Strict):
     def action_fields(self):
         if self.kind=='governed_action' and (not self.tool_id or self.request is None):raise ValueError('A governed action requires its tool and immutable request.')
         if self.kind!='governed_action' and (self.tool_id or self.request is not None):raise ValueError('Only action steps accept tool requests.')
+        if (self.kind=='condition')!=(self.condition is not None):raise ValueError('Only condition steps require a supplier allowlist condition.')
         return self
 
 class RunInput(Strict):
@@ -50,6 +53,14 @@ class RunInput(Strict):
     @model_validator(mode='after')
     def boundaries(self):
         if not self.name.strip() or self.steps[0].kind!='checkpoint' or self.steps[-1].kind!='output':raise ValueError('A run starts at a checkpoint and finishes with an output step.')
+        for position,step in enumerate(self.steps):
+            if step.kind=='condition':
+                source=step.condition.source_step
+                if source>=position or self.steps[source].kind!='governed_action' or self.steps[source].request.action!='supplier:read' or self.steps[source].request.resource!='suppliers':
+                    raise ValueError('A condition must reference an earlier governed supplier lookup.')
+                supplier=SupplierArguments.model_validate(self.steps[source].request.arguments).supplier_id
+                if any(later.kind=='governed_action' and later.request.action=='purchase:create' and later.request.arguments.get('supplier_id')!=supplier for later in self.steps[position+1:]):
+                    raise ValueError('Purchases after a supplier condition must use its verified supplier.')
         return self
 
 class Control(Strict):
@@ -119,6 +130,8 @@ def create_run(db,settings,user,body,key):
     request={**body.model_dump(),'destination':connector_identity(settings)}
     # Preserve the exact legacy immediate-run fingerprint, including nested nulls.
     if body.start_at is None:request.pop('start_at')
+    for step in request['steps']:
+        if step['condition'] is None:step.pop('condition')
     hashed=digest(canonical(request))
     existing=db.scalar(select(DurableRun).where(DurableRun.org_id==user.org_id,DurableRun.env==runtime_environment(db,user.org_id),DurableRun.author_id==user.id,DurableRun.idem_key==key))
     if existing:
@@ -287,7 +300,19 @@ def run_flow_once(factory,settings):
             if run.cursor==0 and run.definition.get('start_at',0)>now():
                 # next_poll is a wake-up hint, not authority to start early.
                 touch(run,'queued');return True
-            if definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
+            if definition['kind']=='condition':
+                try:
+                    source=db.scalar(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position==definition['condition']['source_step']))
+                    action=db.scalar(select(Action).where(Action.id==source.action_id,Action.org_id==run.org_id,Action.env==run.env).with_for_update()) if source and source.action_id else None
+                    result=condition_result(run,run.cursor,definition,source,action)
+                except (KeyError,TypeError,ValueError,AttributeError):
+                    fail(409,'CONDITION_SOURCE_INCONSISTENT','The condition requires an unchanged verified supplier lookup from this run.')
+                skipped=db.scalars(select(DurableStep).where(DurableStep.run_id==run.id,DurableStep.org_id==run.org_id,DurableStep.env==run.env,DurableStep.position>run.cursor,DurableStep.position<result['next_step']).with_for_update()).all()
+                if len(skipped)!=result['next_step']-run.cursor-1 or any(row.status!='pending' or row.action_id for row in skipped):fail(409,'CONDITION_TARGET_CHANGED','A condition cannot skip missing, submitted or previously processed work.')
+                for row in skipped:row.status='skipped';row.result={'skipped_by':run.cursor};row.updated=now()
+                step.status='completed';step.result=result;step.updated=now();run.cursor=result['next_step']
+                touch(run,'queued');event(db,run,'worker','condition_evaluated',result)
+            elif definition['kind']=='approval':step.status='waiting_review';run.review_until=now()+1800;touch(run,'waiting_review');event(db,run,'worker','review_required')
             elif definition['kind']=='governed_action':
                 tool=scoped(db,Tool,definition['tool_id'],run.org_id,environment=run.env)
                 body=ActionInput.model_validate(definition['request'])

@@ -20,6 +20,7 @@ import { Modal } from "./RuntimeDialog";
 import { RunEvidencePanel } from "./RunEvidencePanel";
 import { RunListRequests } from "./runListRequests";
 import { scheduleRun } from "./runSchedule";
+import { withSupplierCondition } from "./supplierCondition";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -75,6 +76,8 @@ export function DurableExecution({
     [next, setNext] = useState<number | null>(null),
     [creating, setCreating] = useState(false),
     [startAt, setStartAt] = useState(""),
+    [conditional, setConditional] = useState(false),
+    [allowedSuppliers, setAllowedSuppliers] = useState(""),
     [command, setCommand] = useState(""),
     [note, setNote] = useState(""),
     [agent, setAgent] = useState(""),
@@ -142,16 +145,19 @@ export function DurableExecution({
         purchase = data.tools.find(
           (t: Row) => t.kind === "purchase" && t.status === "validated",
         );
+      const workflow = procurementRun(
+        agent,
+        lookup?.id,
+        purchase?.id,
+        mode,
+        supplier,
+        amount,
+        purpose,
+      );
       const body = scheduleRun(
-        procurementRun(
-          agent,
-          lookup?.id,
-          purchase?.id,
-          mode,
-          supplier,
-          amount,
-          purpose,
-        ),
+        mode === "procurement" && conditional
+          ? withSupplierCondition(workflow, allowedSuppliers)
+          : workflow,
         startAt,
       );
       const result = await sendLiveIntent<Row & { id: string; status: string }>(
@@ -361,6 +367,12 @@ export function DurableExecution({
                 retrying.
               </p>
             )}
+            {run.steps.some((step: Row) => step.status === "skipped") && (
+              <p>
+                Some steps were skipped by the supplier condition. Workflow
+                completion does not mean a purchase was executed.
+              </p>
+            )}
             <ol className="live-steps">
               {run.steps.map((step: Row, i: number) => (
                 <li
@@ -378,6 +390,14 @@ export function DurableExecution({
                     <strong>{step.label}</strong>
                     <State value={step.status} />
                     <small>{step.kind.replaceAll("_", " ")}</small>
+                    {step.kind === "condition" &&
+                      typeof step.result?.matched === "boolean" && (
+                        <p>
+                          {step.result.matched
+                            ? "Supplier matched; existing review and purchase controls continue."
+                            : "Supplier did not match; the workflow continued to its final output."}
+                        </p>
+                      )}
                     {step.action_id && (
                       <>
                         <p>
@@ -573,6 +593,30 @@ export function DurableExecution({
             </label>
             {mode === "procurement" && (
               <>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={conditional}
+                    onChange={(e) => setConditional(e.target.checked)}
+                  />{" "}
+                  Continue only for listed suppliers
+                </label>
+                {conditional && (
+                  <label>
+                    Allowed supplier references (comma separated)
+                    <input
+                      required
+                      maxLength={649}
+                      value={allowedSuppliers}
+                      onChange={(e) => setAllowedSuppliers(e.target.value)}
+                      placeholder="SUP-DEMO-104, SUP-DEMO-205"
+                    />
+                    <small>
+                      A verified non-match skips the remaining purchase steps. A
+                      match still requires the existing approvals.
+                    </small>
+                  </label>
+                )}
                 <label>
                   Amount USD
                   <input
