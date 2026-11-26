@@ -25,6 +25,23 @@ Show how an AI proposal becomes an inspectable, policy-controlled action with hu
 9. Traces & observability: inspect the saved workflow/retrieval/evaluation run, measured local duration, steps and JSON export. Audit explorer shows business governance events separately.
 10. AI FinOps and Release readiness: calculate a token-cost scenario from explicit assumptions; show the rollback/checklist plan and the external integration gates still open.
 
+## Automated browser release check
+
+The GitHub Actions `browser` job builds the console and tests the independent-approval flow in Chromium. It publishes a JUnit report for the checked commit. The test starts a loopback API and a separate worker with two disposable SQLite databases and synthetic accounts. It verifies that the requester cannot approve, an independent reviewer can approve, and the same request appears as verified with exactly one synthetic purchase recorded.
+
+To reproduce locally, run from the repository root with Python 3.12 and Node.js 22. On Linux, use `python -m playwright install --with-deps chromium` if the Chromium system dependencies are missing.
+
+```sh
+npm --prefix frontend ci
+npm --prefix frontend run build
+python -m pip install -r backend/requirements-browser.txt
+python -m playwright install chromium
+cd backend
+python -m pytest browser_tests --junitxml=browser-results.xml
+```
+
+For a trusted existing Chromium binary, set `NEXUS_TEST_CHROMIUM` to its path. This exercise covers one local synthetic workflow. Refer to the [production roadmap](PRODUCTION_ROADMAP.md) for remaining staging and deployment acceptance.
+
 ## Evidence to prepare for interviews
 
 A concise architecture discussion; a source walkthrough of tenant scopes, idempotency, optimistic updates and version pinning; a reproducible test run; a short demo recording with synthetic data; a realistic failure/recovery example; and a candid roadmap. Publicly share selected source only if you own it and it contains no credentials or employer data. The source can remain private with a guided demo and architectural write-up.
