@@ -18,6 +18,7 @@ import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
 import { Modal } from "./RuntimeDialog";
 import { RunEvidencePanel } from "./RunEvidencePanel";
+import { RunListRequests } from "./runListRequests";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -83,7 +84,7 @@ export function DurableExecution({
     );
   const scope = liveIntentScope("run", me.user.org_id, me.user.id, me.environment);
   const [pendingRun, setPendingRun] = useState(() => pendingIntent(scope));
-  const loadEpoch = useRef(0);
+  const listRequests = useRef(new RunListRequests());
   const canEdit = me.permissions?.includes("operate"),
     canReview = me.permissions?.includes("approve"),
     run = rows.find((r) => r.id === selected) || rows[0],
@@ -91,8 +92,9 @@ export function DurableExecution({
   useEffect(() => {
     if (!agent && agents.length) setAgent(agents[0].id);
   }, [data.agents, agent]);
-  async function load() {
-    const epoch = ++loadEpoch.current;
+  async function load(force = true) {
+    const epoch = listRequests.current.start(force);
+    if (epoch === null) return;
     try {
       const r = await api(
         "/v1/agent-runs?offset=" +
@@ -110,23 +112,23 @@ export function DurableExecution({
           items.unshift(await api("/v1/agent-runs/" + selected));
         } catch {}
       }
-      if (epoch !== loadEpoch.current) return;
+      if (!listRequests.current.accepts(epoch)) return;
       setRows(items);
       setNext(r.next_offset);
     } catch (e) {
-      if (epoch === loadEpoch.current) setError((e as Error).message);
+      if (listRequests.current.accepts(epoch)) setError((e as Error).message);
     } finally {
-      if (epoch === loadEpoch.current) setLoading(false);
+      if (listRequests.current.finish(epoch)) setLoading(false);
     }
   }
   useEffect(() => {
     load();
-    const id = setInterval(load, 3000);
+    const id = setInterval(() => load(false), 3000);
     return () => {
       clearInterval(id);
-      loadEpoch.current += 1;
+      listRequests.current.invalidate();
     };
-  }, [offset, selected, attentionOnly]);
+  }, [offset, selected, attentionOnly, scope]);
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -258,7 +260,7 @@ export function DurableExecution({
           type="checkbox"
           checked={attentionOnly}
           onChange={(event) => {
-            loadEpoch.current += 1;
+            listRequests.current.invalidate();
             setAttentionOnly(event.target.checked);
             setOffset(0);
             setSelected("");

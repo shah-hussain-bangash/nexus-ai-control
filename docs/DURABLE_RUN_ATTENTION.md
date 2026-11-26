@@ -16,6 +16,9 @@ unrelated later checkpoint into this queue.
 Switching the filter resets pagination and selection. Responses from an older
 list request cannot replace the current filtered view. A previously selected run
 that leaves the attention queue is not fetched back into it by selection recovery.
+Background polling waits for an in-flight list response instead of repeatedly
+superseding it. Explicit refresh and view changes can replace an older request;
+late cleanup cannot release a newer request or populate another view.
 
 This is an inspection view. It does not dispatch, retry, approve, reconcile,
 cancel or compensate any effect. Use the existing independent review, business
