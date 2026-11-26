@@ -10,6 +10,12 @@ NEXUS is a control plane for AI agents that request access to enterprise tools a
 
 Captured on 26 November 2026 from the authenticated React console, FastAPI API and execution worker at [the source revision under review](https://github.com/shah-hussain-bangash/nexus-ai-control/tree/c89707b7812c9d92ee3de93d2c2863921b1955bd). The run used a disposable local database, demo accounts and the synthetic connector.
 
+### Workspace sign-in
+
+![NEXUS AI Control workspace sign-in screen showing empty email and password fields](docs/case-study/assets/nexus-sign-in.webp)
+
+The local workspace sign-in page is the entry point to the authenticated console.
+
 ### AI command center
 
 ![NEXUS AI Control command center showing the local staging workspace and production acceptance status](docs/case-study/assets/nexus-command-center.webp)
