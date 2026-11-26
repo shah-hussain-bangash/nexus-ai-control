@@ -22,10 +22,11 @@ retained **before** applying `top_k` (1–10). Other documents can therefore fil
 slots that repeated passages occupied. Scores and citation IDs do not change.
 No corpus terms or chunks from unreadable documents enter ranking.
 
-The internal search helper defaults to the existing behavior. Saved retrieval
-quality checks, generated-answer retrieval and existing internal callers retain
-their passage-level mode. This change does not add a new evaluation method or
-claim that saved quality scores cover the optional mode.
+The internal search helper defaults to the existing behavior. Existing internal
+callers and generated-answer retrieval retain passage-level mode. Saved quality
+checks now support an explicit, recorded opt-in described in
+[document-diversity evaluation](RETRIEVAL_DIVERSITY_EVALUATION.md); older checks
+retain their original passage-level interpretation.
 
 ## Limits
 
