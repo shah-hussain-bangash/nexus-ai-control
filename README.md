@@ -67,6 +67,8 @@ Use the loopback URL and the development password printed by the launcher setup.
 | Local frontend | 100 tests passed and the Vite production build succeeded. Vite reported an advisory for the main bundle exceeding 500 kB minified. |
 | [GitHub Actions for the captured revision](https://github.com/shah-hussain-bangash/nexus-ai-control/actions/runs/45760501365) | Backend, PostgreSQL, Windows launcher, frontend and OPA jobs succeeded. |
 
+The [staging verification guide](infra/pilot/README.md#staging-verification) includes the read-only HTTPS preflight and the evidence needed for MFA, secret rotation, alerts and recovery.
+
 The [local pilot runbook](docs/LOCAL_PILOT_ACCEPTANCE.md) has the repeatable checks and acceptance criteria. The [generated production roadmap](docs/PRODUCTION_ROADMAP.md) tracks 1 implemented workstream awaiting acceptance and 17 partial workstreams. The 18-area, 216-function catalog represents design previews. Customer workflow validation, independent bilingual answer evaluation, deployment security and measured recovery remain release gates.
 
 <details>

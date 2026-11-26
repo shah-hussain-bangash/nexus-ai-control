@@ -16,3 +16,23 @@ The profile has not been built/run here because Docker is unavailable. It is a s
 Stop API and worker before a cross-database snapshot. From the configured backend environment: python -m nexus.cli backup --destination ABSOLUTE_NEW_PRIVATE_DIRECTORY --quiesced. The destination must not already exist. PostgreSQL requires pg_dump to be installed and permitted; credentials are passed in process environment, not command arguments. The minimal application image does not bundle pg_dump: run backup in an operator environment with a compatible PostgreSQL client. Encrypt, transfer and retain the output using approved external storage.
 
 Inspect: python -m nexus.cli inspect-backup --destination BACKUP_DIRECTORY. This verifies checksums and SQLite integrity; it does not restore PostgreSQL. Test pg_restore into a new disposable database using protected connection settings; never use the live database or destructive --clean for a restore drill. Confirm schema, accounts, audit/action consistency and actual app readiness against the restored database. Record RPO/RTO and restore evidence. No automated production restore is claimed.
+
+## Staging verification
+
+After the approved staging endpoint is up, run the read-only preflight from the repository root. Install `backend/requirements.txt` in your operator virtual environment first.
+
+```sh
+python scripts/check_staging.py https://YOUR_REVIEWED_STAGING_HOST --expected-schema 11 > staging-preflight.json
+```
+
+The command fails if the expected schema, readiness, HSTS, pilot policy engine, OIDC configuration or anonymous access controls fail. It follows no redirects and accepts a trusted private CA with `--ca-bundle`. To verify a scrape, inject `NEXUS_STAGING_METRICS_TOKEN` from the approved secret store and add `--check-metrics`. The scrape token is used only in the metrics request header. The receipt records check results, rather than URLs, tokens, or response bodies. Keep the receipt with the environment and immutable image digest in your private release record.
+
+| Gate | Evidence required on the target environment |
+| --- | --- |
+| SSO and MFA | Sign in with a pre-provisioned test user after the IdP confirms the required MFA context. Repeat with a password-only session and an unprovisioned identity. Record denial and revocation outcomes. |
+| Secret management | Record the deployed secret references, access owners, and rotation test. Prove the new secret works and the previous one is rejected. Store secret values only in the approved store. |
+| Monitoring and alerts | Record a passing authenticated scrape. Configure the approved monitor for failed readiness and scrape availability. Review operational thresholds for queued work and unknown outcomes if the worker is enabled. Trigger and resolve a controlled failure in staging, then record alert delivery and recovery times. |
+| Database recovery | Restore a representative encrypted snapshot to a separate disposable target. Verify readiness, scoped access, and one approved business record. Record the measured recovery time and data-loss window against agreed RTO and RPO targets. |
+| Release decision | Record the scope, image digest, run IDs, owners, and disposition of each gate. CI recovery and synthetic browser runs can support the record. Complete the target-specific checks before accepting the deployment. |
+
+The hosted [PostgreSQL recovery rehearsal](../../docs/CI_POSTGRESQL_RECOVERY.md) describes the tested archive and fresh-restore procedure. The preflight receipt leaves deployment acceptance open.
