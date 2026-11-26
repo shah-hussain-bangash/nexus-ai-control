@@ -121,7 +121,7 @@ def allowed_docs(db,user,environment=None):
     rows=db.scalars(select(KnowledgeDocument).where(KnowledgeDocument.org_id==user.org_id,KnowledgeDocument.env==environment,KnowledgeDocument.status=='indexed').order_by(KnowledgeDocument.created.desc())).all()
     return [doc for doc in rows if can_read(doc,user,environment)]
 
-def search_documents(db,user,query,top_k,environment=None):
+def search_documents(db,user,query,top_k,environment=None,*,one_per_document=False):
     environment=runtime_environment(db,user.org_id,environment)
     docs=allowed_docs(db,user,environment);by_id={d.id:d for d in docs}
     terms=list(dict.fromkeys(search_tokens(query)))[:64]
@@ -138,7 +138,14 @@ def search_documents(db,user,query,top_k,environment=None):
         if score:
             doc=by_id[chunk.document_id]
             ranked.append({'document_id':doc.id,'document_version':doc.version,'title':doc.title,'filename':doc.filename,'chunk':chunk.position+1,'excerpt':chunk.text,'sha256':chunk.content_hash,'score':round(score,5),'citation':f'{doc.id}:v{doc.version}:chunk{chunk.position+1}'})
-    return sorted(ranked,key=lambda r:(-r['score'],r['document_id'],r['chunk']))[:top_k]
+    ordered=sorted(ranked,key=lambda r:(-r['score'],r['document_id'],r['chunk']))
+    if one_per_document:
+        seen=set();distinct=[]
+        for hit in ordered:
+            if hit['document_id'] not in seen:
+                seen.add(hit['document_id']);distinct.append(hit)
+        ordered=distinct
+    return ordered[:top_k]
 
 def register_documents(app,factory,settings,human):
     @app.get('/v1/documents')
@@ -167,9 +174,9 @@ def register_documents(app,factory,settings,human):
             return metadata(doc)
 
     @app.get('/v1/documents/search')
-    def search(request:Request,q:str=Query(min_length=2,max_length=1000),top_k:int=Query(5,ge=1,le=10)):
+    def search(request:Request,q:str=Query(min_length=2,max_length=1000),top_k:int=Query(5,ge=1,le=10),one_per_document:bool=False):
         with factory() as db:
-            user=human(request,db);return {'items':search_documents(db,user,q,top_k),'method':'ACL-filtered BM25-style lexical ranking','normalization_version':NORMALIZATION_VERSION,'provider_calls':0}
+            user=human(request,db);return {'items':search_documents(db,user,q,top_k,one_per_document=one_per_document),'method':'ACL-filtered BM25-style lexical ranking'+('; highest-ranked passage per document' if one_per_document else ''),'one_per_document':one_per_document,'normalization_version':NORMALIZATION_VERSION,'provider_calls':0}
 
     @app.post('/v1/documents/recover')
     def recover(body:Recover,request:Request):
