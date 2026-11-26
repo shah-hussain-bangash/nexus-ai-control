@@ -194,6 +194,18 @@
 .live-search .ops-search input {
   padding-left: 42px;
 }
+.live-search > .live-search-diversity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.live-search-diversity input[type="checkbox"] {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+}
 .live-citation {
   border: 1px solid #3a6783;
   border-radius: 12px;

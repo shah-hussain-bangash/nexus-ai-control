@@ -602,6 +602,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
     [busy, setBusy] = useState(false),
     [detail, setDetail] = useState<Row | null>(null),
     [query, setQuery] = useState(""),
+    [onePerDocument, setOnePerDocument] = useState(false),
     [searchMethod, setSearchMethod] = useState(
       "ACL-filtered BM25-style lexical ranking",
     ),
@@ -829,7 +830,10 @@ export function DocumentLibrary({ me }: { me: Row }) {
     setError("");
     try {
       const r = await api(
-        "/v1/documents/search?q=" + encodeURIComponent(query) + "&top_k=10",
+        "/v1/documents/search?q=" +
+          encodeURIComponent(query) +
+          "&top_k=10" +
+          (onePerDocument ? "&one_per_document=true" : ""),
       );
       setResults(r.items);
       setSearchMethod(r.method || "ACL-filtered lexical ranking");
@@ -968,6 +972,15 @@ export function DocumentLibrary({ me }: { me: Row }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+        </label>
+        <label className="live-search-diversity">
+          <input
+            type="checkbox"
+            checked={onePerDocument}
+            disabled={busy}
+            onChange={(e) => setOnePerDocument(e.target.checked)}
+          />
+          One result per document
         </label>
         <button className="btn btn-primary" disabled={busy}>
           Search documents
