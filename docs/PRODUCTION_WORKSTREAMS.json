@@ -36,7 +36,7 @@
       "title": "Semantic retrieval & reranking",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Local ACL-first LSA/BM25 retrieval, Arabic normalization, optional one-result-per-document selection, synthetic knowledge drills and a separate opt-in local embedding client/cosine-ranking foundation are implemented. Authorized neural-search integration, persistent vector indexing, learned reranking and representative bilingual relevance acceptance remain.",
+      "required_evidence": "Local ACL-first LSA/BM25 retrieval, Arabic normalization, document diversity, synthetic drills and disabled-by-default authorized local neural ranking with configured model-digest checks and isolated workers are implemented. Persistent/scalable vector indexing, learned reranking and actual-model/bilingual relevance acceptance remain.",
       "workspace": "knowledge"
     },
     {

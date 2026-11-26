@@ -38,6 +38,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Every planned function and connected boundary](docs/FUNCTION_IMPLEMENTATION_MAP_0_16_0.csv)
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Local neural embedding foundation](docs/LOCAL_NEURAL_EMBEDDING_FOUNDATION.md)
+- [Authorized local neural search](docs/AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
 - [Combined local-pilot integration review](docs/PILOT_INTEGRATION_REVIEW.md)
 - [One result per document](docs/RETRIEVAL_SOURCE_DIVERSITY.md)
 - [Read-only identical indexed-text review](docs/DOCUMENT_COPY_REVIEW.md)

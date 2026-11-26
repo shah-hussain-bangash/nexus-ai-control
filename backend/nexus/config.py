@@ -34,6 +34,9 @@ class Settings:
     live_inference: int = 0
     ollama_enabled: int = 0
     ollama_models: str = ''
+    ollama_embedding_enabled: int = 0
+    ollama_embedding_model: str = ''
+    ollama_embedding_digest: str = ''
     provider_hosts: str = ''
     provider_prices: str = '{}'
     monthly_budget_usd: str = '0'
@@ -62,7 +65,7 @@ class Settings:
         for k in keys:
             v = os.getenv('NEXUS_' + k.upper())
             if v is not None:
-                values[k] = int(v) if k in ('session_seconds', 'live_inference', 'ollama_enabled', 'inference_max_output', 'inference_response_bytes', 'inference_requests_per_minute', 'inference_max_inflight', 'business_timeout_seconds', 'business_response_bytes', 'ingestion_ocr_enabled', 'ingestion_timeout_seconds', 'ingestion_in_action_worker') else v
+                values[k] = int(v) if k in ('session_seconds', 'live_inference', 'ollama_enabled', 'ollama_embedding_enabled', 'inference_max_output', 'inference_response_bytes', 'inference_requests_per_minute', 'inference_max_inflight', 'business_timeout_seconds', 'business_response_bytes', 'ingestion_ocr_enabled', 'ingestion_timeout_seconds', 'ingestion_in_action_worker') else v
         return cls(**values)
 
     def validate(self):
@@ -84,6 +87,11 @@ class Settings:
         if self.live_inference not in (0, 1) or not 1 <= self.inference_max_output <= 32768 or not 4096 <= self.inference_response_bytes <= 4194304:
             raise RuntimeError('Invalid inference runtime limits.')
         from .ollama import valid_model_tag
+        embedding_pair = bool(self.ollama_embedding_model or self.ollama_embedding_digest)
+        if (self.ollama_embedding_enabled not in (0, 1) or
+                embedding_pair and (not valid_model_tag(self.ollama_embedding_model) or type(self.ollama_embedding_digest) is not str or not re.fullmatch(r'[a-f0-9]{64}',self.ollama_embedding_digest)) or
+                self.ollama_embedding_enabled and (self.mode != 'local' or not embedding_pair)):
+            raise RuntimeError('Local neural search requires local mode, an explicit embedding model:tag and its 64-character digest.')
         if self.ollama_enabled not in (0, 1):
             raise RuntimeError('OLLAMA_ENABLED must be 0 or 1.')
         local_models = [item.strip() for item in self.ollama_models.split(',') if item.strip()]

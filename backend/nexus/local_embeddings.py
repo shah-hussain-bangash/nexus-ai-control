@@ -5,6 +5,7 @@ Callers must authorize text before passing it here; vectors are not persisted.
 """
 import json
 import math
+import re
 import time
 
 import httpx
@@ -61,7 +62,7 @@ def invalid_constant(_):
     reject('EMBEDDING_RESPONSE_INVALID')
 
 
-def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
+def embed_texts(model, texts, *, transport=None, timeout_seconds=10, expected_digest=None):
     """Use only fixed numeric loopback; metadata is checked before text is sent.
 
     Transport injection is for trusted in-process tests, never request input.
@@ -72,15 +73,17 @@ def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
         reject('EMBEDDING_MODEL_INVALID')
     texts = texts.copy() if type(texts) is list else texts
     validate_texts(texts)
+    if expected_digest is not None and (type(expected_digest) is not str or not re.fullmatch(r'[a-f0-9]{64}',expected_digest)):
+        reject('EMBEDDING_DIGEST_INVALID')
     if not finite_number(timeout_seconds) or not 0 < timeout_seconds <= 30:
         reject('EMBEDDING_TIMEOUT_INVALID')
     deadline = time.monotonic() + timeout_seconds
 
-    def request(client, path, payload):
+    def request(client, path, payload=None, method='POST'):
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             reject('EMBEDDING_DEADLINE')
-        with client.stream('POST', BASE_URL + path, json=payload,
+        with client.stream(method, BASE_URL + path, json=payload,
                            timeout=httpx.Timeout(remaining, connect=min(2, remaining))) as response:
             if response.status_code != 200:
                 reject('EMBEDDING_HTTP_ERROR')
@@ -100,8 +103,19 @@ def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
             reject('EMBEDDING_RESPONSE_INVALID')
         return data
 
+    def check_digest(client):
+        data = request(client, '/api/tags', method='GET')
+        models = data.get('models')
+        if type(models) is not list or len(models)>1000 or any(type(row) is not dict for row in models):
+            reject('EMBEDDING_RESPONSE_INVALID')
+        matches = [row for row in models if row.get('name')==model or row.get('model')==model]
+        if (len(matches)!=1 or matches[0].get('name')!=model or matches[0].get('model',model)!=model or
+                matches[0].get('digest')!=expected_digest):
+            reject('EMBEDDING_MODEL_CHANGED')
+
     try:
         with httpx.Client(transport=transport, trust_env=False, follow_redirects=False) as client:
+            if expected_digest is not None:check_digest(client)
             info = request(client, '/api/show', {'model': model})
             # Reject remote proxies and require local weight metadata plus the
             # embedding capability before transmitting any source/query text.
@@ -113,6 +127,7 @@ def embed_texts(model, texts, *, transport=None, timeout_seconds=10):
                     'embedding' not in capabilities):
                 reject('EMBEDDING_LOCAL_WEIGHTS_REQUIRED')
             result = request(client, '/api/embed', {'model': model, 'input': texts, 'truncate': False})
+            if expected_digest is not None:check_digest(client)
     except EmbeddingError:
         raise
     except httpx.TimeoutException:

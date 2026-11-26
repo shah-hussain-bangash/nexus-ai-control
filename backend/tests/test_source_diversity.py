@@ -41,7 +41,7 @@ def test_api_records_diversity_mode_and_retains_legacy_default_fingerprint(ctx,m
     corpus(ctx);monkeypatch.setattr('nexus.hybrid.compute',rank)
     old=search(ctx,query='pump',semantic_weight=0,min_score=0,top_k=2).json()
     assert len(old['items'])==2 and len({r['document_id'] for r in old['items']})==1
-    expected=Search(query='pump',dimensions=2,semantic_weight=0,min_score=0,top_k=2).model_dump();expected.pop('one_per_document')
+    expected={'query':'pump','sources':[],'dimensions':2,'semantic_weight':0.0,'min_score':0.0,'top_k':2}
     with ctx['db']() as db:assert db.get(WorkbenchRun,old['id']).result['fingerprint']==hashlib.sha256(canonical(expected).encode()).hexdigest()
     assert search(ctx,query='pump',semantic_weight=0,min_score=0,top_k=2,one_per_document=False).json()['id']==old['id']
     assert search(ctx,query='pump',semantic_weight=0,min_score=0,top_k=2,one_per_document=True).status_code==409

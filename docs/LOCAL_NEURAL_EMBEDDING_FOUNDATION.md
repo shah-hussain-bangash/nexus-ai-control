@@ -79,10 +79,11 @@ acceptance follows from those tests.
 
 ## Next development and acceptance
 
-Before exposing neural retrieval in the dashboard, implement explicit operator
-model configuration, model revision binding, ACL-first corpus selection and
-completion rechecks, rate/concurrency admission, hard worker isolation and scoped
-history. Persistent vector indexing, content/version/ACL invalidation, retention,
+The next source increment adds [authorized local neural search](AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
+with explicit operator configuration, server-reported model digest checks,
+ACL-first selection/completion rechecks, admission controls, worker isolation and
+scoped history. It remains disabled by default and does not enable this PC's model.
+Persistent vector indexing, content/version/ACL invalidation, retention,
 learned reranking and representative English/Arabic evaluation remain separate
 work. The roadmap stays partial. The feature builds on integration PR #83;
 merging, model setup and deployment are outside this development increment.
