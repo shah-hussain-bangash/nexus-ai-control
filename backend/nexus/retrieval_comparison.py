@@ -41,7 +41,8 @@ def snapshot(detail):
         'mean_document_precision_at_k': mean('document_precision_at_k'),
         'mean_reciprocal_rank': mean('reciprocal_rank'), 'stale': detail['stale'],
         'normalization_version': detail['result'].get('normalization_version','legacy-unversioned'),
-        'corpus_fingerprint': detail['result']['corpus_fingerprint']}
+        'corpus_fingerprint': detail['result']['corpus_fingerprint'],
+        'one_per_document':detail['result'].get('one_per_document',False)}
 
 
 def compare_details(baseline, candidate):

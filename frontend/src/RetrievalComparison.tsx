@@ -70,9 +70,9 @@ export function RetrievalComparison({
       <h4>Compare saved runs</h4>
       <p>
         Choose one of your checks on this history page as the baseline. Both
-        runs must use the same ordered cases, source expectations, top-k,
-        language labels and precision targets, under your current role. Names
-        may differ.
+        runs must use the same ordered cases, source expectations, top-k, search
+        mode, language labels and precision targets, under your current role.
+        Names may differ.
       </p>
       <label>
         Baseline saved check
