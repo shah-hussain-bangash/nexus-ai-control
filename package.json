@@ -3,6 +3,8 @@
   "version": "0.16.2",
   "private": true,
   "scripts": {
+    "embeddings:check": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check-local-embeddings.ps1",
+    "embeddings:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check-local-embeddings.ps1 -RunLocal",
     "dev:business-reference": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/business-reference.ps1",
     "test:answers": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-answers.ps1",
     "test:answers:local": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-answers.ps1 -LocalOllama",
