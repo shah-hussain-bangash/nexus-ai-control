@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
+import { hybridSearchRequest } from "./hybridSearchRequest";
 import "./live.css";
 import "./enterpriseRuntime.css";
 type Row = Record<string, any>;
@@ -53,6 +54,9 @@ export function HybridRetrieval({ me }: { me: Row }) {
     [threshold, setThreshold] = useState(0.15),
     [top, setTop] = useState(5),
     [onePerDocument, setOnePerDocument] = useState(false),
+    [neural, setNeural] = useState(false),
+    [neuralAvailable, setNeuralAvailable] = useState(false),
+    [neuralModel, setNeuralModel] = useState(""),
     [result, setResult] = useState<Row | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -68,6 +72,10 @@ export function HybridRetrieval({ me }: { me: Row }) {
   }
   async function load() {
     try {
+      const capabilities = await api("/v1/hybrid-search/capabilities");
+      setNeuralAvailable(capabilities.neural_embeddings === true);
+      setNeuralModel(capabilities.neural_model || "");
+      if (capabilities.neural_embeddings !== true) setNeural(false);
       const all: Row[] = [];
       let at: number | null = 0;
       while (at !== null) {
@@ -114,20 +122,21 @@ export function HybridRetrieval({ me }: { me: Row }) {
           <p className="eyebrow">CONNECTED RUNTIME</p>
           <h2>Find evidence across your documents</h2>
           <p>
-            Local hybrid search combines corpus-fitted LSA similarity and BM25
-            keyword ranking. Results are source excerpts with versioned
-            citations.
+            Choose default LSA/BM25 search or operator-enabled local neural
+            similarity. Results are source excerpts with versioned citations.
           </p>
           <p>
-            Arabic search ignores common vowel marks and spelling variants. Read
-            the source excerpt for the exact original wording.
+            LSA/BM25 search normalizes common Arabic spelling variants. Neural
+            language behavior depends on the selected model. Read the original
+            excerpt.
           </p>
         </div>
       </div>
       <div className="ops-alert">
-        Bounded local search: up to 20 documents, 128 chunks and 1,024 terms. No
-        neural embeddings, translation, persistent vector index or generated
-        answers. Scores are rankings, not confidence.
+        Bounded local search: up to 20 documents. Default LSA supports 128
+        chunks; opt-in neural search supports 32 passages and a pinned local
+        model. No persistent vector index or generated answers. Scores are not
+        confidence.
       </div>
       <Alerts error={error} notice={notice} />
       <div className="live-grid">
@@ -135,43 +144,47 @@ export function HybridRetrieval({ me }: { me: Row }) {
           className="panel runtime-card"
           onSubmit={(e) => {
             e.preventDefault();
+            const body = hybridSearchRequest({
+              neural,
+              query,
+              sources: docs
+                .filter((d) => selected.includes(d.id))
+                .map((d) => ({ id: d.id, version: d.version })),
+              dimensions,
+              weight,
+              threshold,
+              top,
+              onePerDocument,
+            });
             void act(() =>
-              sendLiveIntent(
-                sessionStorage,
-                intent.scope,
-                {
-                  query,
-                  sources: docs
-                    .filter((d) => selected.includes(d.id))
-                    .map((d) => ({ id: d.id, version: d.version })),
-                  dimensions,
-                  semantic_weight: weight,
-                  min_score: threshold,
-                  top_k: top,
-                  ...(onePerDocument ? { one_per_document: true } : {}),
-                },
-                (key) =>
-                  api(
-                    "/v1/hybrid-search",
-                    "POST",
-                    {
-                      query,
-                      sources: docs
-                        .filter((d) => selected.includes(d.id))
-                        .map((d) => ({ id: d.id, version: d.version })),
-                      dimensions,
-                      semantic_weight: weight,
-                      min_score: threshold,
-                      top_k: top,
-                      ...(onePerDocument ? { one_per_document: true } : {}),
-                    },
-                    key,
-                  ),
+              sendLiveIntent(sessionStorage, intent.scope, body, (key) =>
+                api("/v1/hybrid-search", "POST", body, key),
               ),
             );
           }}
         >
           <h3>Search setup</h3>
+          <label className="field">
+            <span>Search method</span>
+            <select
+              value={neural ? "local_neural" : "local_lsa"}
+              disabled={busy}
+              onChange={(e) => setNeural(e.target.value === "local_neural")}
+            >
+              <option value="local_lsa">LSA and keyword ranking</option>
+              <option value="local_neural" disabled={!neuralAvailable}>
+                Local neural similarity
+                {!neuralAvailable ? " — operator setup required" : ""}
+              </option>
+            </select>
+          </label>
+          {neural && (
+            <p>
+              Configured local model: {neuralModel}. This search sends
+              authorized text to local Ollama; model quality has not been
+              accepted.
+            </p>
+          )}
           <label className="runtime-check">
             <input
               type="checkbox"
@@ -247,6 +260,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
                 max={32}
                 required
                 value={dimensions}
+                disabled={neural}
                 onChange={(e) => setDimensions(Number(e.target.value))}
               />
             </label>
@@ -259,6 +273,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
                 step="0.05"
                 required
                 value={weight}
+                disabled={neural}
                 onChange={(e) => setWeight(Number(e.target.value))}
               />
             </label>
@@ -318,9 +333,22 @@ export function HybridRetrieval({ me }: { me: Row }) {
               <p>
                 <strong>{result.status}</strong> · {result.duration_ms} ms ·{" "}
                 {result.source_count} sources · {result.corpus_chunks} chunks ·
-                rank {result.rank}
+                {result.parameters?.retrieval_mode === "local_neural"
+                  ? "neural similarity"
+                  : `rank ${result.rank}`}
               </p>
               {result.error_code && <p role="alert">{result.error_code}</p>}
+              <p>{result.method}</p>
+              {result.parameters?.retrieval_mode === "local_neural" && (
+                <p>
+                  Model {result.parameters.embedding_model} ·{" "}
+                  {result.embedding_dimensions} embedding dimensions · local
+                  HTTP requests {result.provider_calls ?? "unconfirmed"}
+                  <code className="live-hash">
+                    Model digest {result.parameters.embedding_digest}
+                  </code>
+                </p>
+              )}
               <p>
                 {result.parameters?.one_per_document === true
                   ? "Recorded mode: one result per document."
@@ -329,7 +357,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
               {result.normalization_current === false && (
                 <p role="status">
                   This saved search used an earlier text-matching method. Run a
-                  new search to use the current Arabic matching rules.
+                  new search to use the current retrieval method.
                 </p>
               )}
               {result.items?.map((hit: Row) => (
@@ -338,12 +366,20 @@ export function HybridRetrieval({ me }: { me: Row }) {
                   <p className="runtime-citation">{hit.citation}</p>
                   <p className="runtime-excerpt">{hit.excerpt}</p>
                   <dl>
-                    <dt>Combined score</dt>
+                    <dt>
+                      {result.parameters?.retrieval_mode === "local_neural"
+                        ? "Neural similarity"
+                        : "Combined score"}
+                    </dt>
                     <dd>{hit.score.toFixed(3)}</dd>
                     <dt>Semantic similarity</dt>
                     <dd>{hit.semantic_score.toFixed(3)}</dd>
                     <dt>Keyword score</dt>
-                    <dd>{hit.lexical_score.toFixed(3)}</dd>
+                    <dd>
+                      {result.parameters?.retrieval_mode === "local_neural"
+                        ? "Not used"
+                        : hit.lexical_score.toFixed(3)}
+                    </dd>
                   </dl>
                 </article>
               ))}
