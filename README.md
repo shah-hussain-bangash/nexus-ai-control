@@ -9,6 +9,11 @@ remaining acceptance work.
 **Cursor on Windows:** start with [CURSOR_QUICKSTART.md](CURSOR_QUICKSTART.md).
 Run `npm run setup`, then `npm start` from this folder.
 
+**Local pilot on this PC:** follow [local pilot acceptance](docs/LOCAL_PILOT_ACCEPTANCE.md).
+Use `npm run pilot:check` for read-only checks and `npm run test:answers:local`
+for the small synthetic English/Arabic Ollama exercise. Automated passes do not
+grant customer or production acceptance.
+
 Enterprise Agentic AI Governance, Security & Operations Platform.
 
 **Featured case study:** [NEXUS AI Control Case Study — governed AI execution, evidence retrieval and operational accountability](docs/case-study/NEXUS_AI_CONTROL_CASE_STUDY.md). Explore architecture decisions, independent approval, uncertain-outcome recovery, AI FinOps, source-scoped retrieval, environment isolation and inspected current CI evidence.

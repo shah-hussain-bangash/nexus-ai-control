@@ -52,7 +52,7 @@
       "title": "Bilingual answer evaluation",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Reviewer-labelled retrieval metrics, precision targets, saved-run comparisons and a disposable synthetic retrieval drill are implemented. Generated-answer quality, grounding, refusal and poisoning evaluation remain.",
+      "required_evidence": "Reviewer-labelled retrieval metrics, precision targets, saved-run comparisons, synthetic retrieval checks and a disposable English/Arabic answer-control exercise with optional installed local Ollama are implemented. Independent generated-answer quality, grounding, refusal, broader poisoning and representative pilot acceptance remain.",
       "workspace": "evaluationlab"
     },
     {
