@@ -31,6 +31,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Hybrid completion and concurrent source changes](docs/HYBRID_COMPLETION_ORDERING.md)
 - [Local ranking response validation](docs/RANKING_RESPONSE_VALIDATION.md)
 - [Disposable synthetic retrieval test](docs/SYNTHETIC_RETRIEVAL_DRILL.md) — `npm run test:retrieval`
+- [Offline English and Arabic answer review](docs/SYNTHETIC_ANSWER_EVALUATION.md) — synthetic fixtures, citation checks and response-bound reviewer labels
 - [Combined synthetic knowledge test](docs/SYNTHETIC_KNOWLEDGE_DRILL.md) — `npm run test:knowledge`
 - [Synthetic file-ingestion test](docs/SYNTHETIC_INGESTION_DRILL.md) — `npm run test:ingestion`
 - [File-worker completion deadlines](docs/INGESTION_COMPLETION_DEADLINES.md)
