@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from conftest import auth, approve
 from test_durable import create, advance, control, body
 from test_local_switching import prepare, switch, headers, current
-from nexus.db import DurableRun, DurableStep, Action, Approval, Audit, User
+from nexus.db import DurableRun, DurableStep, Action, Approval, Audit, User, CURRENT_SCHEMA
 from nexus.environments import assign_staging
 from nexus.security import digest
 from nexus.service import canonical
@@ -31,7 +31,7 @@ def test_completed_snapshot_is_checksummed_private_and_read_only(ctx, monkeypatc
     assert response.headers['cache-control']=='no-store'
     assert report['integrity']['digest']==digest(canonical(p))
     assert report['integrity']['authenticated_signature'] is False
-    assert p['schema_version']==11 and p['run']['status']=='succeeded'
+    assert p['schema_version']==CURRENT_SCHEMA and p['run']['status']=='succeeded'
     assert p['steps'][1]['action']['verified'] and p['connector']['mode']=='synthetic'
     for private in ('SUP-DEMO-104','credential-sentinel','raw-response-sentinel','Supplier lookup','durable-test-key-001'):
         assert private not in response.text

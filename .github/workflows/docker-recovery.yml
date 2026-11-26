@@ -5,6 +5,9 @@ on:
       - 'scripts/run_docker_recovery_drill.py'
       - 'scripts/docker_recovery/**'
       - 'backend/tests/test_docker_recovery_tooling.py'
+      - 'backend/nexus/db.py'
+      - 'backend/nexus/neural_index_store.py'
+      - 'backend/tests/test_neural_index_storage.py'
       - '.github/workflows/docker-recovery.yml'
 permissions:
   contents: read

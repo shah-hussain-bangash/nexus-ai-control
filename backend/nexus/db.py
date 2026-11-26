@@ -7,7 +7,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 def uid(): return str(uuid.uuid4())
 def now(): return time.time()
 
-CURRENT_SCHEMA = 11
+CURRENT_SCHEMA = 12
 
 
 class Base(DeclarativeBase): pass
@@ -358,6 +358,38 @@ class AssetRevision(Scoped, Base):
     author_id: Mapped[str] = mapped_column(String)
 
 
+class NeuralIndex(Scoped, Base):
+    __tablename__ = 'neural_indexes'
+    __table_args__ = (UniqueConstraint('id','org_id','env'),
+                     UniqueConstraint('org_id','env','author_id','idem_key'),
+                     ForeignKeyConstraint(['author_id','org_id'],['users.id','users.org_id']))
+    author_id: Mapped[str] = mapped_column(String)
+    name: Mapped[str] = mapped_column(String)
+    model: Mapped[str] = mapped_column(String)
+    model_digest: Mapped[str] = mapped_column(String)
+    dimensions: Mapped[int] = mapped_column(Integer)
+    entry_count: Mapped[int] = mapped_column(Integer)
+    sources: Mapped[list] = mapped_column(JSON)
+    content_hash: Mapped[str] = mapped_column(String)
+    status: Mapped[str] = mapped_column(String,default='ready')
+    version: Mapped[int] = mapped_column(Integer,default=1)
+    idem_key: Mapped[str] = mapped_column(String)
+    request_digest: Mapped[str] = mapped_column(String)
+
+
+class NeuralVector(Scoped, Base):
+    __tablename__ = 'neural_vectors'
+    __table_args__ = (ForeignKeyConstraint(['index_id','org_id','env'],['neural_indexes.id','neural_indexes.org_id','neural_indexes.env'],ondelete='CASCADE'),
+                     ForeignKeyConstraint(['document_id','org_id','env'],['knowledge_documents.id','knowledge_documents.org_id','knowledge_documents.env']),
+                     UniqueConstraint('index_id','document_id','position'))
+    index_id: Mapped[str] = mapped_column(String,index=True)
+    document_id: Mapped[str] = mapped_column(String,index=True)
+    document_version: Mapped[int] = mapped_column(Integer)
+    position: Mapped[int] = mapped_column(Integer)
+    chunk_hash: Mapped[str] = mapped_column(String)
+    vector: Mapped[list] = mapped_column(JSON)
+
+
 class WorkbenchRun(Scoped, Base):
     __tablename__ = 'workbench_runs'
     asset_id: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -420,7 +452,7 @@ def database(url):
 
 def migrate(engine, factory):
     """Forward-only schema upgrades. Existing v1 data is preserved; unknown newer schemas refuse upgrade."""
-    from sqlalchemy import select, func, text
+    from sqlalchemy import select, func, text, inspect
     from .request_key_migration import migration_connection, migrate_request_keys
     with migration_connection(engine) as connection:
         if engine.dialect.name == 'postgresql':
@@ -429,7 +461,7 @@ def migrate(engine, factory):
         version = connection.scalar(select(func.max(SchemaVersion.version))) or 0
         if version > CURRENT_SCHEMA: raise RuntimeError('Database schema is newer than this application; upgrade the source first.')
         if version < 1:
-            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('session_runtime_contexts','workspace_environments','environment_assignments','oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
+            baseline = [t for t in Base.metadata.sorted_tables if t.name not in ('neural_indexes','neural_vectors','session_runtime_contexts','workspace_environments','environment_assignments','oidc_transactions', 'workspace_assets', 'asset_revisions', 'workbench_runs', 'inference_calls', 'inference_budgets', 'readiness_evidence','durable_runs','durable_steps','knowledge_documents','document_chunks','document_updates','retrieval_checks','ingestion_jobs')]
             Base.metadata.create_all(connection, tables=baseline)
             connection.execute(SchemaVersion.__table__.insert().values(version=1, applied=now()))
         if version < 2:
@@ -474,8 +506,9 @@ def migrate(engine, factory):
             existing=set(connection.execute(select(WorkspaceEnvironment.org_id,WorkspaceEnvironment.key)).all())
             organizations=set(connection.scalars(select(Organization.id)))
             contexts={(org,'staging') for org in organizations}
+            existing_tables=set(inspect(connection).get_table_names())
             for table in Base.metadata.sorted_tables:
-                if 'org_id' in table.c and 'env' in table.c:
+                if table.name in existing_tables and 'org_id' in table.c and 'env' in table.c:
                     contexts.update((org,env) for org,env in connection.execute(select(table.c.org_id,table.c.env).distinct()) if org in organizations)
             for org,key in sorted(contexts-existing):
                 connection.execute(WorkspaceEnvironment.__table__.insert().values(org_id=org,key=key,name='Staging' if key=='staging' else key,state='active' if key=='staging' else 'preparing',version=1,created=now(),updated=now()))
@@ -499,7 +532,11 @@ def migrate(engine, factory):
             migrate_request_keys(connection,Base.metadata)
             connection.execute(SchemaVersion.__table__.insert().values(version=11,applied=now()))
 
+        if version < 12:
+            for model in (NeuralIndex,NeuralVector):model.__table__.create(connection,checkfirst=True)
+            connection.execute(SchemaVersion.__table__.insert().values(version=12,applied=now()))
+
 
 def public(row):
-    hidden = {'original_data', 'extracted_text', 'lease_token', 'password_hash', 'credential_hash', 'csrf', 'idem_key', 'request_digest', 'key_hash', 'request_hash'}
+    hidden = {'vector', 'original_data', 'extracted_text', 'lease_token', 'password_hash', 'credential_hash', 'csrf', 'idem_key', 'request_digest', 'key_hash', 'request_hash'}
     return {col.name: getattr(row, col.name) for col in row.__table__.columns if col.name not in hidden}
