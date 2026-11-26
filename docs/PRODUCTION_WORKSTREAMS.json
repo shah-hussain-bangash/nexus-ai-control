@@ -44,7 +44,7 @@
       "title": "Document-level permissions",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Source ACL enforcement across retrieval, indexing and deletion.",
+      "required_evidence": "Source ACL enforcement across retrieval, indexing and deletion, plus read-only exact indexed-text copy review with visibility-filtered counts. Source ACL federation and representative deployment acceptance remain.",
       "workspace": "documents"
     },
     {

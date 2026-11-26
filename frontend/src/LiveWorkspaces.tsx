@@ -17,6 +17,7 @@ import { procurementRun, intakeMetadata, runControls } from "./liveRequests";
 import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
 import { Modal } from "./RuntimeDialog";
+import { DocumentCopyReview } from "./DocumentCopyReview";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -1096,6 +1097,7 @@ export function DocumentLibrary({ me }: { me: Row }) {
                 </div>
               )}
               <pre className="live-document">{detail.content}</pre>
+              <DocumentCopyReview key={`${detail.id}:${detail.version}`} id={detail.id} version={detail.version} onOpen={inspect} />
               <div className="live-actions">
                 {canEdit && detail.can_manage && (
                   <>
