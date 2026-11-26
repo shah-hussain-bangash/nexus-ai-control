@@ -18,6 +18,7 @@ import { registerNavigationGuard } from "./navigationGuard";
 import "./live.css";
 import { Modal } from "./RuntimeDialog";
 import { RunEvidencePanel } from "./RunEvidencePanel";
+import { RunListRequests } from "./runListRequests";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -69,6 +70,7 @@ export function DurableExecution({
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState(""),
     [offset, setOffset] = useState(0),
+    [attentionOnly, setAttentionOnly] = useState(false),
     [next, setNext] = useState<number | null>(null),
     [creating, setCreating] = useState(false),
     [command, setCommand] = useState(""),
@@ -82,6 +84,7 @@ export function DurableExecution({
     );
   const scope = liveIntentScope("run", me.user.org_id, me.user.id, me.environment);
   const [pendingRun, setPendingRun] = useState(() => pendingIntent(scope));
+  const listRequests = useRef(new RunListRequests());
   const canEdit = me.permissions?.includes("operate"),
     canReview = me.permissions?.includes("approve"),
     run = rows.find((r) => r.id === selected) || rows[0],
@@ -89,28 +92,43 @@ export function DurableExecution({
   useEffect(() => {
     if (!agent && agents.length) setAgent(agents[0].id);
   }, [data.agents, agent]);
-  async function load() {
+  async function load(force = true) {
+    const epoch = listRequests.current.start(force);
+    if (epoch === null) return;
     try {
-      const r = await api("/v1/agent-runs?offset=" + offset + "&limit=20");
+      const r = await api(
+        "/v1/agent-runs?offset=" +
+          offset +
+          "&limit=20&attention_only=" +
+          attentionOnly,
+      );
       const items = r.items;
-      if (selected && !items.some((x: Row) => x.id === selected)) {
+      if (
+        !attentionOnly &&
+        selected &&
+        !items.some((x: Row) => x.id === selected)
+      ) {
         try {
           items.unshift(await api("/v1/agent-runs/" + selected));
         } catch {}
       }
+      if (!listRequests.current.accepts(epoch)) return;
       setRows(items);
       setNext(r.next_offset);
     } catch (e) {
-      setError((e as Error).message);
+      if (listRequests.current.accepts(epoch)) setError((e as Error).message);
     } finally {
-      setLoading(false);
+      if (listRequests.current.finish(epoch)) setLoading(false);
     }
   }
   useEffect(() => {
     load();
-    const id = setInterval(load, 3000);
-    return () => clearInterval(id);
-  }, [offset, selected]);
+    const id = setInterval(() => load(false), 3000);
+    return () => {
+      clearInterval(id);
+      listRequests.current.invalidate();
+    };
+  }, [offset, selected, attentionOnly, scope]);
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -139,6 +157,7 @@ export function DurableExecution({
       );
       setPendingRun(null);
       setSelected(result.id);
+      setAttentionOnly(false);
       setCreating(false);
       setOffset(0);
       setNotice(
@@ -162,6 +181,7 @@ export function DurableExecution({
       acknowledgeRecovery(sessionStorage, scope, pendingRun, r);
       setPendingRun(null);
       setSelected(r.id);
+      setAttentionOnly(false);
       setNotice("Original run recovered without dispatching it again.");
       await load();
     } catch (e) {
@@ -235,6 +255,29 @@ export function DurableExecution({
         </div>
       </div>
       <Alerts error={error} notice={notice} />
+      <label>
+        <input
+          type="checkbox"
+          checked={attentionOnly}
+          onChange={(event) => {
+            listRequests.current.invalidate();
+            setAttentionOnly(event.target.checked);
+            setOffset(0);
+            setSelected("");
+            setRows([]);
+            setLoading(true);
+            setError("");
+          }}
+        />{" "}
+        Needs attention only
+      </label>
+      {attentionOnly && (
+        <p>
+          Checkpoint reviews, pending business approvals, uncertain outcomes and
+          stopped runs. Inspect the original action before using existing
+          controls; this view does not retry anything.
+        </p>
+      )}
       {pendingRun && (
         <div className="ops-alert" role="status">
           <p>
@@ -251,10 +294,15 @@ export function DurableExecution({
       ) : !rows.length ? (
         <div className="ops-empty">
           <Play size={28} />
-          <h3>No runs on this page</h3>
+          <h3>
+            {attentionOnly
+              ? "No runs need attention on this page"
+              : "No runs on this page"}
+          </h3>
           <p>
-            Create a supplier lookup or supervised procurement run. Keep the
-            execution worker running.
+            {attentionOnly
+              ? "No workflow currently matches this filter on this page. Turn it off to inspect other runs."
+              : "Create a supplier lookup or supervised procurement run. Keep the execution worker running."}
           </p>
         </div>
       ) : (
