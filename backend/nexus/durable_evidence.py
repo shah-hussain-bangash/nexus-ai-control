@@ -30,6 +30,8 @@ def build_evidence(rows, actor):
         require(run.status in RUN_STATES and 0 <= run.cursor <= len(definitions) and run.version >= 1)
         require(digest(canonical(run.definition)) == run.payload_hash == run.request_digest)
         require(type(rows[0][4]) is int and rows[0][4] >= 1)
+        start=run.definition.get('start_at')
+        require(start is None or type(start) is int and start>0)
         destination = run.definition.get('destination','mock-business-v1')
         require(destination == 'mock-business-v1' or re.fullmatch(r'http-business-v1:[a-f0-9]{64}',destination))
         steps = []
@@ -100,6 +102,7 @@ def build_evidence(rows, actor):
             'connector':{'mode':'synthetic' if destination == 'mock-business-v1' else 'http',
                          'binding_source':'recorded_workflow'},
             'steps':steps,'boundary':BOUNDARY}
+        if start is not None:payload['run']['scheduled_start_at_utc']=timestamp(start)
     except (KeyError, TypeError, ValueError, OverflowError, OSError, AttributeError):
         fail(409,'RUN_EVIDENCE_INCONSISTENT','Recorded workflow evidence is inconsistent; inspect the run and execution ledger.')
     return {'payload':payload,'integrity':{'algorithm':'sha256','canonicalization':'sorted-ascii-json-v1',

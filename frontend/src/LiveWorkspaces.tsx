@@ -19,6 +19,7 @@ import "./live.css";
 import { Modal } from "./RuntimeDialog";
 import { RunEvidencePanel } from "./RunEvidencePanel";
 import { RunListRequests } from "./runListRequests";
+import { scheduleRun } from "./runSchedule";
 const RetrievalQuality = lazy(() =>
   import("./RetrievalQuality").then((m) => ({ default: m.RetrievalQuality })),
 );
@@ -73,6 +74,7 @@ export function DurableExecution({
     [attentionOnly, setAttentionOnly] = useState(false),
     [next, setNext] = useState<number | null>(null),
     [creating, setCreating] = useState(false),
+    [startAt, setStartAt] = useState(""),
     [command, setCommand] = useState(""),
     [note, setNote] = useState(""),
     [agent, setAgent] = useState(""),
@@ -140,14 +142,17 @@ export function DurableExecution({
         purchase = data.tools.find(
           (t: Row) => t.kind === "purchase" && t.status === "validated",
         );
-      const body = procurementRun(
-        agent,
-        lookup?.id,
-        purchase?.id,
-        mode,
-        supplier,
-        amount,
-        purpose,
+      const body = scheduleRun(
+        procurementRun(
+          agent,
+          lookup?.id,
+          purchase?.id,
+          mode,
+          supplier,
+          amount,
+          purpose,
+        ),
+        startAt,
       );
       const result = await sendLiveIntent<Row & { id: string; status: string }>(
         sessionStorage,
@@ -159,9 +164,12 @@ export function DurableExecution({
       setSelected(result.id);
       setAttentionOnly(false);
       setCreating(false);
+      setStartAt("");
       setOffset(0);
       setNotice(
-        "Run saved and queued. The worker will advance each persisted checkpoint.",
+        result.scheduled_start_at
+          ? "Run saved with its scheduled start. The worker will check current permissions when it becomes due."
+          : "Run saved and queued. The worker will advance each persisted checkpoint.",
       );
       await load();
     } catch (e) {
@@ -339,6 +347,14 @@ export function DurableExecution({
               Checkpoint {Math.min(run.cursor + 1, run.steps.length)} of{" "}
               {run.steps.length} · lease recoveries {run.recoveries}
             </p>
+            {run.scheduled_start_at && (
+              <p>
+                Scheduled start:{" "}
+                {new Date(run.scheduled_start_at * 1000).toLocaleString()}. This
+                is the earliest start; the worker must be running. Current
+                approvals and permissions still apply.
+              </p>
+            )}
             {run.error && (
               <p className="ops-alert error">
                 Run stopped: {run.error}. Inspect the affected step before
@@ -490,6 +506,19 @@ export function DurableExecution({
           }}
         >
           <form onSubmit={create}>
+            <label>
+              Start once at (this computer’s local time; leave empty to start
+              now)
+              <input
+                type="datetime-local"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+              />
+            </label>
+            <p>
+              Choose a future time within seven days. This does not create a
+              recurring schedule or guarantee an exact start time.
+            </p>
             <p>
               This creates real database records and sends authorized work to
               {me.synthetic

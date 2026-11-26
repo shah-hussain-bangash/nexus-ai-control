@@ -9,7 +9,12 @@ export type RunEvidenceReport = {
     exported_at_utc: string;
     schema_version: number;
     scope: { workspace_id: string; account_id: string; environment: string };
-    run: { id: string; status: string; version: number };
+    run: {
+      id: string;
+      status: string;
+      version: number;
+      scheduled_start_at_utc?: string;
+    };
     connector: { mode: string };
     steps: {
       position: number;

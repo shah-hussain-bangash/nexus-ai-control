@@ -72,6 +72,11 @@ export function RunEvidencePanel({ id }: { id: string }) {
             {report.value.payload.connector.mode} connector.
           </p>
           <p>{report.value.payload.boundary}</p>
+          {report.value.payload.run.scheduled_start_at_utc && (
+            <p>
+              Scheduled start: {report.value.payload.run.scheduled_start_at_utc}
+            </p>
+          )}
           <ol>
             {report.value.payload.steps.map((step) => (
               <li key={step.position}>
