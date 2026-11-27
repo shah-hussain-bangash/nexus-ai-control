@@ -492,6 +492,8 @@ def create_app(settings=None):
     register_workbench(app, factory, settings, human)
     from .inference import register_inference
     register_inference(app, factory, settings, human)
+    from .billing_reviews import register_billing_reviews
+    register_billing_reviews(app,factory,human)
     from .readiness import register_readiness
     register_readiness(app, factory, settings, human)
     from .durable import register_durable
