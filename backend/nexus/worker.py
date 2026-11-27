@@ -11,6 +11,7 @@ from .security import digest, PERMISSIONS
 from .runtime_context import environment_user_allowed
 from .durable import run_flow_once
 from .ingestion import run_ingestion_once
+from .neural_index_jobs import run_index_job_once
 
 
 def run_once(factory, settings, connector):
@@ -84,7 +85,8 @@ def main():
             did_action=run_once(factory, settings, connector)
             did_run=run_flow_once(factory,settings)
             did_intake=run_ingestion_once(factory,settings) if settings.ingestion_in_action_worker else False
-            if not did_action and not did_run and not did_intake: time.sleep(1)
+            did_index=run_index_job_once(factory,settings)
+            if not did_action and not did_run and not did_intake and not did_index: time.sleep(1)
         except KeyboardInterrupt:
             print('NEXUS execution worker stopped.', flush=True)
             break

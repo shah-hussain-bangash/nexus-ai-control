@@ -4,6 +4,7 @@ import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { IndexedSearchReview } from "./IndexedSearchReview";
+import { BackgroundIndexJobs } from "./BackgroundIndexJobs";
 import { NeuralIndexPanel } from "./NeuralIndexPanel";
 import { hybridSearchRequest } from "./hybridSearchRequest";
 import "./live.css";
@@ -412,6 +413,13 @@ export function HybridRetrieval({ me }: { me: Row }) {
           )}
         </section>
       </div>
+      <BackgroundIndexJobs
+        me={me}
+        sources={docs
+          .filter((d) => selected.includes(d.id))
+          .map((d) => ({ id: d.id, version: d.version }))}
+        enabled={neuralAvailable}
+      />
       <NeuralIndexPanel
         me={me}
         sources={docs

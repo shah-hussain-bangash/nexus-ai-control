@@ -5,7 +5,8 @@ from .runtime_context import runtime_environment
 from .security import fail
 
 BUILD_KIND='neural_index_build'
-KINDS=('hybrid_search',BUILD_KIND)
+JOB_KIND='neural_index_job'
+KINDS=('hybrid_search',BUILD_KIND,JOB_KIND)
 
 
 def admit(db,user):
@@ -16,6 +17,6 @@ def admit(db,user):
     if len(rows)>=1000:fail(429,'SEARCH_HISTORY_CAPACITY','The workspace reached its bounded retrieval receipt limit.')
     if sum(r.created>stamp-60 for r in rows)>=30:fail(429,'SEARCH_RATE_LIMIT','The workspace reached 30 retrieval requests per minute.')
     for row in rows:
-        if row.status=='processing' and row.created<stamp-120:
+        if row.kind!=JOB_KIND and row.status=='processing' and row.created<stamp-120:
             row.status='interrupted';row.result={**row.result,'error_code':'SEARCH_INTERRUPTED'}
     if sum(r.status=='processing' for r in rows)>=2:fail(429,'SEARCH_CONCURRENCY_LIMIT','Two retrieval operations are already running.')
