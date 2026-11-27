@@ -116,7 +116,7 @@ def finish(factory, settings, state, binding, code):
     with factory.begin() as db:
         user = db.scalar(select(User).where(User.email == str(claims.get('email', '')).lower(), User.active == 1).with_for_update())
         subject = settings.oidc_issuer.rstrip('/') + '|' + claims['sub']
-        if not user or (user.oidc_subject and user.oidc_subject != subject):
+        if not user or (user.oidc_subject and user.oidc_subject != subject) or (settings.mode!='local' and user.oidc_subject!=subject):
             fail(403, 'NO_MEMBERSHIP', 'Ask your administrator for workspace access.')
         user.oidc_subject = subject
         token, _ = issue_session(db, user, settings)

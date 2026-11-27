@@ -92,3 +92,5 @@ Optional signed audit metadata and offline trusted-key verification: [guide](doc
 Owner-managed holds and explicit expired signed-audit payload retention: [guide](docs/AUDIT_PAYLOAD_RETENTION.md).
 
 Optional mounted credential files and redacted source status: [guide](docs/MOUNTED_SECRET_INPUTS.md).
+
+Reviewed existing-member SSO bindings and pilot prebinding: [guide](docs/REVIEWED_IDENTITY_BINDINGS.md).

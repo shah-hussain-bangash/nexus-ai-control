@@ -1,3 +1,4 @@
+import { IdentityBindingAdmin } from "./IdentityBindingAdmin";
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
@@ -619,6 +620,7 @@ export function MemberAdmin({ me }: { me: Row }) {
       aria-label="Account and session administration"
     >
       <Alerts error={!modal ? error : ""} notice={notice} />
+      <IdentityBindingAdmin me={me} onChanged={refresh} />
       {owner && (
         <section className="panel runtime-card">
           <div className="live-actions">

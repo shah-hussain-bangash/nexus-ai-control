@@ -84,7 +84,7 @@
       "title": "Identity & workload lifecycle",
       "area": "Governance",
       "delivery": "partial",
-      "required_evidence": "IdP provisioning/offboarding, verified MFA and workload federation.",
+      "required_evidence": "Owner-reviewed existing-member subject binding/clearing, workspace-wide deactivation/session revocation, recoverable receipts and exact pilot SSO prebinding are implemented. Automated IdP provisioning/offboarding, verified MFA acceptance, workload federation and deployment acceptance remain.",
       "workspace": "settings"
     },
     {

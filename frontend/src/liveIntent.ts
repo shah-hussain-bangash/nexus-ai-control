@@ -27,6 +27,7 @@ export function liveIntentScope(
     | "signed-audit"
     | "ops-alert-policy"
     | "ops-alert-sample"
+    | "member-identity"
     | "member"
     | "asset-copy"
     | "connector-check",
@@ -36,9 +37,11 @@ export function liveIntentScope(
 ) {
   const parts = recoveryContextParts(org, user, environment);
   // Provisioning is a workspace-wide operation, rather than a runtime action.
-  return kind === "member"
-    ? "nexus.live.member.v1:" + parts.slice(0, 2).join(":")
-    : "nexus.live." + kind + ".v2:" + parts.join(":");
+  return kind === "member-identity"
+    ? "nexus.live.member-identity.v1:" + parts.slice(0, 2).join(":")
+    : kind === "member"
+      ? "nexus.live.member.v1:" + parts.slice(0, 2).join(":")
+      : "nexus.live." + kind + ".v2:" + parts.join(":");
 }
 export async function sendLiveIntent<T extends { id: string; status: string }>(
   storage: Store,
@@ -60,6 +63,7 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
         [
           "STALE_VERSION",
           "SPEND_MODEL_CHANGED",
+          "IDENTITY_ISSUER_CHANGED",
           "AUDIT_SIGNING_KEY_CHANGED",
           "SOURCE_CHANGED",
           "RERANK_QUERY_DIFFERENT",
