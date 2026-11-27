@@ -150,7 +150,7 @@ def validate_config(kind, data):
             from .ollama import validate_config as validate_ollama
             validate_ollama(config)
             return config
-        if config['credential_ref'] and not re.fullmatch(r'env:[A-Z][A-Z0-9_]{2,70}',config['credential_ref']):
+        if config['credential_ref'] and (not re.fullmatch(r'env:[A-Z][A-Z0-9_]{2,70}',config['credential_ref']) or config['credential_ref'].endswith('_FILE')):
             fail(422,'SECRET_REFERENCE_REQUIRED','Use an env:VARIABLE_NAME reference. Never enter a credential value.')
         if config['endpoint']:
             u=urlsplit(config['endpoint'])

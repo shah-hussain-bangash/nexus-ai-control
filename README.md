@@ -90,3 +90,5 @@ Local Operations alert thresholds and manual check receipts: [guide](docs/LOCAL_
 Optional signed audit metadata and offline trusted-key verification: [guide](docs/SIGNED_AUDIT_EVIDENCE.md).
 
 Owner-managed holds and explicit expired signed-audit payload retention: [guide](docs/AUDIT_PAYLOAD_RETENTION.md).
+
+Optional mounted credential files and redacted source status: [guide](docs/MOUNTED_SECRET_INPUTS.md).
