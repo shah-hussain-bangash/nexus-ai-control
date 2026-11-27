@@ -87,3 +87,5 @@ copied rows, optional fields and isolated lost-reply recovery; the build is chec
 
 Provider-verified invoice/account reconciliation, retention policies, account-level
 cost controls, full acceptance testing, merging and deployment remain later work.
+
+[Owner-managed model-route ceilings](MODEL_SPENDING_LIMITS.md) now constrain new inference admissions without rewriting these billing-review snapshots or existing call accounting. Physical provider-account aggregation remains separate.

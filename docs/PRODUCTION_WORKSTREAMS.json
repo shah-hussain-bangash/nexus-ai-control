@@ -76,7 +76,7 @@
       "title": "Usage & cost governance",
       "area": "Runtime",
       "delivery": "partial",
-      "required_evidence": "Owner-entered selected-call statement comparison, saved discrepancy records and stale-ledger detection are implemented. Provider-verified invoice/account reconciliation, retention policies and account-level cost controls remain.",
+      "required_evidence": "Owner-entered selected-call statement comparison, saved discrepancy records, stale-ledger detection and owner-managed model-route admission ceilings are implemented. Provider-verified invoice/account reconciliation, retention policies and provider-account aggregation remain.",
       "workspace": "usage"
     },
     {

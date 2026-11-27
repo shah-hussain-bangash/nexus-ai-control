@@ -138,6 +138,8 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
 
 def settle(db, row, ins, outs, status, result):
     runtime_environment(db,row.org_id,row.env)
+    if row.result.get('spend_control'):
+        result={**result,'spend_control':row.result['spend_control']}
     charged = cost(ins, outs, {'input': row.input_rate, 'output': row.output_rate})
     changed = db.execute(update(InferenceCall).where(InferenceCall.id == row.id, InferenceCall.org_id == row.org_id, InferenceCall.env == row.env, InferenceCall.status.in_(('pending', 'unknown'))).values(status=status, charged=charged, input_tokens=ins, output_tokens=outs, result=result))
     if changed.rowcount != 1:
@@ -256,6 +258,9 @@ def register_inference(app, factory, settings, human):
                 row = InferenceCall(org_id=org, env=environment, key_hash=key_hash, request_hash=fingerprint, author_id=author, asset_id=body.model_id, asset_version=model_version, period=period(), reserved=reserved, input_rate=str(rates['input']), output_rate=str(rates['output']))
                 db.add(row); db.flush()
                 ensure_budget(db,org,environment,row.period)
+                from .model_spending import enforce
+                spend_control=enforce(db,user,body.model_id,row.period)
+                if spend_control:row.result={'spend_control':spend_control}
                 recent,pending=admission_counts(db,org,environment)
                 # The newly flushed row is included in both counts.
                 if recent>settings.inference_requests_per_minute:
@@ -304,7 +309,7 @@ def register_inference(app, factory, settings, human):
                 if not row:fail(409,'CALL_CONTEXT_CHANGED','The stored call context changed; its reservation needs operator review.')
                 if row.status!='pending':fail(409,'CALL_ALREADY_SETTLED','This call was already settled; refresh its evidence.')
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
-                row.result = {'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
+                row.result = {**({'spend_control':row.result['spend_control']} if row.result.get('spend_control') else {}),'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
                 audit(db, row.org_id, author, 'inference.unknown', detail={'call_id': call_id},env=row.env)
 
         # Commit provider accounting before rechecking delivery access. Revocation
