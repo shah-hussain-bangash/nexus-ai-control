@@ -1,7 +1,7 @@
 """Scoped stored-index build/query API with durable, non-retrying receipts."""
 import re,time
 from fastapi import Request,Header,Query,HTTPException
-from pydantic import Field,field_validator
+from pydantic import Field,field_validator,model_validator
 from sqlalchemy import select,update,func
 from .db import NeuralIndex,WorkbenchRun,KnowledgeDocument,DocumentChunk,Organization,now
 from .documents import document_for,can_read
@@ -32,11 +32,20 @@ class Build(Strict):
 
 
 class SearchIndex(Strict):
-    index_id:str=Field(min_length=1,max_length=64)
+    index_id:str|None=Field(default=None,min_length=1,max_length=64)
+    index_ids:list[str]=Field(default_factory=list,max_length=8)
     query:str=Field(min_length=1,max_length=500)
     top_k:int=Field(default=5,ge=1,le=10)
     min_score:float=Field(default=.15,ge=0,le=1,allow_inf_nan=False)
     one_per_document:bool=Field(default=False,strict=True)
+    @model_validator(mode='after')
+    def selection(self):
+        if bool(self.index_id)==bool(self.index_ids):raise ValueError('Choose one index_id or 1–8 index_ids.')
+        if self.index_ids and (len(set(self.index_ids))!=len(self.index_ids) or any(not 1<=len(id)<=64 for id in self.index_ids)):
+            raise ValueError('Choose distinct valid index IDs.')
+        self.index_ids=sorted(self.index_ids)
+        return self
+
     @field_validator('query')
     @classmethod
     def visible(cls,value):
@@ -47,6 +56,28 @@ class SearchIndex(Strict):
 class Remove(Strict):
     expected_version:int=Field(strict=True,ge=1)
     note:str=Field(min_length=5,max_length=500)
+
+
+def search_intent(body):
+    value=body.model_dump(exclude_none=True)
+    if not value['index_ids']:value.pop('index_ids')
+    return value
+
+
+def selected_indexes(body):
+    return body.index_ids or [body.index_id]
+
+
+def merge_hits(items,top_k,one_per_document):
+    # Score once per saved vector, then keep the highest scoring duplicate passage.
+    ordered=sorted(items,key=lambda h:(-h['score'],h['document_id'],h['position']))
+    seen=set();result=[]
+    for hit in ordered:
+        identity=hit['document_id'] if one_per_document else (hit['document_id'],hit['document_version'],hit['position'],hit['sha256'])
+        if identity in seen:continue
+        seen.add(identity);result.append(hit)
+        if len(result)==top_k:break
+    return result
 
 
 def intent(key,body):
@@ -186,22 +217,30 @@ def register_neural_indexes(app,factory,settings,human):
 
     @app.post('/v1/neural-indexes/search',status_code=201)
     def search(body:SearchIndex,request:Request,idempotency_key:str=Header(default='',alias='Idempotency-Key')):
-        key,fingerprint=intent(idempotency_key,{'retrieval_mode':'local_indexed',**body.model_dump()})
+        key,fingerprint=intent(idempotency_key,{'retrieval_mode':'local_indexed',**search_intent(body)})
         with factory.begin() as db:
             user=human(request,db,True);db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name))
             old=previous(db,user,KIND,key,fingerprint)
             if old:return visible_run(db,old,user)
             config=configuration(settings)
             if not config:fail(503,'NEURAL_SEARCH_DISABLED','The operator must enable a pinned installed embedding model first.')
-            index,_,_,_=load_index(db,user,body.index_id,model=config['embedding_model'],model_digest=config['embedding_digest'])
-            version=index.version;sha=index.content_hash;admit(db,user)
+            selection=selected_indexes(body);pins={};documents=set();passages=set();dimensions=set()
+            for index_id in selection:
+                index,entries,docs,_=load_index(db,user,index_id,model=config['embedding_model'],model_digest=config['embedding_digest'])
+                pins[index.id]=(index.version,index.content_hash);documents.update(docs);dimensions.add(index.dimensions)
+                passages.update((e['document_id'],e['document_version'],e['position'],e['sha256']) for e in entries)
+            if len(dimensions)!=1:fail(409,'INDEX_DIMENSIONS_DIFFERENT','Selected snapshots use different embedding dimensions.')
+            admit(db,user)
             author=user.id;org=user.org_id;environment=runtime_environment(db,org)
-            parameters={**body.model_dump(exclude={'query'}),'retrieval_mode':'local_indexed','index_version':version,**config}
+            parameters={k:v for k,v in search_intent(body).items() if k!='query'}
+            parameters.update(retrieval_mode='local_indexed',**config)
+            if body.index_id:parameters['index_version']=pins[body.index_id][0]
+            else:parameters['index_versions']={id:pin[0] for id,pin in pins.items()}
             row=WorkbenchRun(org_id=org,env=environment,author_id=author,kind=KIND,status='processing',duration_ms=0,
-                result={'query_identity':query_identity(settings.secret,org,environment,author,body.query),'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(index.sources),'corpus_chunks':index.entry_count,'normalization_version':NORMALIZATION_VERSION})
+                result={'query_identity':query_identity(settings.secret,org,environment,author,body.query),'key':key,'fingerprint':fingerprint,'parameters':parameters,'index_count':len(selection),'source_count':len(documents),'corpus_chunks':len(passages),'normalization_version':NORMALIZATION_VERSION})
             db.add(row);db.flush();id=row.id
             payload={'retrieval_mode':'local_neural','task':'index_query','query':body.query,**config}
-            audit(db,org,author,'retrieval.index.query_started',detail={'run_id':id,'index_id':index.id})
+            audit(db,org,author,'retrieval.index.query_started',detail={'run_id':id,'index_count':len(selection)})
         started=time.perf_counter()
         try:value=compute(payload)
         except Exception:value={'error_code':'RANKING_FAILED'}
@@ -214,11 +253,14 @@ def register_neural_indexes(app,factory,settings,human):
             try:
                 if configuration(settings)!=config:raise ValueError('RANKING_FAILED')
                 vector=packet(value,1,config)[0]
-                index,_,_,_=load_index(db,user,body.index_id,model=config['embedding_model'],model_digest=config['embedding_digest'])
-                if index.version!=version or index.content_hash!=sha:fail(409,'INDEX_SOURCE_CHANGED','The snapshot changed during the query.')
-                ranked=rank_index(db,user,body.index_id,vector,model=config['embedding_model'],model_digest=config['embedding_digest'],
-                    top_k=body.top_k,min_score=body.min_score,one_per_document=body.one_per_document)
-                hits=[{**{k:hit[k] for k in ('document_id','document_version','position','sha256','score')},'semantic_score':hit['score'],'lexical_score':0} for hit in ranked['items']]
+                candidates=[]
+                for index_id in selection:
+                    index,_,_,_=load_index(db,user,index_id,model=config['embedding_model'],model_digest=config['embedding_digest'])
+                    if (index.version,index.content_hash)!=pins[index_id]:fail(409,'INDEX_SOURCE_CHANGED','A selected snapshot changed during the query.')
+                    ranked=rank_index(db,user,index_id,vector,model=config['embedding_model'],model_digest=config['embedding_digest'],
+                        top_k=body.top_k,min_score=body.min_score,one_per_document=body.one_per_document)
+                    candidates.extend(ranked['items'])
+                hits=[{**{k:hit[k] for k in ('document_id','document_version','position','sha256','score')},'semantic_score':hit['score'],'lexical_score':0} for hit in merge_hits(candidates,body.top_k,body.one_per_document)]
                 details={'embedding_dimensions':len(vector),'embedding_requests':1,'metadata_requests':3}
             except (HTTPException,ValueError,TypeError,KeyError) as exc:error=error_code(exc)
             row.status='failed' if error else 'completed';row.duration_ms=round((time.perf_counter()-started)*1000,3)

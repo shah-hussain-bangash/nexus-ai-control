@@ -55,6 +55,7 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
           "INDEX_REVIEW_SEARCH_STALE",
           "INDEX_SOURCE_CHANGED",
           "INDEX_MODEL_CHANGED",
+          "INDEX_DIMENSIONS_DIFFERENT",
           "INDEX_INTEGRITY_FAILED",
           "ACCOUNT_UNAVAILABLE",
           "OWNER_PROTECTED",

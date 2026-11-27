@@ -258,9 +258,9 @@ export function IndexedSearchReview({
             {review.original_search_provider_calls ?? "unconfirmed"}
           </p>
           <p>
-            Original model {review.parameters.embedding_model} · top{" "}
-            {review.parameters.top_k} · threshold {review.parameters.min_score}{" "}
-            ·{" "}
+            {review.index_ids?.length || 1} snapshots · Original model{" "}
+            {review.parameters.embedding_model} · top {review.parameters.top_k}{" "}
+            · threshold {review.parameters.min_score} ·{" "}
             {review.parameters.one_per_document
               ? "one result per document"
               : "multiple passages allowed"}

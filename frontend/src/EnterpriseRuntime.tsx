@@ -336,7 +336,8 @@ export function HybridRetrieval({ me }: { me: Row }) {
             <>
               <p>
                 <strong>{result.status}</strong> · {result.duration_ms} ms ·{" "}
-                {result.source_count} sources · {result.corpus_chunks} chunks ·
+                {result.source_count} sources · {result.corpus_chunks} chunks ·{" "}
+                {result.index_count ? `${result.index_count} indexes · ` : ""}
                 {["local_neural", "local_indexed"].includes(
                   result.parameters?.retrieval_mode,
                 )

@@ -34,11 +34,11 @@ def compare_reviews(baseline,candidate,left_run,right_run,left_receipt,right_rec
         direction=classify([changes['passed'],changes['document_recall_at_k'],changes['document_precision_at_k'],
             changes['reciprocal_rank'],-changes['unexpected_document_count']])
     except (ValueError,TypeError,KeyError):fail(409,'INDEX_COMPARE_EVIDENCE_INVALID','Saved measurements cannot be compared safely.')
-    def side(detail,metrics):return {'id':detail['id'],'search_id':detail['search_id'],'index_id':detail['index_id'],
+    def side(detail,metrics):return {'id':detail['id'],'search_id':detail['search_id'],'index_id':detail['index_id'],'index_ids':detail.get('index_ids',[detail['index_id']]),
         'created':detail['created'],'status':detail['status'],'stale':detail['stale'],'parameters':detail['parameters'],'metrics':metrics}
     return {'baseline':side(baseline,before),'candidate':side(candidate,after),'delta':changes,'change':direction,
         'query_verified_same':True,'corpus_changed':left_receipt.result['source_versions']!=right_receipt.result['source_versions'],
         'model_changed':any(baseline['parameters'].get(k)!=candidate['parameters'].get(k) for k in ('embedding_model','embedding_digest')),
-        'index_changed':left_receipt.result['index']!=right_receipt.result['index'],
+        'index_changed':(left_receipt.result.get('indexes') or {left_receipt.result['index']['id']:left_receipt.result['index']})!=(right_receipt.result.get('indexes') or {right_receipt.result['index']['id']:right_receipt.result['index']}),
         'stale':baseline['stale'] or candidate['stale'],'provider_calls':0,
         'boundary':'Saved reviewer-labelled retrieval measurements only. Same-query and control checks do not establish representative quality, causal attribution, generated-answer quality or production acceptance.'}
