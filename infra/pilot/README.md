@@ -15,7 +15,9 @@ The [`pilot-compose` CI job](../../.github/workflows/ci.yml) resolves this confi
 
 The [`pilot-image` CI job](../../.github/workflows/ci.yml) builds the root Dockerfile and starts its image on a loopback-only port with disposable SQLite data. It checks UID 10001, read-only operation, database readiness, anonymous access denial, and service of the compiled portal and its JavaScript. To repeat on a host with Docker, Bash, and Python 3, run `bash scripts/smoke_pilot_image.sh` from the repository root.
 
-The smoke test uses local reference policy, removes its generated container, image tag, and volume on exit, and uses synthetic records. Image scanning, staging identity, and production rollout require separate evidence.
+The smoke test uses local reference policy and synthetic records. It removes its generated container, image tag, and volume on exit.
+
+CI publishes a `pilot-image-evidence` artifact with SPDX and Syft inventories, Grype's vulnerability report, and a receipt linking the tested local image ID to the source revision. Findings are report-only and require review before release. The scan covers packages identified in the final image. Bundled browser dependencies may require a separate lockfile review. Staging identity and production rollout require separate evidence.
 
 ## Backups
 

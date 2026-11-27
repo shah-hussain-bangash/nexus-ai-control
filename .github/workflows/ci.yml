@@ -97,7 +97,22 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - id: syft
+        uses: anchore/sbom-action/download-syft@dfcb83b97731532d72be422cbc51ee64adb6fd56 # v0.24.4
+        with: {syft-version: 'v1.57.2'}
+      - id: grype
+        uses: anchore/scan-action/download-grype@11983a512817154c80a9db660c1a184be7513ed6 # v7.4.3
+        with: {grype-version: 'v0.122.1'}
       - run: bash scripts/smoke_pilot_image.sh
+        env:
+          NEXUS_IMAGE_EVIDENCE_DIR: ${{ runner.temp }}/nexus-pilot-image-evidence
+          NEXUS_SYFT: ${{ steps.syft.outputs.cmd }}
+          NEXUS_GRYPE: ${{ steps.grype.outputs.cmd }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pilot-image-evidence
+          path: ${{ runner.temp }}/nexus-pilot-image-evidence/
+          if-no-files-found: error
   opa:
     runs-on: ubuntu-latest
     steps:

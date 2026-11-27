@@ -98,3 +98,38 @@ status, content_type, body = get(shell.script)
 assert status == 200 and "javascript" in content_type and body
 print("Container served the built portal and JavaScript with a ready synthetic database.")
 PY
+
+if [[ -n "${NEXUS_IMAGE_EVIDENCE_DIR:-}" ]]; then
+    evidence="$NEXUS_IMAGE_EVIDENCE_DIR"
+    mkdir "$evidence"
+    "${NEXUS_SYFT:-syft}" "docker:$image" -o "json=$evidence/sbom.syft.json" \
+        -o "spdx-json=$evidence/sbom.spdx.json"
+    "${NEXUS_GRYPE:-grype}" "sbom:$evidence/sbom.syft.json" -o json > "$evidence/vulnerabilities.json"
+    image_id="$(docker image inspect "$image" --format '{{.Id}}')"
+    revision="$(git rev-parse HEAD)"
+    python3 - "$evidence" "$image_id" "$revision" <<'PY'
+from collections import Counter
+import json
+from pathlib import Path
+import sys
+
+
+destination = Path(sys.argv[1])
+sbom = json.loads((destination / "sbom.syft.json").read_text())
+packages = sbom["artifacts"]
+assert any(package["name"].lower() == "fastapi" and package["type"] == "python"
+           for package in packages), "Expected FastAPI in the image package inventory."
+scan = json.loads((destination / "vulnerabilities.json").read_text())
+counts = Counter(match["vulnerability"]["severity"] for match in scan["matches"])
+receipt = {
+    "source_revision": sys.argv[3],
+    "local_image_id": sys.argv[2],
+    "smoke_test": "passed",
+    "scan_policy": "report-only",
+    "packages": len(packages),
+    "matches_by_severity": dict(sorted(counts.items())),
+}
+(destination / "build-evidence.json").write_text(json.dumps(receipt, indent=2) + "\n")
+print(json.dumps(receipt))
+PY
+fi
