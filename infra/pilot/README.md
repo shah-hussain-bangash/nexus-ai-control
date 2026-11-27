@@ -9,7 +9,7 @@ This profile requires an externally managed PostgreSQL database with certificate
 5. After an authorized backup and maintenance window, run the migrate service once. For a brand new empty deployment, run python -m nexus.cli bootstrap with --email, --name, --organization and --oidc-subject via a one-off app container. This creates one OIDC-bound owner, no synthetic agents/tools. Do not use local init in pilot mode.
 6. Start api/edge/opa and perform actual authentication, fail-closed policy, provider, load and recovery acceptance before opening access. The API has no published host port; Caddy is the TLS edge.
 
-The profile has not been built/run here because Docker is unavailable. It is a single-host pilot template, not a managed high-availability AWS/Azure architecture. Read docs/PRODUCTION_ACCEPTANCE.md before any production claim.
+The [`pilot-compose` CI job](../../.github/workflows/ci.yml) resolves this configuration with disposable values. It checks that only Caddy publishes host ports, OPA stays on the internal network, and migration and synthetic execution remain opt-in profiles. This check does not start containers or connect to staging services. The pilot template targets one host. See the [production acceptance reference](../../docs/PRODUCTION_ACCEPTANCE.md) for rollout evidence.
 
 ## Backups
 

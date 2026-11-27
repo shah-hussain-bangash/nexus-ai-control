@@ -55,6 +55,43 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: browser-tests, path: backend/browser-results.xml}
+  pilot-compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate pilot Compose configuration and service boundaries
+        env:
+          NEXUS_IMAGE: registry.example.invalid/nexus:ci-fixture
+          NEXUS_EDGE_IMAGE: registry.example.invalid/caddy:ci-fixture
+          NEXUS_OPA_IMAGE: registry.example.invalid/opa:ci-fixture
+          NEXUS_HOSTNAME: nexus-ci.example.invalid
+        run: |
+          set -euo pipefail
+          export NEXUS_RUNTIME_ENV="$RUNNER_TEMP/nexus-pilot-ci.env"
+          cp infra/pilot/runtime.env.example "$NEXUS_RUNTIME_ENV"
+          docker compose -f infra/pilot/compose.yaml config -q
+          rendered="$RUNNER_TEMP/nexus-pilot-compose.json"
+          docker compose -f infra/pilot/compose.yaml --profile '*' config --format json > "$rendered"
+          python - "$rendered" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          config = json.loads(Path(sys.argv[1]).read_text())
+          services = config["services"]
+          assert set(services) == {"edge", "opa", "migrate", "api", "synthetic-worker"}
+          assert config["networks"]["control"]["internal"] is True
+          assert set(services["opa"]["networks"]) == {"control"}
+          published_ports = {
+              name: {str(port["published"]) for port in service["ports"]}
+              for name, service in services.items() if service.get("ports")
+          }
+          assert published_ports == {"edge": {"80", "443"}}, published_ports
+          assert services["migrate"]["profiles"] == ["maintenance"]
+          assert services["synthetic-worker"]["profiles"] == ["synthetic-demo-only"]
+          print("Pilot Compose configuration and service boundaries verified.")
+          PY
   opa:
     runs-on: ubuntu-latest
     steps:
