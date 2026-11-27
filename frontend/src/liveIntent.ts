@@ -17,6 +17,7 @@ export function liveIntentScope(
     | "neural-index-build"
     | "index-build-job"
     | "indexed-search"
+    | "local-rerank"
     | "indexed-review"
     | "member"
     | "asset-copy"
@@ -51,6 +52,10 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
         [
           "STALE_VERSION",
           "SOURCE_CHANGED",
+          "RERANK_QUERY_DIFFERENT",
+          "RERANK_QUERY_UNAVAILABLE",
+          "RERANK_SEARCH_UNSUPPORTED",
+          "RERANK_SEARCH_STALE",
           "INDEX_INVALIDATED",
           "INDEX_BUILD_ACTIVE",
           "INDEX_REVIEW_SEARCH_UNSUPPORTED",
