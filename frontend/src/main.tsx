@@ -1,3 +1,4 @@
+import { AuditRetention } from "./AuditRetention";
 import { SignedAuditEvidence } from "./SignedAuditEvidence";
 import { DurableExecution, DocumentLibrary } from "./LiveWorkspaces";
 import { PlatformScope } from "./PlatformScope";
@@ -1573,6 +1574,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                 </button>
               </div>
               <SignedAuditEvidence key={recoveryPanelKey(me)} me={me} />
+              <AuditRetention key={recoveryPanelKey(me)} me={me} />
               <div className="audit-search search">
                 <Search size={17} />
                 <input

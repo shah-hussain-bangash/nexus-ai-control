@@ -500,6 +500,8 @@ def create_app(settings=None):
     register_operational_alerts(app,factory,human)
     from .signed_audit import register_signed_audit
     register_signed_audit(app,factory,settings,human)
+    from .audit_retention import register_audit_retention
+    register_audit_retention(app,factory,human)
     from .readiness import register_readiness
     register_readiness(app, factory, settings, human)
     from .durable import register_durable

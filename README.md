@@ -88,3 +88,5 @@ The agreed design inventory remains 18 areas / 216 function previews. Design rec
 Local Operations alert thresholds and manual check receipts: [guide](docs/LOCAL_OPERATIONAL_ALERTS.md).
 
 Optional signed audit metadata and offline trusted-key verification: [guide](docs/SIGNED_AUDIT_EVIDENCE.md).
+
+Owner-managed holds and explicit expired signed-audit payload retention: [guide](docs/AUDIT_PAYLOAD_RETENTION.md).

@@ -74,11 +74,14 @@ failure and exit status 1; no evidence contents or file paths are printed.
 
 Original intent retries return the original receipt. Changed bodies with the same
 key fail. Browser recovery stores only the key/hash/timing in an account/environment
-namespace. New writes serialize per workspace and are capped at 100 snapshots per
-environment, each at most 1 MiB. Downloads expire after seven days. Expiry is access
-control, **not automatic deletion**; no retention job or destructive cleanup is
-introduced. At capacity new writes fail and existing evidence is preserved. Uses
-existing schema 12 storage; no migration is added.
+namespace. New writes serialize per workspace and are capped at 100 retained payloads per
+environment, each at most 1 MiB, and 5000 lifetime snapshot receipts. Downloads expire
+after seven days. Expiry is access control, **not automatic deletion**. Optional
+owner-managed explicit removal of expired payloads is documented in
+[AUDIT_PAYLOAD_RETENTION.md](AUDIT_PAYLOAD_RETENTION.md); purged receipts remain and
+intent retries never recreate evidence. No background retention job is introduced.
+At capacity new writes fail and existing evidence is preserved. Uses existing
+schema 12 storage; no migration is added.
 
 A valid signature establishes possession of the trusted private key when this
 snapshot was signed. It does not establish audit-log completeness, authenticity of
