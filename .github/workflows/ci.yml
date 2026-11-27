@@ -92,6 +92,12 @@ jobs:
           assert services["synthetic-worker"]["profiles"] == ["synthetic-demo-only"]
           print("Pilot Compose configuration and service boundaries verified.")
           PY
+  pilot-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/smoke_pilot_image.sh
   opa:
     runs-on: ubuntu-latest
     steps:

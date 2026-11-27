@@ -11,6 +11,12 @@ This profile requires an externally managed PostgreSQL database with certificate
 
 The [`pilot-compose` CI job](../../.github/workflows/ci.yml) resolves this configuration with disposable values. It checks that only Caddy publishes host ports, OPA stays on the internal network, and migration and synthetic execution remain opt-in profiles. This check does not start containers or connect to staging services. The pilot template targets one host. See the [production acceptance reference](../../docs/PRODUCTION_ACCEPTANCE.md) for rollout evidence.
 
+## Release image smoke test
+
+The [`pilot-image` CI job](../../.github/workflows/ci.yml) builds the root Dockerfile and starts its image on a loopback-only port with disposable SQLite data. It checks UID 10001, read-only operation, database readiness, anonymous access denial, and service of the compiled portal and its JavaScript. To repeat on a host with Docker, Bash, and Python 3, run `bash scripts/smoke_pilot_image.sh` from the repository root.
+
+The smoke test uses local reference policy, removes its generated container, image tag, and volume on exit, and uses synthetic records. Image scanning, staging identity, and production rollout require separate evidence.
+
 ## Backups
 
 Stop API and worker before a cross-database snapshot. From the configured backend environment: python -m nexus.cli backup --destination ABSOLUTE_NEW_PRIVATE_DIRECTORY --quiesced. The destination must not already exist. PostgreSQL requires pg_dump to be installed and permitted; credentials are passed in process environment, not command arguments. The minimal application image does not bundle pg_dump: run backup in an operator environment with a compatible PostgreSQL client. Encrypt, transfer and retain the output using approved external storage.
