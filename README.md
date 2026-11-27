@@ -86,3 +86,5 @@ The agreed design inventory remains 18 areas / 216 function previews. Design rec
 **Full enterprise production readiness is not claimed.** The current roadmap has 1 implemented workstream awaiting acceptance and 17 partial workstreams, with deployment acceptance still open. Read the current roadmap before rollout. No real customer, IdP, cloud or provider account was changed by this release.
 
 Local Operations alert thresholds and manual check receipts: [guide](docs/LOCAL_OPERATIONAL_ALERTS.md).
+
+Optional signed audit metadata and offline trusted-key verification: [guide](docs/SIGNED_AUDIT_EVIDENCE.md).

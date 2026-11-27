@@ -1,3 +1,4 @@
+import { SignedAuditEvidence } from "./SignedAuditEvidence";
 import { DurableExecution, DocumentLibrary } from "./LiveWorkspaces";
 import { PlatformScope } from "./PlatformScope";
 import { ProductBoundary } from "./ProductBoundary";
@@ -1571,6 +1572,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                   Export JSON
                 </button>
               </div>
+              <SignedAuditEvidence key={recoveryPanelKey(me)} me={me} />
               <div className="audit-search search">
                 <Search size={17} />
                 <input
