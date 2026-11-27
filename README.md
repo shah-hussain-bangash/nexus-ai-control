@@ -39,6 +39,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Local neural embedding foundation](docs/LOCAL_NEURAL_EMBEDDING_FOUNDATION.md)
 - [Authorized local neural search](docs/AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
+- [Optional local model reranking](docs/LOCAL_MODEL_RERANKING.md) — reorder existing passages with a pinned local model.
 - [Checkpointed background index builds](docs/BACKGROUND_INDEX_BUILDS.md) — queue, pause/resume, cancel and publish bounded snapshots.
 - [Bounded multi-index search](docs/MULTI_INDEX_SEARCH.md) — one query embedding across up to eight saved snapshots.
 - [Saved indexed-review comparison](docs/INDEXED_REVIEW_COMPARISON.md) — matching-query metrics without rerunning a model.

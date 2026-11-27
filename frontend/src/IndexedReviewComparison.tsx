@@ -113,8 +113,9 @@ export function IndexedReviewComparison({ reviews }: { reviews: Row[] }) {
             </p>
           )}
           <p>
-            Model changed: {result.model_changed ? "yes" : "no"} · corpus
-            changed: {result.corpus_changed ? "yes" : "no"} · index changed:{" "}
+            Reranking changed: {result.reranking_changed ? "yes" : "no"} · Model
+            changed: {result.model_changed ? "yes" : "no"} · corpus changed:{" "}
+            {result.corpus_changed ? "yes" : "no"} · index changed:{" "}
             {result.index_changed ? "yes" : "no"}
           </p>
           <p>

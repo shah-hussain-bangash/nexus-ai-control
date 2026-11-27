@@ -4,6 +4,7 @@ import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { IndexedSearchReview } from "./IndexedSearchReview";
+import { LocalReranking } from "./LocalReranking";
 import { BackgroundIndexJobs } from "./BackgroundIndexJobs";
 import { NeuralIndexPanel } from "./NeuralIndexPanel";
 import { hybridSearchRequest } from "./hybridSearchRequest";
@@ -347,6 +348,18 @@ export function HybridRetrieval({ me }: { me: Row }) {
               </p>
               {result.error_code && <p role="alert">{result.error_code}</p>}
               <p>{result.method}</p>
+              {result.parameters?.reranking && (
+                <p>
+                  Passage order from {result.parameters.reranking.rerank_model}.
+                  Original similarity scores are retained and may no longer
+                  descend in this order. Reranking HTTP calls{" "}
+                  {result.provider_calls ?? "unknown"}; original search HTTP
+                  calls {result.parent_provider_calls ?? "unknown"}.
+                  <code className="live-hash">
+                    Reranking digest {result.parameters.reranking.rerank_digest}
+                  </code>
+                </p>
+              )}
               {["local_neural", "local_indexed"].includes(
                 result.parameters?.retrieval_mode,
               ) && (
@@ -372,7 +385,12 @@ export function HybridRetrieval({ me }: { me: Row }) {
               )}
               {result.items?.map((hit: Row) => (
                 <article className="runtime-hit" key={hit.citation}>
-                  <h4>{hit.title}</h4>
+                  <h4>
+                    {hit.rerank_position
+                      ? `Model order ${hit.rerank_position}: `
+                      : ""}
+                    {hit.title}
+                  </h4>
                   <p className="runtime-citation">{hit.citation}</p>
                   <p className="runtime-excerpt">{hit.excerpt}</p>
                   <dl>
@@ -429,6 +447,14 @@ export function HybridRetrieval({ me }: { me: Row }) {
         model={neuralModel}
         digest={neuralDigest}
         onSearch={(row) => {
+          setResult(row);
+          void refresh(0).catch((e) => setError(message(e)));
+        }}
+      />
+      <LocalReranking
+        me={me}
+        run={result}
+        onResult={(row) => {
           setResult(row);
           void refresh(0).catch((e) => setError(message(e)));
         }}

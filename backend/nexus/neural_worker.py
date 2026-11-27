@@ -41,7 +41,10 @@ def main():
     try:
         if source.stat().st_size>1048576:raise ValueError('CORPUS_LIMIT')
         payload=json.loads(source.read_text(encoding='utf-8'))
-        result=embedding_batch(payload) if payload.get('task') in ('index_build','index_query') else rank(payload)
+        if payload.get('task')=='rerank':
+            from .local_reranking import rerank
+            result=rerank(payload['rerank_model'],payload['rerank_digest'],payload['query'],payload['texts'])
+        else:result=embedding_batch(payload) if payload.get('task') in ('index_build','index_query') else rank(payload)
     except Exception:result={'error_code':'RANKING_FAILED'}
     out.write_text(json.dumps(result),encoding='utf-8')
 
