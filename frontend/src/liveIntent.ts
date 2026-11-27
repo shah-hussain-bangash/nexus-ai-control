@@ -22,6 +22,8 @@ export function liveIntentScope(
     | "indexed-review"
     | "billing-review"
     | "model-spend-policy"
+    | "audit-retention-policy"
+    | "audit-retention-plan"
     | "signed-audit"
     | "ops-alert-policy"
     | "ops-alert-sample"

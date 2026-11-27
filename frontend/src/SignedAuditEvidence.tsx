@@ -38,7 +38,7 @@ export function SignedAuditEvidence({ me }: { me: Row }) {
       await refresh();
       setMessage(
         receipt
-          ? `Snapshot ${receipt.id}: ${receipt.status}. Download it below; verify against a separately trusted public key.`
+          ? `Snapshot ${receipt.id}: ${receipt.status}. Retained, unexpired payloads can be downloaded below; purged receipts never create replacement evidence.`
           : "Signing status reloaded.",
       );
     } catch (e) {
@@ -169,7 +169,7 @@ export function SignedAuditEvidence({ me }: { me: Row }) {
           {data.items.map((row: Row) => (
             <article key={row.id}>
               <p>
-                {row.id} · {row.records} metadata records ·{" "}
+                {row.id} · {row.status} · {row.records} metadata records ·{" "}
                 {row.truncated
                   ? "truncated to selected limit"
                   : "no truncation at sampling time"}
@@ -178,9 +178,19 @@ export function SignedAuditEvidence({ me }: { me: Row }) {
                 Key {row.key_id} · expires{" "}
                 {new Date(row.expires * 1000).toLocaleString()}
               </p>
+              {row.status === "purged" && (
+                <p>
+                  Payload removed by retention. Receipt and signing fingerprint
+                  preserved.
+                </p>
+              )}
               <button
                 className="btn"
-                disabled={busy || row.expires * 1000 <= Date.now()}
+                disabled={
+                  busy ||
+                  row.status === "purged" ||
+                  row.expires * 1000 <= Date.now()
+                }
                 onClick={async () => {
                   setBusy(true);
                   setMessage("");

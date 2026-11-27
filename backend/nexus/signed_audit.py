@@ -45,6 +45,9 @@ def scoped_rows(db,user):
 
 
 def receipt(row):
+    if row.status=='purged':
+        return {'id':row.id,'status':'purged','created':row.created,'expires':row.result['expires'],**row.result['metadata'],
+            'purged_at':row.result['purged_at'],'retention_plan_id':row.result['retention_plan_id'],'boundary':'Snapshot payload was removed by explicit owner retention. Original intent receipt is preserved; retrying never creates replacement evidence.'}
     envelope=row.result['envelope'];payload=envelope['payload']
     return {'id':row.id,'status':row.status,'created':row.created,'expires':row.result['expires'],'key_id':envelope['key_id'],
         'records':len(payload['records']),'truncated':payload['truncated'],'boundary':BOUNDARY}
@@ -74,6 +77,7 @@ def register_signed_audit(app,factory,settings,human):
     def download(id:str,request:Request):
         with factory() as db:
             user=human(request,db,False,'export');row=db.scalar(scoped_rows(db,user).where(WorkbenchRun.id==id))
+            if row and row.status=='purged':fail(410,'AUDIT_SNAPSHOT_PURGED','This signed snapshot payload was removed by an explicit owner retention operation.')
             if not row or row.result['expires']<=now():fail(404,'AUDIT_SNAPSHOT_NOT_FOUND','The snapshot is unavailable or expired.')
             envelope=row.result['envelope'];payload=envelope.get('payload',{})
             if payload.get('workspace_id')!=user.org_id or payload.get('environment')!=runtime_environment(db,user.org_id) or payload.get('id')!=row.id:
@@ -93,8 +97,10 @@ def register_signed_audit(app,factory,settings,human):
             key=signing_key(settings);public=key.public_key();identity=key_id(public)
             if identity!=body.expected_key_id:fail(409,'AUDIT_SIGNING_KEY_CHANGED','Reload the configured signing identity before creating evidence.')
             env=runtime_environment(db,user.org_id)
-            if db.scalar(select(func.count()).select_from(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==env,WorkbenchRun.kind==KIND))>=100:
+            inventory=select(func.count()).select_from(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==env,WorkbenchRun.kind==KIND)
+            if db.scalar(inventory.where(WorkbenchRun.status!='purged'))>=100:
                 fail(429,'AUDIT_SNAPSHOT_CAPACITY','Snapshot storage reached its bounded capacity. Existing evidence was preserved.')
+            if db.scalar(inventory)>=5000:fail(429,'AUDIT_SNAPSHOT_RECEIPT_CAPACITY','Lifetime snapshot receipt capacity reached. Existing tombstones and evidence were preserved.')
             timestamp=now();found=db.scalars(select(Audit).where(Audit.org_id==user.org_id,Audit.env==env,Audit.created<=timestamp).order_by(Audit.created.desc(),Audit.id.desc()).limit(body.limit+1)).all()
             records=[{**{name:getattr(row,name) for name in ('id','event','actor','action_id','trace_id')},'created_at_us':int(row.created*1000000)} for row in reversed(found[:body.limit])]
             records.sort(key=lambda row:(row['created_at_us'],row['id']))
