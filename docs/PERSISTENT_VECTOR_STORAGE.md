@@ -1,10 +1,10 @@
 # Persistent vector storage foundation — schema 12
 
-This increment adds dedicated `neural_indexes` and `neural_vectors` tables and
-trusted server-side storage/ranking functions. There is no public index-build,
-vector-upload or indexed-search route and no new dashboard control yet. The
-existing neural search still computes its selected corpus per request; its
-`persistent_vector_index` capability remains false until runtime integration.
+The storage foundation adds dedicated `neural_indexes` and `neural_vectors`
+tables and trusted server-side storage/ranking functions. The subsequent
+[runtime integration](RUNTIME_NEURAL_INDEXES.md) connects build/query APIs and
+dashboard controls. The capability is enabled only with pinned local embedding
+configuration; no endpoint accepts client-supplied vectors.
 
 ## Storage and authorization
 
@@ -52,8 +52,8 @@ schedule or forensic-erasure guarantee is introduced.
 
 Storage-key replay lasts while its metadata record exists. Removing metadata also
 removes that key; it is not a durable receipt for a model-provider execution.
-Runtime build integration must reserve its own durable intent before invoking a
-model and recover that receipt without repeating work.
+Runtime build integration now reserves a separate durable intent before invoking
+a model and recovers that receipt without repeating work.
 
 ## Upgrade and recovery
 
@@ -70,8 +70,9 @@ backup primitives include them. The synthetic recovery test verifies backup file
 checksums, copies to a separate restore destination, reopens the application and
 queries the stored index through the internal primitive. It confirms a known
 document through the normal API and rejects an auditor write with a valid request.
-This is not a public indexed-search API test, actual-record recovery, encrypted
-restore acceptance, measured RPO/RTO or production readiness.
+The runtime increment also searches that restored index through its normal API
+and rejects another role before dispatch. This is not actual-record recovery,
+encrypted restore acceptance, measured RPO/RTO or production readiness.
 
 ## Verification and next work
 
@@ -82,7 +83,6 @@ and disposable backup/reopen use. Existing document, session, environment,
 request-key migration, workflow evidence and recovery checks cover compatibility.
 Schema/storage changes also trigger the disposable Docker recovery CI workflow.
 
-Next development connects validated worker output to index-build admission,
-idempotent receipts and scoped dashboard controls, then embeds queries against
-validated snapshots. Scalable vector indexing/ANN, learned reranking, operational
-retention and representative real-model/bilingual acceptance remain incomplete.
+Runtime build/query integration is described in [the runtime guide](RUNTIME_NEURAL_INDEXES.md).
+Scalable indexing, learned reranking, representative real-model acceptance and
+deployment validation remain separate work.

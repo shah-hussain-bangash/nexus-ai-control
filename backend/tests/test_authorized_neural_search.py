@@ -54,7 +54,7 @@ def test_disabled_by_default_and_explicit_operator_settings(ctx,monkeypatch):
     ctx['settings'].validate()
     caps=ctx['client'].get('/v1/hybrid-search/capabilities').json()
     assert caps['neural_embeddings'] and caps['neural_model']==MODEL and caps['neural_max_chunks']==32
-    assert not caps['persistent_vector_index']
+    assert caps['persistent_vector_index']
 
 def test_real_client_checks_digest_before_text_and_after_embedding():
     mock,calls=transport();value=embed_texts(MODEL,['approved synthetic text'],expected_digest=DIGEST,transport=mock)

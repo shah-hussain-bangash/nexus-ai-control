@@ -508,6 +508,8 @@ def create_app(settings=None):
     register_membership(app,factory,settings,human)
     from .hybrid import register_hybrid
     register_hybrid(app,factory,settings,human)
+    from .neural_index_runtime import register_neural_indexes
+    register_neural_indexes(app,factory,settings,human)
     from .environments import register_environments
     from .session_context import register_session_context, response_context_valid
     register_session_context(app,factory,settings,human)

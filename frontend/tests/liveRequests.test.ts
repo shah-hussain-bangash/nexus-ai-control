@@ -212,7 +212,12 @@ test("queued intake recovery is isolated by request kind, organization and autho
 
 test("Search and member recovery stay scoped; definitive pre-admission conflicts allow revised intent", async () => {
   const s = storage();
-  for (const kind of ["hybrid-search", "member"] as const) {
+  for (const kind of [
+    "hybrid-search",
+    "member",
+    "neural-index-build",
+    "indexed-search",
+  ] as const) {
     const scope = liveIntentScope(kind, "org", "owner", "staging");
     assert.notEqual(scope, liveIntentScope(kind, "other", "owner", "staging"));
     assert.notEqual(scope, liveIntentScope(kind, "org", "reviewer", "staging"));
@@ -232,4 +237,40 @@ test("Search and member recovery stay scoped; definitive pre-admission conflicts
     );
     assert.equal(result.id, "accepted");
   }
+});
+
+test("stored-index preflight conflicts retire only their own recovery key", async () => {
+  const s = storage();
+  const build = liveIntentScope(
+    "neural-index-build",
+    "org",
+    "owner",
+    "staging",
+  );
+  const query = liveIntentScope("indexed-search", "org", "owner", "staging");
+  await assert.rejects(
+    sendLiveIntent(s, build, { name: "index" }, async () => {
+      throw Error("Lost reply");
+    }),
+  );
+  for (const code of [
+    "INDEX_INVALIDATED",
+    "INDEX_SOURCE_CHANGED",
+    "INDEX_MODEL_CHANGED",
+    "INDEX_INTEGRITY_FAILED",
+  ]) {
+    await assert.rejects(
+      sendLiveIntent(s, query, { index_id: "old" }, async () => {
+        throw Object.assign(Error(code), { status: 409, code });
+      }),
+    );
+    assert.equal(readRecovery(s, query), null);
+    assert.ok(readRecovery(s, build));
+  }
+  for (const scope of [
+    liveIntentScope("indexed-search", "org", "owner", "production"),
+    liveIntentScope("indexed-search", "org", "another", "staging"),
+    liveIntentScope("indexed-search", "other", "owner", "staging"),
+  ])
+    assert.equal(readRecovery(s, scope), null);
 });

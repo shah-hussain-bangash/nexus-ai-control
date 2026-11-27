@@ -36,7 +36,7 @@
       "title": "Semantic retrieval & reranking",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "ACL-first LSA/BM25, document diversity, disabled-by-default local neural ranking and a scoped persistent-vector storage/invalidation foundation are implemented. Runtime index-build/query integration, scalable indexing, learned reranking and real-model/bilingual acceptance remain.",
+      "required_evidence": "ACL-first LSA/BM25, document diversity, disabled-by-default local neural ranking and scoped stored-vector build/query APIs with dashboard controls, durable receipts and invalidation are implemented. Scalable indexing, learned reranking and real-model/bilingual acceptance remain.",
       "workspace": "knowledge"
     },
     {

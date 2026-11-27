@@ -14,6 +14,8 @@ export function liveIntentScope(
     | "retrieval-check"
     | "intake"
     | "hybrid-search"
+    | "neural-index-build"
+    | "indexed-search"
     | "member"
     | "asset-copy"
     | "connector-check",
@@ -47,6 +49,10 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
         [
           "STALE_VERSION",
           "SOURCE_CHANGED",
+          "INDEX_INVALIDATED",
+          "INDEX_SOURCE_CHANGED",
+          "INDEX_MODEL_CHANGED",
+          "INDEX_INTEGRITY_FAILED",
           "ACCOUNT_UNAVAILABLE",
           "OWNER_PROTECTED",
         ].includes((e as { code?: string }).code || ""))
