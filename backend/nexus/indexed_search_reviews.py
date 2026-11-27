@@ -40,6 +40,11 @@ class Review(Strict):
         return value.strip()
 
 
+class Compare(Strict):
+    baseline_id:str=Field(min_length=1,max_length=64)
+    candidate_id:str=Field(min_length=1,max_length=64)
+
+
 class Recover(Strict):
     key:str=Field(pattern=r'^[A-Za-z0-9_-]{16,100}$')
 
@@ -73,6 +78,16 @@ def detail(db,row,user):
 
 
 def register_indexed_search_reviews(app,factory,human):
+    @app.post('/v1/indexed-search-reviews/compare')
+    def compare(body:Compare,request:Request):
+        with factory() as db:
+            user=human(request,db,True)
+            if body.baseline_id==body.candidate_id:fail(422,'INDEX_COMPARE_DISTINCT_REQUIRED','Choose two different saved reviews.')
+            left=review_for(db,body.baseline_id,user);right=review_for(db,body.candidate_id,user)
+            baseline=detail(db,left,user);candidate=detail(db,right,user)
+            from .indexed_review_comparison import compare_reviews
+            return compare_reviews(baseline,candidate,owned_run(db,baseline['search_id'],user),owned_run(db,candidate['search_id'],user),left,right)
+
     @app.get('/v1/indexed-search-reviews')
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
         with factory() as db:

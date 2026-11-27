@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
+import { IndexedReviewComparison } from "./IndexedReviewComparison";
 import { indexedReviewRequest } from "./indexedReviewRequest";
 type Row = Record<string, any>;
 export function IndexedSearchReview({
@@ -213,6 +214,7 @@ export function IndexedSearchReview({
           </button>
         </div>
       </form>
+      <IndexedReviewComparison reviews={reviews} />
       <h4>Saved quality reviews</h4>
       <button
         className="btn"

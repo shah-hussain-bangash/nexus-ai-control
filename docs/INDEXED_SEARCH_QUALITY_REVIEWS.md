@@ -72,3 +72,5 @@ deletion, cross-account isolation, changed saved runs, metadata removal and mode
 disablement. Review tests forbid additional worker dispatch. Frontend tests cover
 query-free label payloads, negative-case normalization, cloned source selections,
 scoped lost-reply recovery and definitive pre-admission conflicts.
+
+[Compare two saved indexed-search reviews](INDEXED_REVIEW_COMPARISON.md) with matching private query identity, labels and search controls, without another model call. Older searches need new execution before equality can be established; they remain readable and reviewable.
