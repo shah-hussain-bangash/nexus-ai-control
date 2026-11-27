@@ -108,7 +108,7 @@
       "title": "Telemetry, alerts & SLOs",
       "area": "Operations",
       "delivery": "partial",
-      "required_evidence": "External logs/metrics/traces, service objectives and operator notification drills.",
+      "required_evidence": "Environment-scoped owner threshold policies, manual database evaluations and versioned local receipts are implemented. Continuous monitoring, external logs/metrics/traces, notification delivery drills and service-objective acceptance remain.",
       "workspace": "observability"
     },
     {

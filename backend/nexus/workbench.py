@@ -319,7 +319,7 @@ def register_workbench(app,factory,settings,human):
         with factory() as db:
             u=human(request,db)
             records=db.scalars(select(WorkspaceAsset).where(WorkspaceAsset.org_id==u.org_id,WorkspaceAsset.env==runtime_environment(db,u.org_id)).order_by(WorkspaceAsset.updated.desc()).limit(500)).all()
-            runs=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==u.org_id,WorkbenchRun.env==runtime_environment(db,u.org_id),WorkbenchRun.kind.notin_(('inference_spend_policy','billing_statement_review','neural_index_collection','neural_index_job','indexed_search_review','neural_index_build','hybrid_search','member_provision','environment_asset_copy','connector_check_intake'))).order_by(WorkbenchRun.created.desc()).limit(100)).all()
+            runs=db.scalars(select(WorkbenchRun).where(WorkbenchRun.org_id==u.org_id,WorkbenchRun.env==runtime_environment(db,u.org_id),WorkbenchRun.kind.notin_(('operational_alert_policy','operational_alert_sample','inference_spend_policy','billing_statement_review','neural_index_collection','neural_index_job','indexed_search_review','neural_index_build','hybrid_search','member_provision','environment_asset_copy','connector_check_intake'))).order_by(WorkbenchRun.created.desc()).limit(100)).all()
             return {'assets':[public(r) for r in records],'runs':[public(r) for r in runs],'mode':settings.mode,'schema_version':CURRENT_SCHEMA,'boundaries':{'provider_connected':False,'provider_execution_enabled':bool(settings.live_inference),'cloud_deployed':False,'retrieval':'Local BM25','workflow_execution':'Dry run only; governed action dispatcher remains separate'}}
 
     @app.post('/v1/workbench',status_code=201)

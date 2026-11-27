@@ -22,6 +22,8 @@ export function liveIntentScope(
     | "indexed-review"
     | "billing-review"
     | "model-spend-policy"
+    | "ops-alert-policy"
+    | "ops-alert-sample"
     | "member"
     | "asset-copy"
     | "connector-check",

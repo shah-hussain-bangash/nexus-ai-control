@@ -84,3 +84,5 @@ upgrade reports describe their original releases, not the current schema.
 The agreed design inventory remains 18 areas / 216 function previews. Design records, walkthrough roles/environments and exported review markers do not activate backend integrations. The isolated demo-preview harness blocks runtime writes; frontend and backend contain the authenticated application.
 
 **Full enterprise production readiness is not claimed.** The current roadmap has 1 implemented workstream awaiting acceptance and 17 partial workstreams, with deployment acceptance still open. Read the current roadmap before rollout. No real customer, IdP, cloud or provider account was changed by this release.
+
+Local Operations alert thresholds and manual check receipts: [guide](docs/LOCAL_OPERATIONAL_ALERTS.md).

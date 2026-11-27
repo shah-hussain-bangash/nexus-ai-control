@@ -18,7 +18,7 @@ Source states: **1 implemented awaiting acceptance, 17 partial, 0 not implemente
 | Identity & workload lifecycle | partial | IdP provisioning/offboarding, verified MFA and workload federation. |
 | Workspace & environment lifecycle | partial | Local lifecycle, membership isolation and reviewed prompt/guardrail/workflow draft copying with pinned reference remapping and receipt recovery are implemented. Pilot lifecycle, general configuration promotion and deployment acceptance remain. |
 | Secrets & network isolation | partial | Managed-secret injection, rotation and deployment-enforced egress isolation. |
-| Telemetry, alerts & SLOs | partial | External logs/metrics/traces, service objectives and operator notification drills. |
+| Telemetry, alerts & SLOs | partial | Environment-scoped owner threshold policies, manual database evaluations and versioned local receipts are implemented. Continuous monitoring, external logs/metrics/traces, notification delivery drills and service-objective acceptance remain. |
 | Audit integrity & retention | partial | Unsigned supplier-check and workflow exports with offline format/checksum verification are implemented. Immutable off-host archive, authenticated evidence, retention rules and deployment acceptance remain. |
 | Encrypted backup & recovery | partial | Quiesced snapshots, authenticated encrypted inspection, isolated SQLite recovery copies, disposable SQLite drills and a CI PostgreSQL recovery rehearsal are implemented. Scheduled encrypted backups, deployment application/PostgreSQL recovery acceptance and measured RPO/RTO remain. |
 | Cloud deployment & rollback | partial | Reviewed images, TLS/private networking, staged rollout and recovery evidence. |

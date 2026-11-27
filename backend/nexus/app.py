@@ -496,6 +496,8 @@ def create_app(settings=None):
     register_billing_reviews(app,factory,human)
     from .model_spending import register_model_spending
     register_model_spending(app,factory,human)
+    from .operational_alerts import register_operational_alerts
+    register_operational_alerts(app,factory,human)
     from .readiness import register_readiness
     register_readiness(app, factory, settings, human)
     from .durable import register_durable
