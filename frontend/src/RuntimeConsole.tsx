@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { BillingStatementReviews } from "./BillingStatementReviews";
 import { api, ApiError } from "./api";
 import {
   readRecovery,
@@ -283,9 +284,9 @@ export function RuntimeConsole({ me }: { me: Row }) {
             </div>
           </div>
           <p className="runtime-boundary">
-            Workspace limits: {runtime.requests_per_minute} admitted requests/minute ·{" "}
-            {runtime.max_inflight} concurrent pending dispatches (300-second
-            window). Shared across environments.{" "}
+            Workspace limits: {runtime.requests_per_minute} admitted
+            requests/minute · {runtime.max_inflight} concurrent pending
+            dispatches (300-second window). Shared across environments.{" "}
           </p>
           <p className="runtime-boundary">
             {runtime.boundary} Rates are operator-configured estimates, not an
@@ -370,8 +371,8 @@ export function RuntimeConsole({ me }: { me: Row }) {
                 <p className="muted">
                   {requireDocuments
                     ? "Stops before contacting the model when no authorized indexed document matches. A match does not verify the answer's correctness."
-                    : "Searches indexed Document library sources. Saved design sources are used when no document matches."}
-                  {" "}Review which model receives your evidence before sending.
+                    : "Searches indexed Document library sources. Saved design sources are used when no document matches."}{" "}
+                  Review which model receives your evidence before sending.
                 </p>
               </>
             )}
@@ -425,7 +426,8 @@ export function RuntimeConsole({ me }: { me: Row }) {
               </p>
               {result.result.citations?.map((c: Row, i: number) => (
                 <small key={(c.document_id || c.asset_id) + "-" + c.chunk}>
-                  [{i + 1}] {c.title} · v{c.document_version ?? c.asset_version} · chunk {c.chunk}
+                  [{i + 1}] {c.title} · v{c.document_version ?? c.asset_version}{" "}
+                  · chunk {c.chunk}
                 </small>
               ))}
             </div>
@@ -609,6 +611,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
           </div>
         </>
       )}
+      <BillingStatementReviews me={me} calls={history.items} />
     </section>
   );
 }

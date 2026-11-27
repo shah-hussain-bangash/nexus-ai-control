@@ -20,6 +20,7 @@ export function liveIntentScope(
     | "indexed-search"
     | "local-rerank"
     | "indexed-review"
+    | "billing-review"
     | "member"
     | "asset-copy"
     | "connector-check",
