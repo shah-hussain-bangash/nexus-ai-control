@@ -70,7 +70,8 @@ def main():
         print(json.dumps(recover_encrypted_sqlite(args.source,args.destination),indent=2))
         return
     if args.operation == 'init' and os.getenv('NEXUS_MODE', 'local') != 'local': parser.error('Synthetic init is local-only. Use migrate then bootstrap for pilot deployments.')
-    if args.operation == 'init' and not Path('.env').exists():
+    if (args.operation == 'init' and not Path('.env').exists()
+            and not all(name in os.environ for name in ('NEXUS_SECRET', 'NEXUS_AGENT_SECRET'))):
         content = f'NEXUS_SECRET={secrets.token_urlsafe(48)}\nNEXUS_AGENT_SECRET={secrets.token_urlsafe(48)}\nNEXUS_MODE=local\nNEXUS_POLICY_MODE=reference\n'
         Path('.env').write_text(content)
         if os.name != 'nt': os.chmod('.env', 0o600)
