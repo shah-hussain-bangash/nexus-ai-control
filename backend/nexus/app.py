@@ -518,6 +518,8 @@ def create_app(settings=None):
     register_ingestion(app,factory,settings,human)
     from .membership import register_membership
     register_membership(app,factory,settings,human)
+    from .identity_bindings import register_identity_bindings
+    register_identity_bindings(app,factory,settings,human)
     from .hybrid import register_hybrid
     register_hybrid(app,factory,settings,human)
     from .neural_index_runtime import register_neural_indexes

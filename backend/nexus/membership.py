@@ -1,5 +1,6 @@
 """Owner-controlled membership lifecycle and self-service session revocation."""
 import hashlib,json,re,secrets
+from urllib.parse import urlsplit
 from typing import Literal
 from fastapi import Request,Header
 from pydantic import Field,field_validator
@@ -12,6 +13,14 @@ from .service import canonical,audit
 from .environments import assign_staging
 from .runtime_context import CURRENT_ENVIRONMENT
 KIND='member_provision'
+def identity_issuer(settings):
+ issuer=settings.oidc_issuer.rstrip('/')
+ if not issuer:return ''
+ try:
+  parsed=urlsplit(issuer);parsed.port
+  if len(issuer)>500 or parsed.scheme not in ('http','https') or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or any(ord(c)<33 or ord(c)==127 for c in issuer):raise ValueError()
+ except (ValueError,TypeError):fail(503,'IDENTITY_ISSUER_UNAVAILABLE','The configured identity issuer is unavailable or unsupported.')
+ return issuer
 class Note(Strict):
  note:str=Field(min_length=5,max_length=500)
  @field_validator('note')
@@ -66,7 +75,7 @@ def register_membership(app,factory,settings,human):
   with factory() as db:
    actor=human(request,db,False,'members');users=db.scalars(select(User).where(User.org_id==actor.org_id).order_by(User.name,User.id).limit(201)).all()
    if len(users)>200:fail(422,'MEMBER_CAPACITY','This bounded owner workspace supports up to 200 members.')
-   return {'items':[member(db,u) for u in users],'mode':settings.mode,'oidc_configured':bool(settings.oidc_issuer),'boundary':'Owner-controlled preprovisioning. No invitation email is sent. Owners/identity bindings are not changed by this endpoint.'}
+   return {'items':[member(db,u) for u in users],'mode':settings.mode,'oidc_configured':bool(settings.oidc_issuer),'oidc_issuer':identity_issuer(settings),'identity_scope':'workspace-wide','explicit_subject_required':settings.mode!='local','boundary':'Owner-controlled preprovisioning. No invitation email is sent. Owners/identity bindings are not changed by this endpoint.'}
  @app.post('/v1/member-admin/provision/recover')
  def recover(body:Recover,request:Request):
   with factory() as db:

@@ -1832,7 +1832,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
               <Suspense
                 fallback={<p role="status">Loading account controls…</p>}
               >
-                <MemberAdmin me={me} />
+                <MemberAdmin key={recoveryPanelKey(me)} me={me} />
                 <EnvironmentSetup key={`${me.user.org_id}:${me.user.id}`} me={{ user: me.user }} />
               </Suspense>
               <SecretInputStatus key={recoveryPanelKey(me)} me={me} />
