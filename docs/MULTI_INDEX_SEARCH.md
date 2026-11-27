@@ -61,3 +61,5 @@ Only focused engineering checks are performed during development. Full acceptanc
 real-model quality/load tests, merges and deployment are later steps. Background
 indexing, larger-scale storage, reranking and representative model acceptance
 remain unfinished development/acceptance work.
+
+[Checkpointed background builds](BACKGROUND_INDEX_BUILDS.md) now queue bounded snapshots, resume saved batches, and publish completed indexes through the existing worker. Larger-scale storage and learned reranking remain separate work.

@@ -131,6 +131,7 @@ def load_index(db,user,id,*,model,model_digest):
     """Validated private snapshot; never serialize this return value to clients."""
     model_identity(model,model_digest)
     user,environment=current_actor(db,user);row=owned(db,id,user,environment)
+    if row.status=='building':fail(409,'INDEX_BUILD_ACTIVE','Wait for the background build to publish its snapshot.')
     if row.status!='ready':fail(409,'INDEX_INVALIDATED','The snapshot was invalidated; build a new index intent.')
     if row.model!=model or row.model_digest!=model_digest:fail(409,'INDEX_MODEL_CHANGED','The query model does not match this snapshot.')
     vectors=db.scalars(select(NeuralVector).where(NeuralVector.index_id==row.id,NeuralVector.org_id==user.org_id,NeuralVector.env==environment)
@@ -174,6 +175,8 @@ def invalidate_source(db,org,environment,document_id):
     """Called in the same transaction as a document content/access/delete update."""
     if runtime_environment(db,org)!=environment:raise RuntimeError('Index invalidation scope mismatch.')
     ids=list(db.scalars(select(NeuralVector.index_id).where(NeuralVector.org_id==org,NeuralVector.env==environment,NeuralVector.document_id==document_id).distinct()))
+    staged=db.scalars(select(NeuralIndex).where(NeuralIndex.org_id==org,NeuralIndex.env==environment,NeuralIndex.status=='building')).all()
+    ids=list(set(ids)|{row.id for row in staged if any(s.get('id')==document_id for s in row.sources)})
     if not ids:return
     db.execute(delete(NeuralVector).where(NeuralVector.org_id==org,NeuralVector.env==environment,NeuralVector.index_id.in_(ids)))
     db.execute(update(NeuralIndex).where(NeuralIndex.org_id==org,NeuralIndex.env==environment,NeuralIndex.id.in_(ids)).values(status='invalidated',version=NeuralIndex.version+1))
@@ -183,6 +186,7 @@ def remove_index(db,user,id,*,expected_version,note):
     if type(expected_version) is not int or expected_version<1 or type(note) is not str or not 5<=len(note.strip())<=500:
         fail(422,'INDEX_REQUEST_INVALID','Use a reviewed version and removal note.')
     user,environment=current_actor(db,user);row=owned(db,id,user,environment)
+    if row.status=='building':fail(409,'INDEX_BUILD_ACTIVE','Cancel the unfinished build before removing its snapshot.')
     if row.version!=expected_version:fail(409,'STALE_VERSION','The index changed; review it before removal.')
     db.execute(delete(NeuralVector).where(NeuralVector.index_id==row.id,NeuralVector.org_id==user.org_id,NeuralVector.env==environment))
     db.delete(row);audit(db,user.org_id,user.id,'retrieval.index.removed',detail={'index_id':id,'note':note.strip()})
