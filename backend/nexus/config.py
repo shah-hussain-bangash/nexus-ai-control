@@ -58,6 +58,7 @@ class Settings:
     tesseract_command: str = 'tesseract'
     ingestion_ocr_languages: str = 'eng'
     ingestion_timeout_seconds: int = 30
+    audit_signing_key_file: str = ''
     metrics_token: str = ''  
 
     @classmethod
