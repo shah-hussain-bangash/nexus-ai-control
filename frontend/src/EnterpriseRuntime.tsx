@@ -5,6 +5,7 @@ import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
 import { IndexedSearchReview } from "./IndexedSearchReview";
 import { LocalReranking } from "./LocalReranking";
+import { IndexCollections } from "./IndexCollections";
 import { BackgroundIndexJobs } from "./BackgroundIndexJobs";
 import { NeuralIndexPanel } from "./NeuralIndexPanel";
 import { hybridSearchRequest } from "./hybridSearchRequest";
@@ -58,6 +59,10 @@ export function HybridRetrieval({ me }: { me: Row }) {
     [threshold, setThreshold] = useState(0.15),
     [top, setTop] = useState(5),
     [onePerDocument, setOnePerDocument] = useState(false),
+    [collectionChoice, setCollectionChoice] = useState<{
+      ids: string[];
+      nonce: number;
+    }>({ ids: [], nonce: 0 }),
     [neural, setNeural] = useState(false),
     [neuralAvailable, setNeuralAvailable] = useState(false),
     [neuralModel, setNeuralModel] = useState(""),
@@ -431,6 +436,21 @@ export function HybridRetrieval({ me }: { me: Row }) {
           )}
         </section>
       </div>
+      <IndexCollections
+        me={me}
+        sources={docs
+          .filter((d) => selected.includes(d.id))
+          .map((d) => ({ id: d.id, version: d.version }))}
+        enabled={neuralAvailable}
+        model={neuralModel}
+        digest={neuralDigest}
+        onSelect={(ids) =>
+          setCollectionChoice((previous) => ({
+            ids,
+            nonce: previous.nonce + 1,
+          }))
+        }
+      />
       <BackgroundIndexJobs
         me={me}
         sources={docs
@@ -439,6 +459,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
         enabled={neuralAvailable}
       />
       <NeuralIndexPanel
+        selection={collectionChoice}
         me={me}
         sources={docs
           .filter((d) => selected.includes(d.id))

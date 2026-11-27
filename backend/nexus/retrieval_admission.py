@@ -6,7 +6,8 @@ from .security import fail
 
 BUILD_KIND='neural_index_build'
 JOB_KIND='neural_index_job'
-KINDS=('hybrid_search',BUILD_KIND,JOB_KIND)
+COLLECTION_KIND='neural_index_collection'
+KINDS=('hybrid_search',BUILD_KIND,JOB_KIND,COLLECTION_KIND)
 
 
 def admit(db,user):
