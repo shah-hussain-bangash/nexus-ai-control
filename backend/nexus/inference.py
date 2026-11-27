@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_CEILING
 import hashlib
 import json
-import os
 import re
 import time
 from urllib.parse import urlsplit
@@ -81,10 +80,12 @@ def route(config, settings):
     else:
         fail(422, 'PROVIDER_UNSUPPORTED', 'Live execution supports OpenAI and classic Azure OpenAI v1 routes only.')
     ref = config.get('credential_ref', '')
-    if not re.fullmatch(r'env:NEXUS_PROVIDER_[A-Z0-9_]{1,48}', ref):
+    if not re.fullmatch(r'env:NEXUS_PROVIDER_[A-Z0-9_]{1,48}', ref) or ref.endswith('_FILE'):
         fail(422, 'SECRET_REFERENCE_REQUIRED', 'Use an operator-provisioned env:NEXUS_PROVIDER_… secret reference.')
-    key = os.environ.get(ref[4:], '')
-    if not key or '\n' in key or '\r' in key:
+    from .secret_inputs import read_secret,SecretInputError
+    try:key=read_secret(ref[4:])
+    except SecretInputError:key=''
+    if not key or not key.isascii() or any(ord(c)<33 or ord(c)>126 for c in key):
         fail(503, 'PROVIDER_SECRET_UNAVAILABLE', 'The provider secret is unavailable. No request was sent.')
     prices = json.loads(settings.provider_prices)
     rates = prices.get(host + '|' + config['model'])
@@ -214,7 +215,7 @@ def register_inference(app, factory, settings, human):
                     return visible_call(db,previous,user)
                 # Recheck the selected route's opt-in under the admission lock.
                 # Enabling local inference must never enable a hosted route.
-                route(config, settings)
+                url,headers,rates=route(config, settings)
                 model = asset_for(db, user, body.model_id)
                 if model.kind != 'model' or model.status != 'validated' or model.version != body.expected_version:
                     fail(409, 'MODEL_NOT_CHECKED', 'Check and refresh this exact model configuration before live execution.')

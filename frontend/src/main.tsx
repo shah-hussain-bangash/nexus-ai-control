@@ -1,3 +1,4 @@
+import { SecretInputStatus } from "./SecretInputStatus";
 import { AuditRetention } from "./AuditRetention";
 import { SignedAuditEvidence } from "./SignedAuditEvidence";
 import { DurableExecution, DocumentLibrary } from "./LiveWorkspaces";
@@ -1834,6 +1835,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
                 <MemberAdmin me={me} />
                 <EnvironmentSetup key={`${me.user.org_id}:${me.user.id}`} me={{ user: me.user }} />
               </Suspense>
+              <SecretInputStatus key={recoveryPanelKey(me)} me={me} />
               <div className="settings-grid">
                 <section className="panel settings-card">
                   <h2>Environment & controls</h2>

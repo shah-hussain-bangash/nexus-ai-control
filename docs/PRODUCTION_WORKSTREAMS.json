@@ -100,7 +100,7 @@
       "title": "Secrets & network isolation",
       "area": "Governance",
       "delivery": "partial",
-      "required_evidence": "Managed-secret injection, rotation and deployment-enforced egress isolation.",
+      "required_evidence": "Optional bounded mounted-file inputs for startup authentication and per-dispatch provider/business credentials, conflict rejection and owner-only source status are implemented. Managed-secret custody, rotation acceptance and deployment-enforced egress isolation remain.",
       "workspace": "connectors"
     },
     {

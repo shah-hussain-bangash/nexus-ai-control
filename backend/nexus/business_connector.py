@@ -6,13 +6,13 @@ implement the documented idempotency/organization-isolation contract.
 """
 import hashlib
 import json
-import os
 import re
 import ssl
 from urllib.parse import urlsplit,quote
 from pathlib import Path
 import httpx
 from .mock_connector import MockBusiness, UncertainOutcome
+from .secret_inputs import read_secret,SecretInputError
 
 CONTRACT='nexus-business-v1'
 
@@ -27,12 +27,18 @@ def validate_business(settings, require_secret=True):
         if not host or host!=settings.business_host.lower() or not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?',host) or '..' in host:raise ValueError()
         if not re.fullmatch(r'(?:/[A-Za-z0-9_-]+)*/?',parsed.path):raise ValueError()
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{1,63}',settings.business_tenant):raise ValueError()
-        if not re.fullmatch(r'NEXUS_[A-Z0-9_]{3,80}',settings.business_token_env):raise ValueError()
+        if not re.fullmatch(r'NEXUS_[A-Z0-9_]{3,80}',settings.business_token_env) or settings.business_token_env.endswith('_FILE'):raise ValueError()
     except (ValueError,TypeError):raise RuntimeError('Business HTTP requires an exact configured HTTPS host, safe base path, remote tenant and a named server secret.') from None
     if settings.business_ca_bundle and not Path(settings.business_ca_bundle).is_file():raise RuntimeError('Business connector CA bundle is missing.')
     if require_secret:
-        token=os.environ.get(settings.business_token_env,'')
-        if not 16<=len(token)<=4096 or any(ord(c)<33 or ord(c)>126 for c in token):raise RuntimeError('Provision a valid business API credential in the named server environment variable.')
+        business_token(settings)
+
+
+def business_token(settings):
+    try:token=read_secret(settings.business_token_env)
+    except SecretInputError:raise RuntimeError('Business API credential input is unavailable, ambiguous or invalid.') from None
+    if not 16<=len(token)<=4096 or any(ord(c)<33 or ord(c)>126 for c in token):raise RuntimeError('Provision a valid business API credential through the named server input.')
+    return token
 
 
 def connector_identity(settings):
@@ -57,8 +63,8 @@ class HTTPBusiness:
         if not re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}',envelope.get('org_id','')):raise ValueError('Invalid scoped organization.')
 
     def request(self,method,path,envelope,intent,body=None):
-        self.binding(envelope);validate_business(self.settings)
-        headers={'Authorization':'Bearer '+os.environ[self.settings.business_token_env],
+        self.binding(envelope);validate_business(self.settings,False);token=business_token(self.settings)
+        headers={'Authorization':'Bearer '+token,
                  'X-Nexus-Tenant':self.settings.business_tenant,'X-Nexus-Organization':envelope['org_id'],
                  'X-Nexus-Contract':CONTRACT,'Accept':'application/json','Idempotency-Key':intent}
         verify=ssl.create_default_context(cafile=self.settings.business_ca_bundle or None)

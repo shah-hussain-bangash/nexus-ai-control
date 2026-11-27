@@ -1,6 +1,6 @@
-"""Environment-only runtime configuration. Secrets are created by `nexus.cli init`."""
+"""Environment configuration with optional operator-mounted secret files."""
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 from pathlib import Path
 
 
@@ -60,17 +60,24 @@ class Settings:
     ingestion_timeout_seconds: int = 30
     audit_signing_key_file: str = ''
     metrics_token: str = ''  
+    _secret_input_sources: dict = field(default_factory=dict,init=False,repr=False)
 
     @classmethod
     def from_env(cls):
         load_env()
-        keys = cls.__dataclass_fields__
+        from .secret_inputs import STARTUP_SECRETS,read_secret,source
+        keys = {key for key,value in cls.__dataclass_fields__.items() if value.init}
         values = {}
         for k in keys:
+            if k in STARTUP_SECRETS:
+                values[k]=read_secret('NEXUS_'+k.upper())
+                continue
             v = os.getenv('NEXUS_' + k.upper())
             if v is not None:
                 values[k] = int(v) if k in ('session_seconds', 'live_inference', 'ollama_enabled', 'ollama_embedding_enabled', 'ollama_rerank_enabled', 'inference_max_output', 'inference_response_bytes', 'inference_requests_per_minute', 'inference_max_inflight', 'business_timeout_seconds', 'business_response_bytes', 'ingestion_ocr_enabled', 'ingestion_timeout_seconds', 'ingestion_in_action_worker') else v
-        return cls(**values)
+        settings=cls(**values)
+        settings._secret_input_sources={key:source('NEXUS_'+key.upper()) for key in STARTUP_SECRETS}
+        return settings
 
     def validate(self):
         import re
