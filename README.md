@@ -71,6 +71,12 @@ The [staging verification guide](infra/pilot/README.md#staging-verification) inc
 
 The [local pilot runbook](docs/LOCAL_PILOT_ACCEPTANCE.md) has the repeatable checks and acceptance criteria. The [generated production roadmap](docs/PRODUCTION_ROADMAP.md) tracks 1 implemented workstream awaiting acceptance and 17 partial workstreams. The 18-area, 216-function catalog represents design previews. Customer workflow validation, independent bilingual answer evaluation, deployment security and measured recovery remain release gates.
 
+### Remaining release verification
+
+- [Pilot image vulnerability triage](docs/acceptance/IMAGE_VULNERABILITY_TRIAGE.md)
+- [Staging acceptance record](docs/acceptance/STAGING_ACCEPTANCE_RECORD.md)
+- [External sandbox verification](docs/acceptance/EXTERNAL_SANDBOX_VERIFICATION.md)
+
 <details>
 <summary>Implementation guides and verification references</summary>
 
