@@ -74,3 +74,5 @@ Backup checksum validity and restored application use are checked separately.
 No test contacts a live model or customer system. Remaining work includes
 representative real-model/bilingual acceptance, scalable index lifecycle,
 learned reranking and deployment validation. The active pilot remains unchanged.
+
+Saved indexed-search results can now receive [reviewer-labelled quality measurements](INDEXED_SEARCH_QUALITY_REVIEWS.md) without another model request. This does not replace representative model acceptance.
