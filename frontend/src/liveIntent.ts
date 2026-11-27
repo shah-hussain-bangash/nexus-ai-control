@@ -21,6 +21,7 @@ export function liveIntentScope(
     | "local-rerank"
     | "indexed-review"
     | "billing-review"
+    | "model-spend-policy"
     | "member"
     | "asset-copy"
     | "connector-check",
@@ -53,6 +54,7 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
       (status === 409 &&
         [
           "STALE_VERSION",
+          "SPEND_MODEL_CHANGED",
           "SOURCE_CHANGED",
           "RERANK_QUERY_DIFFERENT",
           "RERANK_QUERY_UNAVAILABLE",

@@ -39,6 +39,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Local neural embedding foundation](docs/LOCAL_NEURAL_EMBEDDING_FOUNDATION.md)
 - [Authorized local neural search](docs/AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
+- [Owner-managed model-route spending limits](docs/MODEL_SPENDING_LIMITS.md) — enforced admission ceilings and unresolved-reservation accounting.
 - [Owner-entered billing statement comparison](docs/BILLING_STATEMENT_COMPARISON.md) — selected-call discrepancies without ledger changes.
 - [Larger-corpus index collections](docs/INDEX_BUILD_COLLECTIONS.md) — queue up to 256 passages across bounded snapshots.
 - [Optional local model reranking](docs/LOCAL_MODEL_RERANKING.md) — reorder existing passages with a pinned local model.
