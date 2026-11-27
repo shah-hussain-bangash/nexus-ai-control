@@ -16,6 +16,7 @@ export function liveIntentScope(
     | "hybrid-search"
     | "neural-index-build"
     | "index-build-job"
+    | "index-collection"
     | "indexed-search"
     | "local-rerank"
     | "indexed-review"

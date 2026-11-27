@@ -93,3 +93,5 @@ Reranking, larger-scale storage/indexing, representative model quality and the
 other unfinished roadmap workstreams remain separate development work.
 
 [Optional local model reranking](LOCAL_MODEL_RERANKING.md) now provides a bounded second ordering pass over saved indexed-search passages. It is disabled by default and remains subject to representative acceptance.
+
+[Larger-corpus collections](INDEX_BUILD_COLLECTIONS.md) now partition up to 256 selected passages into at most eight ordinary background jobs, with atomic admission and whole-set readiness controls.

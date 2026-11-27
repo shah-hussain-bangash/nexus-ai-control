@@ -41,7 +41,7 @@ def job_for(db,id,user):
 def view(db,row):
     value=row.result;stage=db.get(NeuralIndex,value['index_id'])
     return {'id':row.id,'status':row.status,'created':row.created,'version':value['version'],
-        'name':value['name'],'index_id':value['index_id'],'index':metadata(stage) if stage else None,
+        'collection_id':value.get('collection_id'),'name':value['name'],'index_id':value['index_id'],'index':metadata(stage) if stage else None,
         'completed_passages':value['offset'],'total_passages':len(value['entries']),
         'stop_requested':value.get('stop_requested',''),'error_code':value.get('error_code',''),
         'lease_expired':row.status=='processing' and value.get('lease_until',0)<=now(),
@@ -99,6 +99,22 @@ def safe_error(exc):
     return 'INDEX_JOB_FAILED'
 
 
+def create_queued_job(db,user,name,entries,config,key,fingerprint,collection_id=None):
+    environment=runtime_environment(db,user.org_id)
+    sources,_,_=checked_sources(db,user,environment,entries)
+    row=WorkbenchRun(org_id=user.org_id,env=environment,author_id=user.id,kind=JOB_KIND,status='queued',duration_ms=0,result={})
+    db.add(row);db.flush()
+    stage=NeuralIndex(org_id=user.org_id,env=environment,author_id=user.id,name=name,model=config['embedding_model'],model_digest=config['embedding_digest'],
+        dimensions=0,entry_count=len(entries),sources=sources,content_hash='',status='building',idem_key='job-'+row.id,request_digest=fingerprint)
+    db.add(stage);db.flush()
+    row.result={'key':key,'fingerprint':fingerprint,'name':name,'config':config,'entries':entries,'index_id':stage.id,
+        'offset':0,'version':1,'confirmed_calls':0,'uncertain':False,'attempts':0,
+        'checkpoint_hash':snapshot_hash(stage.model,stage.model_digest,sources,[])}
+    audit(db,user.org_id,user.id,'retrieval.index.job_queued',detail={'job_id':row.id})
+    if collection_id:row.result={**row.result,'collection_id':collection_id}
+    return row
+
+
 def register_index_jobs(app,factory,settings,human):
     @app.get('/v1/neural-index-jobs')
     def listing(request:Request):
@@ -146,15 +162,7 @@ def register_index_jobs(app,factory,settings,human):
             if db.scalar(select(func.count()).select_from(WorkbenchRun).where(WorkbenchRun.kind==JOB_KIND,WorkbenchRun.status.in_(ACTIVE)))>=20:
                 fail(429,'INDEX_JOB_CAPACITY','This environment reached 20 unfinished builds.')
             admit(db,user)
-            row=WorkbenchRun(org_id=user.org_id,env=environment,author_id=user.id,kind=JOB_KIND,status='queued',duration_ms=0,result={})
-            db.add(row);db.flush()
-            stage=NeuralIndex(org_id=user.org_id,env=environment,author_id=user.id,name=body.name,model=config['embedding_model'],model_digest=config['embedding_digest'],
-                dimensions=0,entry_count=len(entries),sources=sources,content_hash='',status='building',idem_key='job-'+row.id,request_digest=fingerprint)
-            db.add(stage);db.flush()
-            row.result={'key':key,'fingerprint':fingerprint,'name':body.name,'config':config,'entries':entries,'index_id':stage.id,
-                'offset':0,'version':1,'confirmed_calls':0,'uncertain':False,'attempts':0,
-                'checkpoint_hash':snapshot_hash(stage.model,stage.model_digest,sources,[])}
-            audit(db,user.org_id,user.id,'retrieval.index.job_queued',detail={'job_id':row.id})
+            row=create_queued_job(db,user,body.name,entries,config,key,fingerprint)
             return view(db,row)
 
     @app.post('/v1/neural-index-jobs/{id}/control/{command}')

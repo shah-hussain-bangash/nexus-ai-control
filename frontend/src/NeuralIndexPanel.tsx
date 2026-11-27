@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { indexedSearchRequest } from "./indexedSearchRequest";
 import { api } from "./api";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
@@ -12,6 +12,7 @@ export function NeuralIndexPanel({
   model,
   digest,
   onSearch,
+  selection,
 }: {
   me: Row;
   sources: { id: string; version: number }[];
@@ -19,6 +20,7 @@ export function NeuralIndexPanel({
   model: string;
   digest: string;
   onSearch: (result: Row) => void;
+  selection?: { ids: string[]; nonce: number };
 }) {
   const [indexes, setIndexes] = useState<Row[]>([]),
     [receipts, setReceipts] = useState<Row[]>([]);
@@ -47,34 +49,46 @@ export function NeuralIndexPanel({
     current?.status === "ready" &&
     current.model === model &&
     current.model_digest === digest;
+  const selectionReady =
+    ready &&
+    additional.every((id) =>
+      indexes.some(
+        (row) =>
+          row.id === id &&
+          row.status === "ready" &&
+          row.model === model &&
+          row.model_digest === digest &&
+          row.dimensions === current?.dimensions,
+      ),
+    );
   const operate = me.permissions?.includes("operate");
-  async function refresh() {
+  const refreshSequence = useRef(0);
+  async function refresh(primary = selected) {
+    const sequence = ++refreshSequence.current;
     const [list, history] = await Promise.all([
       api("/v1/neural-indexes"),
       api("/v1/neural-indexes/builds"),
     ]);
+    if (sequence !== refreshSequence.current) return;
     setIndexes(list.items);
     setReceipts(history.items);
-    setAdditional((ids) =>
-      ids.filter((id) =>
-        list.items.some(
-          (row: Row) =>
-            row.id === id &&
-            row.status === "ready" &&
-            row.model === model &&
-            row.model_digest === digest &&
-            row.dimensions ===
-              list.items.find((r: Row) => r.id === selected)?.dimensions,
-        ),
-      ),
-    );
     setSelected((id) =>
       list.items.some((row: Row) => row.id === id) ? id : "",
     );
   }
   useEffect(() => {
     void refresh().catch((e: Error) => setMessage(e.message));
+    return () => {
+      refreshSequence.current++;
+    };
   }, []);
+  useEffect(() => {
+    if (!selection?.ids.length) return;
+    const ids = [...selection.ids];
+    setSelected(ids[0]);
+    setAdditional(ids.slice(1));
+    void refresh(ids[0]).catch((e: Error) => setMessage(e.message));
+  }, [selection]);
   async function act(job: () => Promise<Row>, search = false) {
     setBusy(true);
     setMessage("");
@@ -228,6 +242,20 @@ export function NeuralIndexPanel({
             ))}
         </select>
       </label>
+      {selected && !selectionReady && (
+        <p role="status">
+          One or more selected snapshots are unavailable or incompatible.
+          Refresh and review the selection before querying. No snapshots were
+          silently removed.
+        </p>
+      )}
+      <button
+        className="btn"
+        disabled={busy || !additional.length}
+        onClick={() => setAdditional([])}
+      >
+        Clear additional snapshot selection
+      </button>
       <p>
         {selected ? 1 + additional.length : 0} snapshots selected. One query
         embedding searches their combined passages; duplicate passages are
@@ -271,7 +299,9 @@ export function NeuralIndexPanel({
         <div className="live-actions">
           <button
             className="btn btn-primary"
-            disabled={busy || !ready || !query.trim() || additional.length > 7}
+            disabled={
+              busy || !selectionReady || !query.trim() || additional.length > 7
+            }
           >
             Search selected snapshots
           </button>
