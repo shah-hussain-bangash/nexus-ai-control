@@ -9,6 +9,7 @@ from .hybrid import Source,Recover,compute,visible_run,owned_run,KIND
 from .neural_search import configuration,NORMALIZATION_VERSION
 from .neural_index_store import create_index,load_index,rank_index,remove_index,metadata,vector_values,MAX_INDEXES
 from .retrieval_admission import admit,BUILD_KIND
+from .indexed_review_comparison import query_identity
 from .schemas import Strict
 from .runtime_context import runtime_environment
 from .security import fail,digest,PERMISSIONS
@@ -197,7 +198,7 @@ def register_neural_indexes(app,factory,settings,human):
             author=user.id;org=user.org_id;environment=runtime_environment(db,org)
             parameters={**body.model_dump(exclude={'query'}),'retrieval_mode':'local_indexed','index_version':version,**config}
             row=WorkbenchRun(org_id=org,env=environment,author_id=author,kind=KIND,status='processing',duration_ms=0,
-                result={'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(index.sources),'corpus_chunks':index.entry_count,'normalization_version':NORMALIZATION_VERSION})
+                result={'query_identity':query_identity(settings.secret,org,environment,author,body.query),'key':key,'fingerprint':fingerprint,'parameters':parameters,'source_count':len(index.sources),'corpus_chunks':index.entry_count,'normalization_version':NORMALIZATION_VERSION})
             db.add(row);db.flush();id=row.id
             payload={'retrieval_mode':'local_neural','task':'index_query','query':body.query,**config}
             audit(db,org,author,'retrieval.index.query_started',detail={'run_id':id,'index_id':index.id})
