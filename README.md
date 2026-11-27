@@ -39,6 +39,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Local neural embedding foundation](docs/LOCAL_NEURAL_EMBEDDING_FOUNDATION.md)
 - [Authorized local neural search](docs/AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
+- [Bounded multi-index search](docs/MULTI_INDEX_SEARCH.md) — one query embedding across up to eight saved snapshots.
 - [Saved indexed-review comparison](docs/INDEXED_REVIEW_COMPARISON.md) — matching-query metrics without rerunning a model.
 - [Saved indexed-search quality reviews](docs/INDEXED_SEARCH_QUALITY_REVIEWS.md) — reviewer labels and measurements without model execution.
 - [Stored neural index runtime](docs/RUNTIME_NEURAL_INDEXES.md) — build, query and recover scoped snapshots.

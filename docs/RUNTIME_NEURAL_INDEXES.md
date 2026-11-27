@@ -76,3 +76,5 @@ representative real-model/bilingual acceptance, scalable index lifecycle,
 learned reranking and deployment validation. The active pilot remains unchanged.
 
 Saved indexed-search results can now receive [reviewer-labelled quality measurements](INDEXED_SEARCH_QUALITY_REVIEWS.md) without another model request. This does not replace representative model acceptance.
+
+[Combined snapshot search](MULTI_INDEX_SEARCH.md) supports up to eight compatible saved indexes with one query embedding, global result limits and complete review lineage. Single-index request fingerprints are preserved.

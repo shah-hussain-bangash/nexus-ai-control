@@ -69,10 +69,12 @@ def detail(db,row,user):
         stale=stale or doc.version!=snapshot['version'] or doc.content_hash!=snapshot['sha256']
     search=owned_run(db,result['labels']['search_id'],user)
     if search_digest(search)!=result['search_digest']:fail(409,'INDEX_REVIEW_CHANGED','The underlying saved search changed.')
-    index=db.scalar(select(NeuralIndex).where(NeuralIndex.id==result['index']['id'],NeuralIndex.org_id==user.org_id,NeuralIndex.env==environment))
-    stale=stale or not index or index.status!='ready' or index.version!=result['index']['version'] or index.content_hash!=result['index']['sha256']
+    snapshots=result.get('indexes') or {result['index']['id']:result['index']}
+    for id,snapshot in snapshots.items():
+        index=db.scalar(select(NeuralIndex).where(NeuralIndex.id==id,NeuralIndex.org_id==user.org_id,NeuralIndex.env==environment))
+        stale=stale or not index or index.status!='ready' or index.version!=snapshot['version'] or index.content_hash!=snapshot['sha256']
     return {'id':row.id,'created':row.created,'status':row.status,'labels':result['labels'],'measurements':result['measurements'],
-        'search_id':search.id,'index_id':result['index']['id'],'parameters':search.result['parameters'],
+        'search_id':search.id,'index_ids':list(snapshots),'index_id':result['index']['id'],'parameters':search.result['parameters'],
         'stale':bool(stale),'review_provider_calls':0,'original_search_provider_calls':visible_run(db,search,user)['provider_calls'],
         'query_text_stored':False,'boundary':BOUNDARY}
 
@@ -133,8 +135,13 @@ def register_indexed_search_reviews(app,factory,human):
                 fail(409,'INDEX_REVIEW_SEARCH_UNSUPPORTED','Choose a completed stored-index search.')
             if value['withheld_stale_or_inaccessible'] or not value['normalization_current']:
                 fail(409,'INDEX_REVIEW_SEARCH_STALE','Run a new search before reviewing changed evidence.')
-            index,_,docs,_=load_index(db,user,parameters['index_id'],model=parameters['embedding_model'],model_digest=parameters['embedding_digest'])
-            if index.version!=parameters['index_version']:fail(409,'INDEX_REVIEW_SEARCH_STALE','The indexed snapshot changed.')
+            versions=parameters.get('index_versions') or {parameters['index_id']:parameters['index_version']}
+            docs={};snapshots={}
+            for id,version in versions.items():
+                index,_,sources,_=load_index(db,user,id,model=parameters['embedding_model'],model_digest=parameters['embedding_digest'])
+                if index.version!=version:fail(409,'INDEX_REVIEW_SEARCH_STALE','An indexed snapshot changed.')
+                docs.update(sources);snapshots[id]={'id':id,'version':index.version,'sha256':index.content_hash}
+            index_snapshot=next(iter(snapshots.values()))
             for id in set(body.expected_document_ids)|{hit['document_id'] for hit in value['items']}:
                 docs[id]=document_for(db,id,user)
             count=db.scalar(select(func.count()).select_from(WorkbenchRun).where(WorkbenchRun.org_id==user.org_id,WorkbenchRun.env==runtime_environment(db,user.org_id),WorkbenchRun.kind==KIND))
@@ -148,7 +155,7 @@ def register_indexed_search_reviews(app,factory,human):
             measured['passed']=bool(passed)
             row=WorkbenchRun(org_id=user.org_id,env=runtime_environment(db,user.org_id),author_id=user.id,kind=KIND,status='passed' if passed else 'failed',duration_ms=0,
                 result={'key':key,'fingerprint':fingerprint,'labels':labels,'measurements':measured,'search_digest':search_digest(search),
-                    'index':{'id':index.id,'version':index.version,'sha256':index.content_hash},
+                    'index':index_snapshot,'indexes':snapshots,
                     'source_versions':{id:{'version':doc.version,'sha256':doc.content_hash} for id,doc in docs.items()}})
             db.add(row);db.flush();audit(db,user.org_id,user.id,'retrieval.index.reviewed',detail={'review_id':row.id,'search_id':search.id,'status':row.status})
             return detail(db,row,user)

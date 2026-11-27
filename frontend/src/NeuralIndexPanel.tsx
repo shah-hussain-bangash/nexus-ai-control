@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { indexedSearchRequest } from "./indexedSearchRequest";
 import { api } from "./api";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
@@ -23,6 +24,7 @@ export function NeuralIndexPanel({
     [receipts, setReceipts] = useState<Row[]>([]);
   const [selected, setSelected] = useState(""),
     [name, setName] = useState("");
+  const [additional, setAdditional] = useState<string[]>([]);
   const [query, setQuery] = useState(""),
     [note, setNote] = useState("");
   const [busy, setBusy] = useState(false),
@@ -53,6 +55,19 @@ export function NeuralIndexPanel({
     ]);
     setIndexes(list.items);
     setReceipts(history.items);
+    setAdditional((ids) =>
+      ids.filter((id) =>
+        list.items.some(
+          (row: Row) =>
+            row.id === id &&
+            row.status === "ready" &&
+            row.model === model &&
+            row.model_digest === digest &&
+            row.dimensions ===
+              list.items.find((r: Row) => r.id === selected)?.dimensions,
+        ),
+      ),
+    );
     setSelected((id) =>
       list.items.some((row: Row) => row.id === id) ? id : "",
     );
@@ -69,7 +84,10 @@ export function NeuralIndexPanel({
         `${result.status}. ${result.error_code || result.boundary || ""}`,
       );
       if (search) onSearch(result);
-      if (result.index_id) setSelected(result.index_id);
+      if (result.index_id) {
+        setSelected(result.index_id);
+        setAdditional([]);
+      }
       await refresh();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Request failed.");
@@ -164,7 +182,10 @@ export function NeuralIndexPanel({
         <select
           value={selected}
           disabled={busy}
-          onChange={(e) => setSelected(e.target.value)}
+          onChange={(e) => {
+            setSelected(e.target.value);
+            setAdditional([]);
+          }}
         >
           <option value="">Choose a snapshot</option>
           {indexes.map((row) => (
@@ -180,16 +201,50 @@ export function NeuralIndexPanel({
           dimensions. Stored status is checked again when used.
         </p>
       )}
+      <label className="field">
+        <span>Additional compatible snapshots (optional; eight total)</span>
+        <select
+          multiple
+          size={4}
+          disabled={busy || !ready}
+          value={additional}
+          onChange={(e) =>
+            setAdditional(Array.from(e.target.selectedOptions, (o) => o.value))
+          }
+        >
+          {indexes
+            .filter(
+              (row) =>
+                row.id !== selected &&
+                row.status === "ready" &&
+                row.model === model &&
+                row.model_digest === digest &&
+                row.dimensions === current?.dimensions,
+            )
+            .map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name} · {row.entry_count} passages
+              </option>
+            ))}
+        </select>
+      </label>
+      <p>
+        {selected ? 1 + additional.length : 0} snapshots selected. One query
+        embedding searches their combined passages; duplicate passages are
+        returned once. Removal below applies only to the primary snapshot.
+      </p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          const body = {
-            index_id: selected,
-            query,
-            top_k: 5,
-            min_score: 0.15,
-            one_per_document: true,
-          };
+          let body;
+          try {
+            body = indexedSearchRequest(selected, additional, query);
+          } catch (e) {
+            setMessage(
+              e instanceof Error ? e.message : "Invalid snapshot selection.",
+            );
+            return;
+          }
           void act(
             () =>
               sendLiveIntent(sessionStorage, queryScope, body, (key) =>
@@ -216,9 +271,9 @@ export function NeuralIndexPanel({
         <div className="live-actions">
           <button
             className="btn btn-primary"
-            disabled={busy || !ready || !query.trim()}
+            disabled={busy || !ready || !query.trim() || additional.length > 7}
           >
-            Search saved index
+            Search selected snapshots
           </button>
           <button
             className="btn"
