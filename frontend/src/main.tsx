@@ -1773,7 +1773,7 @@ function App({ intentKeys }: { intentKeys: IntentKeyRegistry }) {
               <React.Suspense
                 fallback={<p role="status">Loading operating signals…</p>}
               >
-                <RuntimeOperations />
+                <RuntimeOperations key={recoveryPanelKey(me)} me={me} />
               </React.Suspense>
               <section className="operations-intro">
                 <div>

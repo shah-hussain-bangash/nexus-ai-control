@@ -7,9 +7,10 @@ import {
   Database,
   LockKeyhole,
 } from "lucide-react";
+import { OperationalAlerts } from "./OperationalAlerts";
 import { api } from "./api";
 type Row = Record<string, any>;
-export function RuntimeOperations() {
+export function RuntimeOperations({ me }: { me: Row }) {
   const [data, setData] = useState<Row | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -184,6 +185,7 @@ export function RuntimeOperations() {
           </div>
         </>
       )}
+      <OperationalAlerts me={me} />
     </section>
   );
 }
