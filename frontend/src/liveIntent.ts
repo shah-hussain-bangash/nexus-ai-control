@@ -16,6 +16,7 @@ export function liveIntentScope(
     | "hybrid-search"
     | "neural-index-build"
     | "indexed-search"
+    | "indexed-review"
     | "member"
     | "asset-copy"
     | "connector-check",
@@ -50,6 +51,8 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
           "STALE_VERSION",
           "SOURCE_CHANGED",
           "INDEX_INVALIDATED",
+          "INDEX_REVIEW_SEARCH_UNSUPPORTED",
+          "INDEX_REVIEW_SEARCH_STALE",
           "INDEX_SOURCE_CHANGED",
           "INDEX_MODEL_CHANGED",
           "INDEX_INTEGRITY_FAILED",

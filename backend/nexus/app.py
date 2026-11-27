@@ -510,6 +510,8 @@ def create_app(settings=None):
     register_hybrid(app,factory,settings,human)
     from .neural_index_runtime import register_neural_indexes
     register_neural_indexes(app,factory,settings,human)
+    from .indexed_search_reviews import register_indexed_search_reviews
+    register_indexed_search_reviews(app,factory,human)
     from .environments import register_environments
     from .session_context import register_session_context, response_context_valid
     register_session_context(app,factory,settings,human)

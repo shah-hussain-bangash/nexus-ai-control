@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
+import { IndexedSearchReview } from "./IndexedSearchReview";
 import { NeuralIndexPanel } from "./NeuralIndexPanel";
 import { hybridSearchRequest } from "./hybridSearchRequest";
 import "./live.css";
@@ -423,6 +424,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
           void refresh(0).catch((e) => setError(message(e)));
         }}
       />
+      <IndexedSearchReview me={me} run={result} documents={docs} />
       <section className="panel runtime-card">
         <div className="live-actions">
           <h3>Search receipts</h3>
