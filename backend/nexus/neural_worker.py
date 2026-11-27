@@ -36,13 +36,26 @@ def main():
         import resource
         resource.setrlimit(resource.RLIMIT_AS,(1073741824,1073741824))
         resource.setrlimit(resource.RLIMIT_CPU,(6,6))
-        resource.setrlimit(resource.RLIMIT_FSIZE,(32768,32768))
+        resource.setrlimit(resource.RLIMIT_FSIZE,(2097152,2097152))
     source,out=map(Path,sys.argv[1:3])
     try:
         if source.stat().st_size>1048576:raise ValueError('CORPUS_LIMIT')
-        result=rank(json.loads(source.read_text(encoding='utf-8')))
+        payload=json.loads(source.read_text(encoding='utf-8'))
+        result=embedding_batch(payload) if payload.get('task') in ('index_build','index_query') else rank(payload)
     except Exception:result={'error_code':'RANKING_FAILED'}
     out.write_text(json.dumps(result),encoding='utf-8')
+
+
+def embedding_batch(payload,*,transport=None):
+    if type(payload.get('embedding_digest')) is not str or not re.fullmatch(r'[a-f0-9]{64}',payload['embedding_digest']):raise ValueError('RANKING_FAILED')
+    if payload.get('task')=='index_build':
+        texts=payload['texts']
+        if type(texts) is not list or not 1<=len(texts)<=32 or any(type(t) is not str or len(t)>700 for t in texts):raise ValueError('CORPUS_LIMIT')
+    elif payload.get('task')=='index_query':texts=[payload['query']]
+    else:raise ValueError('RANKING_FAILED')
+    batch=embed_texts(payload['embedding_model'],texts,expected_digest=payload['embedding_digest'],transport=transport)
+    return {'vectors':batch['vectors'],'dimensions':batch['dimensions'],'embedding_model':payload['embedding_model'],
+            'embedding_digest':payload['embedding_digest'],'embedding_requests':1,'metadata_requests':3}
 
 
 if __name__=='__main__':main()

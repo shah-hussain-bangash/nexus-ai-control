@@ -3,6 +3,7 @@ import { api } from "./api";
 import { Modal } from "./RuntimeDialog";
 import { liveIntentScope, sendLiveIntent } from "./liveIntent";
 import { readRecovery, acknowledgeRecovery } from "./inferenceRecovery";
+import { NeuralIndexPanel } from "./NeuralIndexPanel";
 import { hybridSearchRequest } from "./hybridSearchRequest";
 import "./live.css";
 import "./enterpriseRuntime.css";
@@ -57,6 +58,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
     [neural, setNeural] = useState(false),
     [neuralAvailable, setNeuralAvailable] = useState(false),
     [neuralModel, setNeuralModel] = useState(""),
+    [neuralDigest, setNeuralDigest] = useState(""),
     [result, setResult] = useState<Row | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -75,6 +77,7 @@ export function HybridRetrieval({ me }: { me: Row }) {
       const capabilities = await api("/v1/hybrid-search/capabilities");
       setNeuralAvailable(capabilities.neural_embeddings === true);
       setNeuralModel(capabilities.neural_model || "");
+      setNeuralDigest(capabilities.neural_model_digest || "");
       if (capabilities.neural_embeddings !== true) setNeural(false);
       const all: Row[] = [];
       let at: number | null = 0;
@@ -135,8 +138,8 @@ export function HybridRetrieval({ me }: { me: Row }) {
       <div className="ops-alert">
         Bounded local search: up to 20 documents. Default LSA supports 128
         chunks; opt-in neural search supports 32 passages and a pinned local
-        model. No persistent vector index or generated answers. Scores are not
-        confidence.
+        model. Stored indexes are available below after operator setup. No
+        generated answers. Scores are not confidence.
       </div>
       <Alerts error={error} notice={notice} />
       <div className="live-grid">
@@ -333,13 +336,17 @@ export function HybridRetrieval({ me }: { me: Row }) {
               <p>
                 <strong>{result.status}</strong> · {result.duration_ms} ms ·{" "}
                 {result.source_count} sources · {result.corpus_chunks} chunks ·
-                {result.parameters?.retrieval_mode === "local_neural"
+                {["local_neural", "local_indexed"].includes(
+                  result.parameters?.retrieval_mode,
+                )
                   ? "neural similarity"
                   : `rank ${result.rank}`}
               </p>
               {result.error_code && <p role="alert">{result.error_code}</p>}
               <p>{result.method}</p>
-              {result.parameters?.retrieval_mode === "local_neural" && (
+              {["local_neural", "local_indexed"].includes(
+                result.parameters?.retrieval_mode,
+              ) && (
                 <p>
                   Model {result.parameters.embedding_model} ·{" "}
                   {result.embedding_dimensions} embedding dimensions · local
@@ -367,7 +374,9 @@ export function HybridRetrieval({ me }: { me: Row }) {
                   <p className="runtime-excerpt">{hit.excerpt}</p>
                   <dl>
                     <dt>
-                      {result.parameters?.retrieval_mode === "local_neural"
+                      {["local_neural", "local_indexed"].includes(
+                        result.parameters?.retrieval_mode,
+                      )
                         ? "Neural similarity"
                         : "Combined score"}
                     </dt>
@@ -376,7 +385,9 @@ export function HybridRetrieval({ me }: { me: Row }) {
                     <dd>{hit.semantic_score.toFixed(3)}</dd>
                     <dt>Keyword score</dt>
                     <dd>
-                      {result.parameters?.retrieval_mode === "local_neural"
+                      {["local_neural", "local_indexed"].includes(
+                        result.parameters?.retrieval_mode,
+                      )
                         ? "Not used"
                         : hit.lexical_score.toFixed(3)}
                     </dd>
@@ -399,6 +410,19 @@ export function HybridRetrieval({ me }: { me: Row }) {
           )}
         </section>
       </div>
+      <NeuralIndexPanel
+        me={me}
+        sources={docs
+          .filter((d) => selected.includes(d.id))
+          .map((d) => ({ id: d.id, version: d.version }))}
+        enabled={neuralAvailable}
+        model={neuralModel}
+        digest={neuralDigest}
+        onSearch={(row) => {
+          setResult(row);
+          void refresh(0).catch((e) => setError(message(e)));
+        }}
+      />
       <section className="panel runtime-card">
         <div className="live-actions">
           <h3>Search receipts</h3>

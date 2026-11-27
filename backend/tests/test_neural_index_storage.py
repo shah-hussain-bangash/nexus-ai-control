@@ -182,9 +182,14 @@ def test_failed_schema12_upgrade_rolls_back_new_tables_and_marker(ctx,monkeypatc
     monkeypatch.setattr(NeuralVector.__table__,'create',original);migrate(engine,ctx['db'])
     assert 'neural_vectors' in inspect(engine).get_table_names()
 
-def test_synthetic_backup_restores_stored_index_and_functioning_source_api(tmp_path):
+def test_synthetic_backup_restores_stored_index_and_functioning_source_api(tmp_path,monkeypatch):
     # Always SQLite, including PostgreSQL CI; all paths belong to this fixture.
     settings=Settings(database_url='sqlite:///'+(tmp_path/'source.sqlite3').as_posix(),mock_database=str(tmp_path/'business.sqlite3'),secret='synthetic-session-'+'x'*48,agent_secret='synthetic-agent-'+'y'*48,frontend_dir=str(tmp_path/'no-ui'))
+    from test_authorized_neural_search import configure,transport
+    from nexus import neural_index_runtime,neural_worker
+    configure({'settings':settings})
+    mock,calls=transport()
+    monkeypatch.setattr(neural_index_runtime,'compute',lambda payload:neural_worker.embedding_batch(payload,transport=mock))
     app=create_app(settings);migrate(app.state.engine,app.state.factory);seed(app.state.factory,'Synthetic-vector-test-password!')
     with TestClient(app) as client:
         ctx={'app':app,'db':app.state.factory,'settings':settings,'client':client}
@@ -201,6 +206,13 @@ def test_synthetic_backup_restores_stored_index_and_functioning_source_api(tmp_p
             auth(ctx);assert client.get('/health/ready').json()['schema_version']==12
             assert client.get('/v1/documents/'+doc['id']).json()['content']=='Synthetic restored index source العربية'
             assert rank(ctx,index)['items'][0]['document_id']==doc['id']
+            headers,_=auth(ctx);headers['Idempotency-Key']='restored-index-query-0001'
+            response=client.post('/v1/neural-indexes/search',headers=headers,json={'index_id':index['id'],'query':'synthetic restored pump'})
+            assert response.status_code==201,response.text
+            assert response.json()['items'][0]['document_id']==doc['id']
+            headers,_=auth(ctx,'auditor');headers['Idempotency-Key']='restored-auditor-index-001'
+            assert client.post('/v1/neural-indexes/search',headers=headers,json={'index_id':index['id'],'query':'synthetic restored pump'}).status_code==404
+            assert len(calls)==4
             headers,_=auth(ctx,'auditor')
             assert client.post('/v1/documents',headers={**headers,'Idempotency-Key':'auditor-rejected-source'},json=payload()).status_code==403
             with pytest.raises(HTTPException) as error:rank(ctx,index,role='auditor')

@@ -127,15 +127,12 @@ def describe_index(db,user,id):
     return metadata(owned(db,id,user,environment))
 
 
-def rank_index(db,user,id,query_vector,*,model,model_digest,top_k=5,min_score=0,one_per_document=False):
-    """Internal query primitive. It neither embeds text nor persists queries."""
+def load_index(db,user,id,*,model,model_digest):
+    """Validated private snapshot; never serialize this return value to clients."""
     model_identity(model,model_digest)
-    if type(top_k) is not int or not 1<=top_k<=10 or type(one_per_document) is not bool or not finite_number(min_score) or not 0<=min_score<=1:
-        fail(422,'INDEX_QUERY_INVALID','Use bounded ranking controls.')
     user,environment=current_actor(db,user);row=owned(db,id,user,environment)
     if row.status!='ready':fail(409,'INDEX_INVALIDATED','The snapshot was invalidated; build a new index intent.')
     if row.model!=model or row.model_digest!=model_digest:fail(409,'INDEX_MODEL_CHANGED','The query model does not match this snapshot.')
-    query=vector_values(query_vector,row.dimensions)
     vectors=db.scalars(select(NeuralVector).where(NeuralVector.index_id==row.id,NeuralVector.org_id==user.org_id,NeuralVector.env==environment)
         .order_by(NeuralVector.document_id,NeuralVector.position).execution_options(populate_existing=True)).all()
     if not 1<=len(vectors)==row.entry_count<=MAX_ENTRIES:fail(409,'INDEX_INTEGRITY_FAILED','The stored snapshot is incomplete.')
@@ -147,6 +144,15 @@ def rank_index(db,user,id,query_vector,*,model,model_digest,top_k=5,min_score=0,
     sources,docs,chunks=checked_sources(db,user,environment,entries)
     if sources!=row.sources or snapshot_hash(row.model,row.model_digest,sources,entries)!=row.content_hash:
         fail(409,'INDEX_INTEGRITY_FAILED','The stored snapshot cannot be verified.')
+    return row,entries,docs,chunks
+
+
+def rank_index(db,user,id,query_vector,*,model,model_digest,top_k=5,min_score=0,one_per_document=False):
+    """Internal query primitive. It neither embeds text nor persists queries."""
+    if type(top_k) is not int or not 1<=top_k<=10 or type(one_per_document) is not bool or not finite_number(min_score) or not 0<=min_score<=1:
+        fail(422,'INDEX_QUERY_INVALID','Use bounded ranking controls.')
+    row,entries,docs,chunks=load_index(db,user,id,model=model,model_digest=model_digest)
+    query=vector_values(query_vector,row.dimensions)
     hits=[]
     for entry in entries:
         score=max(0.0,min(1.0,math.fsum(a*b for a,b in zip(query,entry['vector']))))

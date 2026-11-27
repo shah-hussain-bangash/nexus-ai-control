@@ -14,6 +14,7 @@ from .service import audit,canonical
 from .runtime_context import runtime_environment
 from .ranking_result import normalize_result
 from . import neural_search
+from .retrieval_admission import admit
 KIND='hybrid_search'
 METHOD='Local TF-IDF / corpus-fitted LSA + normalized BM25; no neural model'
 
@@ -61,8 +62,9 @@ def compute(payload):
     except (subprocess.TimeoutExpired,OSError):pass
     if process.poll() is None:process.kill()
    process.wait();return {'error_code':'SEARCH_TIMEOUT'}
-  if process.returncode or not out.exists() or out.stat().st_size>32768:return {'error_code':'RANKING_FAILED'}
-  try:return json.loads(out.read_text())
+  maximum=2097152 if neural and payload.get('task')=='index_build' else 262144 if neural and payload.get('task')=='index_query' else 32768
+  if process.returncode or not out.exists() or out.stat().st_size>maximum:return {'error_code':'RANKING_FAILED'}
+  try:return json.loads(out.read_text(encoding='utf-8'))
   except (ValueError,UnicodeError):return {'error_code':'RANKING_FAILED'}
 
 def visible_run(db,row,user):
@@ -75,7 +77,7 @@ def visible_run(db,row,user):
   chunk=db.scalar(select(DocumentChunk).where(DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id),DocumentChunk.document_id==doc.id,DocumentChunk.document_version==doc.version,DocumentChunk.position==hit['position'],DocumentChunk.content_hash==hit['sha256']))
   if not chunk:hidden+=1;continue
   items.append({'document_id':doc.id,'document_version':doc.version,'title':doc.title,'filename':doc.filename,'chunk':chunk.position+1,'excerpt':chunk.text,'sha256':chunk.content_hash,'citation':f'{doc.id}:v{doc.version}:chunk{chunk.position+1}',**{k:hit[k] for k in ('score','semantic_score','lexical_score')}})
- neural=result.get('parameters',{}).get('retrieval_mode')=='local_neural'
+ neural=result.get('parameters',{}).get('retrieval_mode') in ('local_neural','local_indexed')
  calls=result.get('embedding_requests',0)+result.get('metadata_requests',0) if row.status=='completed' else None
  return {'id':row.id,'status':row.status,'created':row.created,'duration_ms':row.duration_ms,'method':neural_search.METHOD if neural else METHOD,'items':items,'withheld_stale_or_inaccessible':hidden,'rank':result.get('rank',0),'vocabulary':result.get('vocabulary',0),'corpus_chunks':result.get('corpus_chunks',0),'source_count':result.get('source_count',0),'error_code':result.get('error_code',''),'parameters':result.get('parameters',{}),'provider_calls':calls if neural else 0,'embedding_dimensions':result.get('embedding_dimensions',0),'query_text_stored':False,'normalization_version':result.get('normalization_version','legacy-unversioned'),'normalization_current':result.get('normalization_version')==(neural_search.NORMALIZATION_VERSION if neural else NORMALIZATION_VERSION),'boundary':'Ranked source excerpts only. Scores are not calibrated confidence. Current ACL/version checks apply again to saved history. Failed neural requests have unknown local HTTP-call counts.'}
 
@@ -89,7 +91,7 @@ def register_hybrid(app,factory,settings,human):
  def capabilities(request:Request):
   with factory() as db:human(request,db)
   config=neural_search.configuration(settings)
-  return {'method':METHOD,'max_chunks':128,'max_vocabulary':1024,'max_selected_sources':20,'max_requests_per_minute':30,'max_inflight':2,'history_limit':1000,'timeout_seconds':8,'provider_calls':0,'neural_embeddings':bool(config),'neural_max_chunks':32,'neural_timeout_seconds':12,'neural_model':config['embedding_model'] if config else None,'persistent_vector_index':False,'one_per_document_supported':True,'language_boundary':'Default LSA uses corpus co-occurrence. Opt-in local neural semantics require representative language-quality acceptance.'}
+  return {'method':METHOD,'max_chunks':128,'max_vocabulary':1024,'max_selected_sources':20,'max_requests_per_minute':30,'max_inflight':2,'history_limit':1000,'timeout_seconds':8,'provider_calls':0,'neural_embeddings':bool(config),'neural_max_chunks':32,'neural_timeout_seconds':12,'neural_model':config['embedding_model'] if config else None,'neural_model_digest':config['embedding_digest'] if config else None,'persistent_vector_index':bool(config),'persistent_vector_index_supported':True,'one_per_document_supported':True,'language_boundary':'Default LSA uses corpus co-occurrence. Opt-in local neural semantics require representative language-quality acceptance.'}
  @app.get('/v1/hybrid-search/history')
  def history(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(10,ge=1,le=25)):
   with factory() as db:
@@ -126,12 +128,7 @@ def register_hybrid(app,factory,settings,human):
     return visible_run(db,previous,user)
    config=neural_search.configuration(settings) if body.retrieval_mode=='local_neural' else None
    if body.retrieval_mode=='local_neural' and config is None:fail(503,'NEURAL_SEARCH_DISABLED','The operator must enable a pinned installed local embedding model first.')
-   stamp=now()
-   if len(records)>=1000:fail(429,'SEARCH_HISTORY_CAPACITY','The workspace reached its bounded 1,000-search receipt limit. Review retention before continuing.')
-   if sum(r.created>stamp-60 for r in records)>=30:fail(429,'SEARCH_RATE_LIMIT','The workspace reached 30 local search requests per minute.')
-   for r in records:
-    if r.status=='processing' and r.created<stamp-120:r.status='interrupted';r.result={**r.result,'error_code':'SEARCH_INTERRUPTED'}
-   if sum(r.status=='processing' for r in records)>=2:fail(429,'SEARCH_CONCURRENCY_LIMIT','Two local searches are already running. Retry later with the same intent key.')
+   admit(db,user)
    docs=allowed_docs(db,user);byid={d.id:d for d in docs}
    if body.sources:
     for s in body.sources:

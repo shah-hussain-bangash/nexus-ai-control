@@ -1,6 +1,6 @@
 # NEXUS AI Control — 0.16.2 candidate
 
-The current source uses database schema 11 and supports governed runtime
+The current review source uses database schema 12 and supports governed runtime
 environment switching. Preserve your private configuration and database when
 updating; older installations may require a backed-up schema upgrade. See the
 [current production roadmap](docs/PRODUCTION_ROADMAP.md) for delivered scope and
@@ -39,6 +39,7 @@ upgrade reports describe their original releases, not the current schema.
 - [Local hybrid retrieval](docs/HYBRID_RETRIEVAL_0_16_0.md)
 - [Local neural embedding foundation](docs/LOCAL_NEURAL_EMBEDDING_FOUNDATION.md)
 - [Authorized local neural search](docs/AUTHORIZED_LOCAL_NEURAL_SEARCH.md)
+- [Stored neural index runtime](docs/RUNTIME_NEURAL_INDEXES.md) — build, query and recover scoped snapshots.
 - [Persistent vector storage foundation](docs/PERSISTENT_VECTOR_STORAGE.md) — schema 12; separate migration required before applying this source.
 - [Combined local-pilot integration review](docs/PILOT_INTEGRATION_REVIEW.md)
 - [One result per document](docs/RETRIEVAL_SOURCE_DIVERSITY.md)

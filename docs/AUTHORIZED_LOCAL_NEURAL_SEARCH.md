@@ -80,8 +80,9 @@ hashes, request bounds, worker protocol validation and parent process timeout.
 A real child rejects an unpinned payload before HTTP; valid embedding exchanges
 use mock transports only. No test contacts the PC's Ollama service.
 
-This adds bounded authorized neural ranking, not a persistent/scalable vector
-index, learned reranker, generated-answer evaluation or independent bilingual
-quality acceptance. No real model has been selected or accepted for the running
+This direct-search route adds bounded authorized neural ranking. The subsequent
+[stored-index runtime](RUNTIME_NEURAL_INDEXES.md) adds persistent build/query APIs;
+scalable indexing, learned reranking, generated-answer evaluation and independent
+bilingual quality acceptance remain. No real model has been selected or accepted for the running
 pilot. The roadmap remains partial. This review change builds on PR #84; merges,
 active configuration, model installation and deployment remain separate decisions.
