@@ -4,7 +4,7 @@ from sqlalchemy import MetaData, UniqueConstraint, select, inspect
 from sqlalchemy.exc import IntegrityError
 from conftest import auth
 from nexus.db import (Base, SchemaVersion, DurableRun, KnowledgeDocument, DocumentUpdate,
-                      RetrievalCheck, IngestionJob, InferenceCall, InferenceBudget, uid, migrate)
+                      RetrievalCheck, IngestionJob, InferenceCall, InferenceBudget, uid, migrate, CURRENT_SCHEMA)
 from nexus.cli import seed
 from nexus.request_key_migration import LEGACY_KEYS,namespace
 
@@ -65,7 +65,7 @@ def test_populated_upgrade_preserves_all_records_receipts_sessions_and_budget(le
     migrate(ctx['app'].state.engine,ctx['db']);migrate(ctx['app'].state.engine,ctx['db'])
     assert_namespace(ctx,True);assert_foreign_keys_on(ctx)
     assert snapshot(ctx)==legacy['before']
-    assert ctx['client'].get('/health/ready').json()['schema_version']==11
+    assert ctx['client'].get('/health/ready').json()['schema_version']==CURRENT_SCHEMA
     assert ctx['client'].get('/v1/me').status_code==200
     with ctx['db']() as db:
         doc=db.scalar(select(KnowledgeDocument));update=db.scalar(select(DocumentUpdate))

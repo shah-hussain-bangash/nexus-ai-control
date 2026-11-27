@@ -2,7 +2,7 @@ import copy
 import pytest
 from sqlalchemy import select,update,func
 from conftest import auth,identifiers,approve
-from nexus.db import DurableRun,DurableStep,Action,Approval,Agent,User,SchemaVersion,KnowledgeDocument,DocumentChunk,DocumentUpdate,RetrievalCheck,IngestionJob,migrate,now
+from nexus.db import DurableRun,DurableStep,Action,Approval,Agent,User,SchemaVersion,KnowledgeDocument,DocumentChunk,DocumentUpdate,RetrievalCheck,IngestionJob,NeuralVector,NeuralIndex,migrate,now
 from nexus.durable import run_flow_once
 from nexus.worker import run_once
 
@@ -96,7 +96,8 @@ def test_expired_independent_review_cannot_be_reactivated(ctx):
 
 def test_schema_five_upgrade_preserves_users_and_existing_assets(ctx):
     with ctx['app'].state.engine.begin() as connection:
-        for model in (IngestionJob,RetrievalCheck,DocumentUpdate,DurableStep,DurableRun,DocumentChunk,KnowledgeDocument):model.__table__.drop(connection)
+        # Remove later-schema dependents before reconstructing schema five.
+        for model in (NeuralVector,NeuralIndex,IngestionJob,RetrievalCheck,DocumentUpdate,DurableStep,DurableRun,DocumentChunk,KnowledgeDocument):model.__table__.drop(connection)
         connection.execute(SchemaVersion.__table__.delete().where(SchemaVersion.version>=6))
     migrate(ctx['app'].state.engine,ctx['db'])
     with ctx['db']() as db:assert db.get(SchemaVersion,6) and db.scalar(select(User).where(User.email=='owner@nexus.local'))

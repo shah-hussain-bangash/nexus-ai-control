@@ -228,6 +228,8 @@ def register_documents(app,factory,settings,human):
         with factory.begin() as db:
             user=human(request,db,True,'operate');db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name));doc=document_for(db,id,user,True)
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','Document permissions changed. Refresh before applying access changes.')
+            from .neural_index_store import invalidate_source
+            invalidate_source(db,user.org_id,doc.env,doc.id)
             validate_members(db,user.org_id,body.allowed_users)
             doc.allowed_roles=sorted(set(body.allowed_roles));doc.allowed_users=sorted(set(body.allowed_users));doc.version+=1;doc.updated=now()
             db.execute(update(DocumentChunk).where(DocumentChunk.document_id==doc.id,DocumentChunk.org_id==doc.org_id,DocumentChunk.env==doc.env).values(document_version=doc.version))
@@ -238,6 +240,8 @@ def register_documents(app,factory,settings,human):
         with factory.begin() as db:
             user=human(request,db,True,'operate');db.execute(update(Organization).where(Organization.id==user.org_id).values(name=Organization.name));doc=document_for(db,id,user,True)
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','Document changed. Refresh before deletion.')
+            from .neural_index_store import invalidate_source
+            invalidate_source(db,user.org_id,doc.env,doc.id)
             db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==doc.id,DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id)));doc.content='';doc.status='deleted';doc.version+=1;doc.updated=now()
             audit(db,user.org_id,user.id,'document.deleted',detail={'document_id':doc.id,'version':doc.version,'note':body.note.strip()})
             return {'id':doc.id,'status':'deleted','chunks_removed':True,'boundary':'Content is logically removed from active storage and retrieval. Backup/WAL erasure and retention policy remain deployment responsibilities.'}
@@ -265,6 +269,8 @@ def register_documents(app,factory,settings,human):
                 return {**previous.receipt,'current_version':doc.version,'replayed':True}
             if doc.version!=body.expected_version:fail(409,'STALE_VERSION','The source or permissions changed. Refresh and review the new source before replacing content.')
             raw,text=decode(body);old_hash=doc.content_hash
+            from .neural_index_store import invalidate_source
+            invalidate_source(db,user.org_id,doc.env,doc.id)
             db.execute(delete(DocumentChunk).where(DocumentChunk.document_id==id,DocumentChunk.org_id==user.org_id,DocumentChunk.env==runtime_environment(db,user.org_id)))
             doc.title=body.title;doc.filename=body.filename;doc.language=body.language;doc.content=text;doc.content_hash=digest(text);doc.byte_count=len(raw);doc.version+=1;doc.updated=now()
             index_document(db,doc);db.flush()
