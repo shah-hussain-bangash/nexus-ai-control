@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import os
 import secrets
 import time
 import hashlib
@@ -9,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 from collections import Counter
 from contextlib import asynccontextmanager
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 import httpx
 import jwt
 from fastapi import FastAPI, Request, Response, Header, Query
@@ -131,6 +132,43 @@ def create_app(settings=None):
             audit(db, user.org_id, user.id, 'session.created',env=CURRENT_ENVIRONMENT)
         session_cookie(response, token)
         return {'user': public(user), 'csrf': csrf}
+
+    @app.get('/auth/workbench', include_in_schema=False)
+    def open_from_workbench(request: Request):
+        response = RedirectResponse('/', status_code=303, headers={'Cache-Control': 'no-store'})
+        origin = os.getenv('NEXUS_WORKBENCH_DEMO_ORIGIN', '')
+        try:
+            target = urlsplit(settings.origin)
+            trusted = urlsplit(origin)
+            referer = urlsplit(request.headers.get('referer', ''))
+        except ValueError:
+            return response
+        if (settings.mode != 'local' or target.scheme != 'http' or trusted.scheme != 'http'
+                or target.hostname not in {'127.0.0.1', 'localhost', '::1'}
+                or trusted.hostname not in {'127.0.0.1', 'localhost', '::1'}
+                or not request.client or request.client.host not in {'127.0.0.1', '::1'}):
+            return response
+        if f'{referer.scheme}://{referer.netloc}' != origin:
+            return response
+        if request.cookies.get('nexus_session'):
+            try:
+                with factory() as db:
+                    human(request, db)
+                return response
+            except HTTPException as exc:
+                if exc.status_code != 401:
+                    return response
+        email = os.getenv('NEXUS_WORKBENCH_DEMO_EMAIL')
+        password = os.getenv('NEXUS_WORKBENCH_DEMO_PASSWORD')
+        if email and password:
+            with factory() as db:
+                role = db.scalar(select(User.role).where(User.email == email.lower(), User.active == 1))
+            if role == 'auditor':
+                try:
+                    login(Login(email=email, password=password), request, response)
+                except HTTPException:
+                    pass  # Native sign-in remains available if the local credential is rejected.
+        return response
 
     @app.post('/auth/logout')
     def logout(request: Request, response: Response):
