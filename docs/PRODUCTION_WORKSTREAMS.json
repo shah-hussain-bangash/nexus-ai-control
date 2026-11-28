@@ -60,7 +60,7 @@
       "title": "Provider resilience",
       "area": "Runtime",
       "delivery": "partial",
-      "required_evidence": "Bounded response validation, elapsed-time completion checks, uncertain-outcome accounting and a disposable synthetic inference-control drill are implemented. Model-specific failure behavior, streaming/fallback if required, and live provider acceptance remain.",
+      "required_evidence": "Bounded response validation, elapsed-time completion checks, uncertain-outcome accounting, owner-managed route admission pauses over recorded unknown outcomes and disposable synthetic inference checks are implemented. Broader model-specific failure behavior, streaming/fallback if required, and live provider acceptance remain.",
       "workspace": "models"
     },
     {

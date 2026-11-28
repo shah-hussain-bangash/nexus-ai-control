@@ -22,6 +22,7 @@ export function liveIntentScope(
     | "indexed-review"
     | "billing-review"
     | "model-spend-policy"
+    | "model-uncertainty-policy"
     | "audit-retention-policy"
     | "audit-retention-plan"
     | "signed-audit"
@@ -63,6 +64,7 @@ export async function sendLiveIntent<T extends { id: string; status: string }>(
         [
           "STALE_VERSION",
           "SPEND_MODEL_CHANGED",
+          "UNCERTAINTY_MODEL_CHANGED",
           "IDENTITY_ISSUER_CHANGED",
           "AUDIT_SIGNING_KEY_CHANGED",
           "SOURCE_CHANGED",

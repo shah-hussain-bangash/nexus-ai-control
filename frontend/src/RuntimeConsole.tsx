@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ModelUncertaintyControls } from "./ModelUncertaintyControls";
 import { ModelSpendingControls } from "./ModelSpendingControls";
 import { BillingStatementReviews } from "./BillingStatementReviews";
 import { api, ApiError } from "./api";
@@ -613,6 +614,7 @@ export function RuntimeConsole({ me }: { me: Row }) {
         </>
       )}
       <ModelSpendingControls me={me} />
+      <ModelUncertaintyControls me={me} />
       <BillingStatementReviews me={me} calls={history.items} />
     </section>
   );
