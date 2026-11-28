@@ -139,8 +139,8 @@ def provider_response(app, url, headers, payload, timeout, max_bytes):
 
 def settle(db, row, ins, outs, status, result):
     runtime_environment(db,row.org_id,row.env)
-    if row.result.get('spend_control'):
-        result={**result,'spend_control':row.result['spend_control']}
+    for control in ('spend_control','uncertainty_control'):
+        if row.result.get(control):result={**result,control:row.result[control]}
     charged = cost(ins, outs, {'input': row.input_rate, 'output': row.output_rate})
     changed = db.execute(update(InferenceCall).where(InferenceCall.id == row.id, InferenceCall.org_id == row.org_id, InferenceCall.env == row.env, InferenceCall.status.in_(('pending', 'unknown'))).values(status=status, charged=charged, input_tokens=ins, output_tokens=outs, result=result))
     if changed.rowcount != 1:
@@ -262,6 +262,9 @@ def register_inference(app, factory, settings, human):
                 from .model_spending import enforce
                 spend_control=enforce(db,user,body.model_id,row.period)
                 if spend_control:row.result={'spend_control':spend_control}
+                from .model_uncertainty import enforce as enforce_uncertainty
+                uncertainty_control=enforce_uncertainty(db,user,body.model_id)
+                if uncertainty_control:row.result={**row.result,'uncertainty_control':uncertainty_control}
                 recent,pending=admission_counts(db,org,environment)
                 # The newly flushed row is included in both counts.
                 if recent>settings.inference_requests_per_minute:
@@ -310,7 +313,7 @@ def register_inference(app, factory, settings, human):
                 if not row:fail(409,'CALL_CONTEXT_CHANGED','The stored call context changed; its reservation needs operator review.')
                 if row.status!='pending':fail(409,'CALL_ALREADY_SETTLED','This call was already settled; refresh its evidence.')
                 row.status = 'unknown'; row.duration_ms = round((time.perf_counter()-started)*1000, 3)
-                row.result = {**({'spend_control':row.result['spend_control']} if row.result.get('spend_control') else {}),'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
+                row.result = {**{control:row.result[control] for control in ('spend_control','uncertainty_control') if row.result.get(control)},'message': 'Provider outcome is uncertain. Reservation retained. Do not create a duplicate request; an owner must reconcile provider usage.', 'citations': []}
                 audit(db, row.org_id, author, 'inference.unknown', detail={'call_id': call_id},env=row.env)
 
         # Commit provider accounting before rechecking delivery access. Revocation

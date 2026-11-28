@@ -96,3 +96,5 @@ Optional mounted credential files and redacted source status: [guide](docs/MOUNT
 Reviewed existing-member SSO bindings and pilot prebinding: [guide](docs/REVIEWED_IDENTITY_BINDINGS.md).
 
 Bounded CSV intake, review and publication: [guide](docs/CSV_INTAKE.md).
+
+Owner-managed admission pauses for recorded unknown model outcomes: [guide](docs/MODEL_UNCERTAINTY_CONTROLS.md).
