@@ -3,10 +3,11 @@ ERROR_CODES=frozenset({
     'FILE_SIZE_LIMIT','PDF_PAGE_LIMIT','EXTRACTED_TEXT_LIMIT','OCR_REQUIRED','OCR_DISABLED',
     'OCR_LANGUAGE_UNAVAILABLE','OCR_ENGINE_UNAVAILABLE','OCR_TIMEOUT','OCR_ENGINE_FAILED','IMAGE_LIMIT',
     'DOCX_CONTAINER_REJECTED','DOCX_CONTAINER_LIMIT','DOCX_XML_REJECTED','UNSUPPORTED_EXTRACTION_MODE',
+    'CSV_TEXT_ENCODING','CSV_MALFORMED','CSV_ROW_LIMIT','CSV_COLUMN_LIMIT','CSV_COLUMN_MISMATCH','CSV_CELL_LIMIT',
     'NO_EXTRACTABLE_TEXT','UNSUPPORTED_OR_MALFORMED_FILE','EXTRACTION_TIMEOUT',
     'EXTRACTOR_RESOURCE_OR_PROCESS_FAILURE','EXTRACTOR_RESULT_INVALID','REQUESTER_REVOKED','EXTRACTION_UNAVAILABLE',
 })
-INFO_FIELDS=frozenset({'method','pages','ocr_pages','review_required','extraction_mode'})
+INFO_FIELDS=frozenset({'method','pages','ocr_pages','review_required','extraction_mode','csv_rows','csv_columns'})
 
 
 def normalize_result(value):
@@ -22,6 +23,9 @@ def normalize_result(value):
     if type(info) is not dict or not set(info).issubset(INFO_FIELDS):return invalid
     try:
         if '\x00' in text or len(text.encode('utf-8'))>32768:return invalid
+        if info.get('method')=='csv-text' or 'csv_rows' in info or 'csv_columns' in info:
+            if info.get('method')!='csv-text' or type(info.get('csv_rows')) is not int or not 1<=info['csv_rows']<=500 or type(info.get('csv_columns')) is not int or not 1<=info['csv_columns']<=32:return invalid
+            if info.get('pages') is not None or info.get('ocr_pages')!=0 or info.get('review_required') is not True or info.get('extraction_mode')!='auto':return invalid
         if 'method' in info:
             method=info['method']
             if type(method) is not str or not method.strip() or len(method)>64 or any(ord(char)<32 or ord(char)==127 for char in method):return invalid

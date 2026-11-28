@@ -94,3 +94,5 @@ Owner-managed holds and explicit expired signed-audit payload retention: [guide]
 Optional mounted credential files and redacted source status: [guide](docs/MOUNTED_SECRET_INPUTS.md).
 
 Reviewed existing-member SSO bindings and pilot prebinding: [guide](docs/REVIEWED_IDENTITY_BINDINGS.md).
+
+Bounded CSV intake, review and publication: [guide](docs/CSV_INTAKE.md).

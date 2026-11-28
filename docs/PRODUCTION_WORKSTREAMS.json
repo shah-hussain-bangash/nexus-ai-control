@@ -28,7 +28,7 @@
       "title": "Document ingestion & OCR",
       "area": "Knowledge",
       "delivery": "partial",
-      "required_evidence": "Authorized intake, local parsers, reviewed publication, OCR controls, deletion propagation and a disposable DOCX/PDF ingestion drill are implemented. OCR quality, broader file compatibility and deployment acceptance remain.",
+      "required_evidence": "Authorized intake, local parsers, reviewed publication, bounded UTF-8 CSV extraction, OCR controls, deletion propagation and disposable intake checks are implemented. OCR quality, additional file formats and deployment acceptance remain.",
       "workspace": "documents"
     },
     {

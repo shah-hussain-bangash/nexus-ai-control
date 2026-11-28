@@ -182,18 +182,22 @@ test("customer supplier references are bounded and never become URL paths", () =
   );
 });
 
-test("queued binary intake accepts only bounded plain supported files", () => {
+test("queued file intake accepts only bounded plain supported files", () => {
   for (const name of [
     "source.pdf",
     "source.docx",
     "scan.png",
     "photo.JPG",
     "photo.jpeg",
+    "records.csv",
+    "حساس.CSV",
   ])
     assert.equal(queuedFileMetadata({ name, size: 1048576 }).filename, name);
   for (const f of [
     { name: "../source.pdf", size: 1 },
     { name: "source.exe", size: 100 },
+    { name: "../records.csv", size: 100 },
+    { name: "records.csv", size: 1048577 },
     { name: "source.pdf", size: 0 },
     { name: "source.pdf", size: 1048577 },
     { name: "a".repeat(120) + ".pdf", size: 1 },

@@ -12,6 +12,7 @@ import sys
 import warnings
 import zipfile
 import xml.etree.ElementTree as ET
+from .csv_extraction import csv_file,CsvError
 
 MAX_TEXT=32768
 MAX_PIXELS=8000000
@@ -92,10 +93,10 @@ def main():
     try:
         if not 1<=source.stat().st_size<=1048576:raise ExtractError('FILE_SIZE_LIMIT')
         ext=config['format']
-        text,info=(pdf_file if ext=='pdf' else docx_file if ext=='docx' else image_file)(source,root,config)
+        text,info=(pdf_file if ext=='pdf' else docx_file if ext=='docx' else csv_file if ext=='csv' else image_file)(source,root,config)
         if not text:raise ExtractError('NO_EXTRACTABLE_TEXT')
         result={'text':text,'info':info}
-    except ExtractError as exc:result={'error_code':str(exc)}
+    except (ExtractError,CsvError) as exc:result={'error_code':str(exc)}
     except Exception:result={'error_code':'UNSUPPORTED_OR_MALFORMED_FILE'}
     output.write_text(json.dumps(result,ensure_ascii=False),encoding='utf-8')
 
