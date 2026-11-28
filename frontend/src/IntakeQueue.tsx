@@ -16,6 +16,13 @@ function pending(scope: string) {
   }
 }
 const errorText: Record<string, string> = {
+  CSV_TEXT_ENCODING: "Use UTF-8 CSV text without binary control characters.",
+  CSV_MALFORMED:
+    "CSV quoting is malformed. Re-export comma-separated UTF-8 text.",
+  CSV_ROW_LIMIT: "CSV exceeds 500 nonempty records. Split the source.",
+  CSV_COLUMN_LIMIT: "CSV exceeds 32 columns. Split the source.",
+  CSV_COLUMN_MISMATCH: "CSV rows must have the same number of columns.",
+  CSV_CELL_LIMIT: "A CSV cell exceeds 2048 UTF-8 bytes. Shorten or split it.",
   OCR_DISABLED:
     "OCR is disabled on the worker. Ask the operator to provision and enable Tesseract.",
   OCR_REQUIRED:
@@ -66,7 +73,12 @@ export function IntakeQueue({
     [note, setNote] = useState(""),
     [reviewed, setReviewed] = useState(false),
     [discard, setDiscard] = useState(false);
-  const scope = liveIntentScope("intake", me.user.org_id, me.user.id, me.environment),
+  const scope = liveIntentScope(
+      "intake",
+      me.user.org_id,
+      me.user.id,
+      me.environment,
+    ),
     [intent, setIntent] = useState(() => pending(scope));
   const canOperate = me.permissions?.includes("operate"),
     selected = useRef(""),
@@ -127,6 +139,7 @@ export function IntakeQueue({
       for (const byte of bytes) binary += String.fromCharCode(byte);
       setContent(btoa(binary));
       setFilename(file.name);
+      if (/\.(csv|docx)$/i.test(file.name)) setMode("auto");
       setTitle(file.name.replace(/\.[^.]+$/, ""));
       setError("");
     } catch (e) {
@@ -242,7 +255,7 @@ export function IntakeQueue({
     <section className="intake-queue" aria-label="Document processing queue">
       <header className="intake-heading">
         <div>
-          <small>PDF · DOCX · IMAGE OCR</small>
+          <small>PDF · DOCX · CSV · IMAGE OCR</small>
           <h2>Extract. Review. Publish.</h2>
           <p>
             Queue a source file, inspect extracted text and approve publication
@@ -281,7 +294,7 @@ export function IntakeQueue({
           <span>
             {caps.ocr_enabled
               ? "OCR enabled · " + caps.ocr_languages_configured
-              : "OCR disabled · searchable PDF/DOCX available"}
+              : "OCR disabled · searchable PDF/DOCX/CSV available"}
           </span>
           <span>Review expires after 24 hours</span>
         </div>
@@ -334,8 +347,8 @@ export function IntakeQueue({
               <FileUp size={30} />
               <h3>No intake jobs in this view</h3>
               <p>
-                Searchable PDF and DOCX work without OCR. Images and scanned
-                pages need an enabled OCR engine and language data.
+                Searchable PDF, DOCX and UTF-8 CSV work without OCR. Images and
+                scanned pages need an enabled OCR engine and language data.
               </p>
             </div>
           )}
@@ -372,6 +385,12 @@ export function IntakeQueue({
                   Method: {detail.extraction.method} · pages:{" "}
                   {detail.extraction.pages ?? "not measured"} · OCR pages:{" "}
                   {detail.extraction.ocr_pages || 0}
+                </p>
+              )}
+              {detail.extraction?.method === "csv-text" && (
+                <p>
+                  CSV records: {detail.extraction.csv_rows} · columns:{" "}
+                  {detail.extraction.csv_columns}. Values remain literal text.
                 </p>
               )}
               {detail.status === "processing" && (
@@ -491,7 +510,7 @@ export function IntakeQueue({
               Source file
               <input
                 type="file"
-                accept=".pdf,.docx,.png,.jpg,.jpeg"
+                accept=".pdf,.docx,.png,.jpg,.jpeg,.csv"
                 onChange={(e) => choose(e.target.files?.[0])}
               />
             </label>
@@ -522,13 +541,21 @@ export function IntakeQueue({
                 <option value="auto">
                   Extract text; OCR blank PDF pages if enabled
                 </option>
-                <option value="ocr">Force OCR for PDF/image</option>
+                <option value="ocr" disabled={/\.(csv|docx)$/i.test(filename)}>
+                  Force OCR for PDF/image
+                </option>
               </select>
             </label>
             <p>
               Mixed PDFs with sparse searchable text may need Force OCR. Arabic
               OCR requires ara language data and operator configuration; no
               fallback to English is used.
+            </p>
+            <p>
+              CSV uses UTF-8 comma-separated text: up to 500 nonempty records,
+              32 columns and 2048 UTF-8 bytes per cell, within 32 KiB extracted
+              text. The first record is included as data. Formulas remain
+              literal text; no spreadsheet calculation occurs.
             </p>
             <fieldset className="live-role-options">
               <legend>Reader roles after publication</legend>
@@ -554,7 +581,8 @@ export function IntakeQueue({
               </p>
             </fieldset>
             <p>
-              {filename || "No file selected"} · PDF/DOCX/PNG/JPEG up to 1 MiB.
+              {filename || "No file selected"} · PDF/DOCX/PNG/JPEG/CSV up to 1
+              MiB.
             </p>
             {error && (
               <p className="error" role="alert">

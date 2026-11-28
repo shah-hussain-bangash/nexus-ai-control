@@ -98,10 +98,10 @@ export function runControls(run: { status: string; can_retry?: boolean }) {
 
 export function queuedFileMetadata(file: { name: string; size: number }) {
   if (
-    !/^[^/\\]+\.(pdf|docx|png|jpe?g)$/i.test(file.name) ||
+    !/^[^/\\]+\.(pdf|docx|png|jpe?g|csv)$/i.test(file.name) ||
     file.name.length > 120
   )
-    throw Error("Choose a plain PDF, DOCX, PNG or JPEG filename.");
+    throw Error("Choose a plain PDF, DOCX, PNG, JPEG or CSV filename.");
   if (file.size < 1 || file.size > 1048576)
     throw Error("File intake supports 1 byte to 1 MiB.");
   return { filename: file.name, bytes: file.size };

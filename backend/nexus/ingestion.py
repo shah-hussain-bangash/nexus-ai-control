@@ -70,13 +70,13 @@ def release(job,status,error=''):
 
 def decode(body):
     ext=body.filename.rsplit('.',1)[-1].lower()
-    if body.filename!=PurePosixPath(body.filename).name or '\\' in body.filename or ext not in ('pdf','docx','png','jpg','jpeg'):fail(422,'UNSUPPORTED_INTAKE_FORMAT','Use a plain PDF, DOCX, PNG or JPEG filename.')
+    if body.filename!=PurePosixPath(body.filename).name or '\\' in body.filename or ext not in ('pdf','docx','png','jpg','jpeg','csv'):fail(422,'UNSUPPORTED_INTAKE_FORMAT','Use a plain PDF, DOCX, PNG, JPEG or CSV filename.')
     try:data=base64.b64decode(body.content_base64,validate=True)
     except (ValueError,binascii.Error):fail(422,'INVALID_FILE_ENCODING','Use valid base64 content.')
     if not 1<=len(data)<=1048576:fail(413,'INTAKE_FILE_TOO_LARGE','Intake supports files up to 1 MiB.')
     signatures={'pdf':data.startswith(b'%PDF-'),'docx':data.startswith(b'PK\x03\x04'),'png':data.startswith(b'\x89PNG\r\n\x1a\n'),'jpg':data.startswith(b'\xff\xd8'),'jpeg':data.startswith(b'\xff\xd8')}
-    if not signatures[ext]:fail(422,'FILE_SIGNATURE_MISMATCH','The file does not match its declared format.')
-    if ext=='docx' and body.extraction_mode=='ocr':fail(422,'UNSUPPORTED_EXTRACTION_MODE','DOCX supports text extraction, not forced image OCR.')
+    if ext!='csv' and not signatures[ext]:fail(422,'FILE_SIGNATURE_MISMATCH','The file does not match its declared format.')
+    if ext in ('docx','csv') and body.extraction_mode=='ocr':fail(422,'UNSUPPORTED_EXTRACTION_MODE','DOCX and CSV support text extraction, not forced image OCR.')
     return ext,data
 
 
@@ -84,7 +84,7 @@ def register_ingestion(app,factory,settings,human):
     @app.get('/v1/ingestion-capabilities')
     def capabilities(request:Request):
         with factory() as db:human(request,db)
-        return {'formats':['pdf','docx','png','jpg','jpeg'],'max_file_bytes':1048576,'max_pdf_pages':12,'max_extracted_text_bytes':32768,'ocr_enabled':bool(settings.ingestion_ocr_enabled),'ocr_executable_available':bool(shutil.which(settings.tesseract_command)),'ocr_languages_configured':settings.ingestion_ocr_languages,'language_data_verified':False,'review_before_publication':True,'timeout_seconds':settings.ingestion_timeout_seconds,'boundary':'Bounded local extraction, not malware scanning or a complete OS sandbox. OCR language data, isolated worker resources and production acceptance require operator provisioning.'}
+        return {'formats':['pdf','docx','png','jpg','jpeg','csv'],'csv_max_rows':500,'csv_max_columns':32,'csv_max_cell_bytes':2048,'csv_encoding':'UTF-8 (optional BOM)','csv_delimiter':',','max_file_bytes':1048576,'max_pdf_pages':12,'max_extracted_text_bytes':32768,'ocr_enabled':bool(settings.ingestion_ocr_enabled),'ocr_executable_available':bool(shutil.which(settings.tesseract_command)),'ocr_languages_configured':settings.ingestion_ocr_languages,'language_data_verified':False,'review_before_publication':True,'timeout_seconds':settings.ingestion_timeout_seconds,'boundary':'Bounded local extraction, not malware scanning or a complete OS sandbox. OCR language data, isolated worker resources and production acceptance require operator provisioning.'}
 
     @app.get('/v1/ingestion-jobs')
     def listing(request:Request,offset:int=Query(0,ge=0,le=10000),limit:int=Query(20,ge=1,le=50)):
