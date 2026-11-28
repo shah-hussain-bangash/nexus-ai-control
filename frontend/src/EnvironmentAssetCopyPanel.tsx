@@ -9,6 +9,7 @@ import {
 import {
   copyPayload,
   copyOutcome,
+  routeDraftPreview,
   type CopyAsset,
   type CopyTarget,
   workflowReferences,
@@ -102,8 +103,9 @@ export function EnvironmentAssetCopy({
       setAssets(
         source.assets.filter(
           (a: CopyAsset) =>
-            ["prompt", "guardrail", "workflow"].includes(a.kind) &&
-            a.status === "validated",
+            ["prompt", "guardrail", "workflow", "model", "connector"].includes(
+              a.kind,
+            ) && a.status === "validated",
         ),
       );
       setTargets(
@@ -226,11 +228,14 @@ export function EnvironmentAssetCopy({
     <section className="panel runtime-card" aria-label="Copy reviewed designs">
       <h2>Copy reviewed designs</h2>
       <p>
-        Copy a validated prompt, guardrail or workflow from{" "}
-        <strong>{environment}</strong> into a different assigned active local
-        environment. Each copy starts as a new draft. Existing designs,
-        validation history, credentials, agents and approvals are never
-        overwritten or copied.
+        Copy a validated prompt, guardrail, workflow, model or connector design
+        from <strong>{environment}</strong> into a different assigned active
+        local environment. Each copy starts as a new draft. Existing designs,
+        validation history, credentials, agents and approvals are not
+        transferred. Model/connector credential references are cleared.
+        Connector scopes are removed and read-only is reset to true. Target
+        configuration requires a separate review; copying does not connect to a
+        provider or enable a runtime.
       </p>
       <button
         className="btn"
@@ -282,9 +287,7 @@ export function EnvironmentAssetCopy({
               setReviewed(false);
             }}
           >
-            <option value="">
-              Choose a validated prompt, guardrail or workflow
-            </option>
+            <option value="">Choose a validated design</option>
             {assets.map((a) => (
               <option key={a.id} value={a.id}>
                 {a.name} · {a.kind} · v{a.version}
@@ -299,6 +302,21 @@ export function EnvironmentAssetCopy({
               {JSON.stringify(asset.config, null, 2)}
             </pre>
             <p>{asset.description}</p>
+            {["model", "connector"].includes(asset.kind) && (
+              <>
+                <h3>Target draft settings after required resets</h3>
+                <pre
+                  style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+                >
+                  {JSON.stringify(routeDraftPreview(asset), null, 2)}
+                </pre>
+                <p>
+                  Credential references are unset. Connector scopes and write
+                  preference are reset. Server allowlists, budgets, execution
+                  flags, credentials and runtime validation are not copied.
+                </p>
+              </>
+            )}
           </details>
         )}
         <label className="field">
@@ -406,9 +424,8 @@ export function EnvironmentAssetCopy({
         </label>
         {!loading && (!assets.length || !targets.length) && (
           <p>
-            Validate a prompt, guardrail or workflow in this environment and
-            assign yourself to another active local environment to enable
-            copying.
+            Validate a supported design in this environment and assign yourself
+            to another active local environment to enable copying.
           </p>
         )}
         <button
