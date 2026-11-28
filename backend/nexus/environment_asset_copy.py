@@ -12,7 +12,8 @@ from .service import audit,canonical
 from .workbench import asset_for,validate_config
 
 KIND='environment_asset_copy'
-ALLOWED=('prompt','guardrail','workflow')
+ALLOWED=('prompt','guardrail','workflow','model','connector')
+RESET_FIELDS={'model':['credential_ref'],'connector':['credential_ref','scopes','read_only']}
 REFERENCE_KINDS={'retrieve':'knowledge','prompt':'prompt','guardrail':'guardrail'}
 
 class ReferenceMapping(Strict):
@@ -67,6 +68,10 @@ def mapped_config(db,actor,source,target,body):
     config=validate_config(source.kind,source.config)
     if source.kind!='workflow':
         if body.reference_mappings:fail(422,'UNEXPECTED_REFERENCE_MAPPING','Only workflow designs accept reference mappings.')
+        if source.kind in RESET_FIELDS:
+            config['credential_ref']=''
+            if source.kind=='connector':config['scopes']=[];config['read_only']=True
+            config=validate_config(source.kind,config)
         return config,[]
     nodes={node['id']:node for node in config['nodes'] if node['ref_id']}
     mappings={row.node_id:row for row in body.reference_mappings}
@@ -148,7 +153,7 @@ def register_environment_asset_copy(app,factory,settings,human):
                 fail(403,'ENVIRONMENT_ACCESS_DENIED','You must be assigned to an active target environment.')
             if target.version!=body.expected_target_version:fail(409,'STALE_VERSION','Target environment changed. Refresh and review again.')
             source=asset_for(db,actor,body.source_asset_id)
-            if source.kind not in ALLOWED:fail(422,'COPY_KIND_UNAVAILABLE','Only prompt, guardrail and explicitly remapped workflow designs can be copied.')
+            if source.kind not in ALLOWED:fail(422,'COPY_KIND_UNAVAILABLE','Copy supports prompt, guardrail, remapped workflow and reset model/connector drafts only.')
             if source.version!=body.expected_source_version or source.status!='validated':fail(409,'SOURCE_CHANGED','Validate and refresh the exact source design before copying.')
             config,reference_provenance=mapped_config(db,actor,source,target,body)
             capacity(db,actor.org_id)
@@ -163,13 +168,15 @@ def register_environment_asset_copy(app,factory,settings,human):
             db.execute(assets.insert().values(**values))
             origin={'environment':source_environment,'asset_id':source.id,'version':source.version}
             if reference_provenance:origin['references']=reference_provenance
+            if source.kind in RESET_FIELDS:origin['reset_fields']=list(RESET_FIELDS[source.kind])
             db.execute(AssetRevision.__table__.insert().values(id=uid(),org_id=actor.org_id,env=target.key,asset_id=asset_id,version=1,
                 snapshot={**values,'copied_from':origin},author_id=actor.id,created=timestamp))
             result={'status':'copied','source_environment':source_environment,'source_asset_id':source.id,'source_version':source.version,
                     'target_environment':target.key,'target_asset_id':asset_id,'target_created_version':1,'kind':source.kind,'name':body.name,'fingerprint':fingerprint}
             if reference_provenance:result['reference_mappings']=reference_provenance
+            if source.kind in RESET_FIELDS:result['reset_fields']=list(RESET_FIELDS[source.kind])
             record=WorkbenchRun(id=receipt_id(actor,source_environment,key),org_id=actor.org_id,env=source_environment,kind=KIND,status='completed',duration_ms=0,author_id=actor.id,result=result)
             db.add(record)
             audit(db,actor.org_id,actor.id,'environment.asset_copied',detail={'receipt_id':record.id,'source':origin,'target_environment':target.key,
-                'target_asset_id':asset_id,'target_version':1,'status':'draft','note':body.note})
+                'target_asset_id':asset_id,'target_version':1,'status':'draft','note':body.note,**({'reset_fields':list(RESET_FIELDS[source.kind])} if source.kind in RESET_FIELDS else {})})
             return outcome(db,actor,record)

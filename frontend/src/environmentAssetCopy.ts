@@ -20,6 +20,22 @@ export type ReferenceMapping = {
   target_asset_id: string;
   expected_target_asset_version: number;
 };
+export function copyResetFields(kind: string): string[] {
+  return kind === "model"
+    ? ["credential_ref"]
+    : kind === "connector"
+      ? ["credential_ref", "scopes", "read_only"]
+      : [];
+}
+export function routeDraftPreview(asset: CopyAsset) {
+  if (!["model", "connector"].includes(asset.kind))
+    throw Error("Choose a model or connector for this preview.");
+  return {
+    ...asset.config,
+    credential_ref: "",
+    ...(asset.kind === "connector" ? { scopes: [], read_only: true } : {}),
+  };
+}
 export function workflowReferences(asset: CopyAsset) {
   if (asset.kind !== "workflow") return [];
   if (!Array.isArray(asset.config.nodes))
@@ -66,7 +82,9 @@ export function copyPayload(
 ) {
   if (
     !reviewed ||
-    !["prompt", "guardrail", "workflow"].includes(asset.kind) ||
+    !["prompt", "guardrail", "workflow", "model", "connector"].includes(
+      asset.kind,
+    ) ||
     asset.status !== "validated" ||
     !asset.id ||
     !Number.isSafeInteger(asset.version) ||
@@ -128,7 +146,15 @@ export function copyOutcome(value: any, source: string) {
         value.target_environment === source ||
         !/^[a-z][a-z0-9-]{1,31}$/.test(value.target_environment) ||
         value.target_created_version !== 1 ||
-        !["prompt", "guardrail", "workflow"].includes(value.kind)))
+        !["prompt", "guardrail", "workflow", "model", "connector"].includes(
+          value.kind,
+        ) ||
+        (copyResetFields(value.kind).length > 0 &&
+          (!Array.isArray(value.reset_fields) ||
+            value.reset_fields.length !== copyResetFields(value.kind).length ||
+            copyResetFields(value.kind).some(
+              (field, index) => value.reset_fields[index] !== field,
+            )))))
   )
     throw Error(
       "The copy result could not be confirmed. Recover the saved request before continuing.",

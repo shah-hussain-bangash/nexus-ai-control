@@ -4,6 +4,7 @@ import {
   copyPayload,
   copyOutcome,
   workflowReferences,
+  routeDraftPreview,
 } from "../src/environmentAssetCopy.ts";
 import { liveIntentScope, sendLiveIntent } from "../src/liveIntent.ts";
 import { readRecovery, acknowledgeRecovery } from "../src/inferenceRecovery.ts";
@@ -17,6 +18,38 @@ const source = {
   config: { template: "Reviewed {{query}}" },
 };
 const target = { key: "production", name: "Production", version: 4 };
+test("route copying pins the source and target without sending configuration or credentials", () => {
+  for (const kind of ["model", "connector"]) {
+    const asset = {
+      ...source,
+      kind,
+      config: {
+        credential_ref: "env:NEXUS_PROVIDER_TEAM_KEY",
+        scopes: ["records:write"],
+        read_only: false,
+      },
+    };
+    const request = copyPayload(
+      "staging",
+      asset,
+      target,
+      "Route draft",
+      "Reviewed reset settings",
+      true,
+    );
+    assert.equal(request.expected_source_version, asset.version);
+    assert.equal(request.expected_target_version, target.version);
+    assert.ok(!JSON.stringify(request).includes("NEXUS_PROVIDER"));
+    const preview = routeDraftPreview(asset);
+    assert.equal(preview.credential_ref, "");
+    if (kind === "connector") {
+      assert.deepEqual(preview.scopes, []);
+      assert.equal(preview.read_only, true);
+    }
+    assert.equal(asset.config.credential_ref, "env:NEXUS_PROVIDER_TEAM_KEY");
+    assert.deepEqual(asset.config.scopes, ["records:write"]);
+  }
+});
 const result = {
   id: "a".repeat(64),
   status: "copied",
@@ -29,6 +62,25 @@ const result = {
   kind: "prompt",
   name: "New draft",
 };
+test("route receipts must confirm required resets before acknowledgement", () => {
+  for (const [kind, reset_fields] of [
+    ["model", ["credential_ref"]],
+    ["connector", ["credential_ref", "scopes", "read_only"]],
+  ] as const) {
+    const receipt = { ...result, kind, reset_fields };
+    assert.equal(copyOutcome(receipt, "staging").id, result.id);
+    assert.throws(() =>
+      copyOutcome({ ...receipt, reset_fields: [] }, "staging"),
+    );
+    assert.throws(() =>
+      copyOutcome(
+        { ...receipt, reset_fields: ["credential_ref", "scopes"] },
+        "staging",
+      ),
+    );
+  }
+  assert.equal(copyOutcome(result, "staging").id, result.id);
+});
 function storage() {
   const values = new Map<string, string>();
   return {
@@ -236,7 +288,7 @@ test("copy review pins source and target versions and requires a new draft name"
     },
   );
   for (const invalid of [
-    { ...source, kind: "model" },
+    { ...source, kind: "knowledge" },
     { ...source, kind: "workflow" },
     { ...source, status: "draft" },
     { ...source, version: 0 },

@@ -13,6 +13,7 @@ KEY='reviewed-design-copy-001'
 def source(ctx,kind='prompt',validate=True):
     config={'template':'Reviewed synthetic request {{query}}','required_terms':[],'forbidden_terms':[]} if kind=='prompt' else {'blocked_terms':['unsafe'],'mode':'block'}
     if kind=='model':config={'provider':'OpenAI','model':'synthetic-model','credential_ref':'env:TEST_PROVIDER_KEY'}
+    if kind=='knowledge':config={'content':'Synthetic knowledge remains excluded from design copying.'}
     row=ctx['client'].post('/v1/workbench',headers=headers(current(ctx)),json={'kind':kind,'name':'Source design','description':'Synthetic reviewed design.','config':config})
     assert row.status_code==201,row.text
     if not validate:return row.json()
@@ -98,7 +99,7 @@ def test_source_and_target_versions_and_review_are_rechecked(ctx):
     for changes,status in (({'reviewed':False},422),({'expected_source_version':1},409),({'expected_target_version':1},409),({'target_environment':'staging'},422),({'name':'  '},422)):
         assert copy(ctx,{**body,**changes}).status_code==status
     draft=source(ctx,validate=False);assert copy(ctx,payload(draft,target)).status_code==409
-    model=source(ctx,'model');assert copy(ctx,payload(model,target)).status_code==422
+    knowledge=source(ctx,'knowledge');assert copy(ctx,payload(knowledge,target)).status_code==422
     assert ctx['client'].post(URL,headers=headers(current(ctx)),json=body).status_code==422
 
 def test_target_must_be_active_assigned_and_in_the_same_workspace(ctx):
